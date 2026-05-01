@@ -34,6 +34,16 @@ void clear_path_and_query(apg::ApgTransformContext* context) {
         bounded_copy("", 0, context->raw_query, apg::ApgTransformContext::kRawQueryBufferSize);
 }
 
+void clear_selected_fields(apg::ApgTransformContext* context) {
+    if (context == nullptr) {
+        return;
+    }
+    context->selected_field_count = 0;
+    for (std::size_t i = 0; i < policy::kMaxFields; ++i) {
+        context->selected_fields[i][0] = '\0';
+    }
+}
+
 std::size_t bounded_query_length(const apg::ApgTransformContext& context) {
     std::size_t length = 0;
     while (length < context.raw_query_length &&
@@ -161,6 +171,27 @@ bool parse_fields_query_parameter(const apg::ApgTransformContext& context,
         segment_start = segment_end + 1;
     }
 
+    return true;
+}
+
+bool parse_and_store_selected_fields(apg::ApgTransformContext* context) {
+    if (context == nullptr) {
+        return false;
+    }
+
+    clear_selected_fields(context);
+    ParsedFieldsQuery parsed_fields{};
+    if (!parse_fields_query_parameter(*context, &parsed_fields)) {
+        return false;
+    }
+
+    context->selected_field_count = parsed_fields.field_count;
+    for (std::size_t i = 0; i < parsed_fields.field_count; ++i) {
+        const std::size_t token_length =
+            bounded_copy(parsed_fields.fields[i], policy::kMaxFieldNameLen - 1,
+                         context->selected_fields[i], policy::kMaxFieldNameLen);
+        (void) token_length;
+    }
     return true;
 }
 

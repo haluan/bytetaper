@@ -4,6 +4,8 @@
 #ifndef BYTETAPER_APG_CONTEXT_H
 #define BYTETAPER_APG_CONTEXT_H
 
+#include "policy/field_filter_policy.h"
+
 #include <cstddef>
 #include <cstdint>
 
@@ -21,6 +23,8 @@ struct ApgTransformContext {
     std::size_t raw_path_length = 0;
     char raw_query[kRawQueryBufferSize] = {};
     std::size_t raw_query_length = 0;
+    char selected_fields[policy::kMaxFields][policy::kMaxFieldNameLen] = {};
+    std::size_t selected_field_count = 0;
     char* trace_buffer = nullptr;
     std::size_t trace_capacity = 0;
     std::size_t trace_length = 0;

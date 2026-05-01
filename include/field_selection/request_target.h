@@ -19,6 +19,7 @@ struct ParsedFieldsQuery {
 bool extract_raw_path_and_query(const char* request_target, apg::ApgTransformContext* context);
 bool parse_fields_query_parameter(const apg::ApgTransformContext& context,
                                   ParsedFieldsQuery* parsed_fields);
+bool parse_and_store_selected_fields(apg::ApgTransformContext* context);
 
 } // namespace bytetaper::field_selection
 

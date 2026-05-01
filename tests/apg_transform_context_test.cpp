@@ -20,6 +20,8 @@ TEST(ApgTransformContextTest, DefaultInitZerosAllFields) {
     EXPECT_EQ(context.raw_path_length, 0u);
     EXPECT_STREQ(context.raw_query, "");
     EXPECT_EQ(context.raw_query_length, 0u);
+    EXPECT_EQ(context.selected_field_count, 0u);
+    EXPECT_STREQ(context.selected_fields[0], "");
     EXPECT_EQ(context.trace_buffer, nullptr);
     EXPECT_EQ(context.trace_capacity, 0u);
     EXPECT_EQ(context.trace_length, 0u);
@@ -35,6 +37,9 @@ TEST(ApgTransformContextTest, ExplicitAssignmentReadsBackValues) {
     context.raw_path_length = std::strlen(context.raw_path);
     std::strcpy(context.raw_query, "fields=id,name");
     context.raw_query_length = std::strlen(context.raw_query);
+    std::strcpy(context.selected_fields[0], "id");
+    std::strcpy(context.selected_fields[1], "name");
+    context.selected_field_count = 2u;
     context.trace_buffer = context.raw_query;
     context.trace_capacity = 15u;
     context.trace_length = 2u;
@@ -47,6 +52,9 @@ TEST(ApgTransformContextTest, ExplicitAssignmentReadsBackValues) {
     EXPECT_EQ(context.raw_path_length, 8u);
     EXPECT_STREQ(context.raw_query, "fields=id,name");
     EXPECT_EQ(context.raw_query_length, 14u);
+    EXPECT_STREQ(context.selected_fields[0], "id");
+    EXPECT_STREQ(context.selected_fields[1], "name");
+    EXPECT_EQ(context.selected_field_count, 2u);
     EXPECT_EQ(context.trace_buffer, context.raw_query);
     EXPECT_EQ(context.trace_capacity, 15u);
     EXPECT_EQ(context.trace_length, 2u);
