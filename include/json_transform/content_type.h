@@ -4,6 +4,10 @@
 #ifndef BYTETAPER_JSON_TRANSFORM_CONTENT_TYPE_H
 #define BYTETAPER_JSON_TRANSFORM_CONTENT_TYPE_H
 
+#include "policy/field_filter_policy.h"
+
+#include <cstddef>
+
 namespace bytetaper::json_transform {
 
 enum class JsonResponseKind {
@@ -16,6 +20,30 @@ enum class JsonResponseKind {
 // - Returns false only for invalid API usage (for example null out_kind).
 // - Null/empty/unsupported content type returns true with SkipUnsupported.
 bool detect_application_json_response(const char* content_type, JsonResponseKind* out_kind);
+
+enum class FlatJsonParseStatus {
+    Ok,
+    SkipUnsupported,
+    InvalidInput,
+    InvalidJson,
+};
+
+struct FlatJsonFieldView {
+    char key[policy::kMaxFieldNameLen] = {};
+    std::size_t key_length = 0;
+    std::size_t value_begin = 0;
+    std::size_t value_end = 0;
+};
+
+struct ParsedFlatJsonObject {
+    const char* source = nullptr;
+    std::size_t source_length = 0;
+    FlatJsonFieldView fields[policy::kMaxFields] = {};
+    std::size_t field_count = 0;
+};
+
+FlatJsonParseStatus parse_flat_json_object(const char* body, JsonResponseKind response_kind,
+                                           ParsedFlatJsonObject* out_object);
 
 } // namespace bytetaper::json_transform
 
