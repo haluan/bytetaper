@@ -3,6 +3,8 @@
 
 #include "apg/context.h"
 
+#include <cstring>
+
 #include <gtest/gtest.h>
 
 namespace bytetaper::apg {
@@ -14,6 +16,13 @@ TEST(ApgTransformContextTest, DefaultInitZerosAllFields) {
     EXPECT_EQ(context.input_payload_bytes, 0u);
     EXPECT_EQ(context.output_payload_bytes, 0u);
     EXPECT_EQ(context.executed_stage_count, 0u);
+    EXPECT_STREQ(context.raw_path, "");
+    EXPECT_EQ(context.raw_path_length, 0u);
+    EXPECT_STREQ(context.raw_query, "");
+    EXPECT_EQ(context.raw_query_length, 0u);
+    EXPECT_EQ(context.trace_buffer, nullptr);
+    EXPECT_EQ(context.trace_capacity, 0u);
+    EXPECT_EQ(context.trace_length, 0u);
 }
 
 TEST(ApgTransformContextTest, ExplicitAssignmentReadsBackValues) {
@@ -22,11 +31,25 @@ TEST(ApgTransformContextTest, ExplicitAssignmentReadsBackValues) {
     context.input_payload_bytes = 128u;
     context.output_payload_bytes = 64u;
     context.executed_stage_count = 3u;
+    std::strcpy(context.raw_path, "/users/7");
+    context.raw_path_length = std::strlen(context.raw_path);
+    std::strcpy(context.raw_query, "fields=id,name");
+    context.raw_query_length = std::strlen(context.raw_query);
+    context.trace_buffer = context.raw_query;
+    context.trace_capacity = 15u;
+    context.trace_length = 2u;
 
     EXPECT_EQ(context.request_id, 42u);
     EXPECT_EQ(context.input_payload_bytes, 128u);
     EXPECT_EQ(context.output_payload_bytes, 64u);
     EXPECT_EQ(context.executed_stage_count, 3u);
+    EXPECT_STREQ(context.raw_path, "/users/7");
+    EXPECT_EQ(context.raw_path_length, 8u);
+    EXPECT_STREQ(context.raw_query, "fields=id,name");
+    EXPECT_EQ(context.raw_query_length, 14u);
+    EXPECT_EQ(context.trace_buffer, context.raw_query);
+    EXPECT_EQ(context.trace_capacity, 15u);
+    EXPECT_EQ(context.trace_length, 2u);
 }
 
 } // namespace bytetaper::apg

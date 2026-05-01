@@ -250,6 +250,24 @@ if(BUILD_TESTING)
       COMMAND apg_pipeline_runner_test
     )
 
+    add_executable(field_selection_request_target_test
+      tests/field_selection_request_target_test.cpp
+      src/field_selection/request_target.cpp
+    )
+    target_include_directories(field_selection_request_target_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(field_selection_request_target_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME field_selection_request_target_test
+      COMMAND field_selection_request_target_test
+    )
+
     add_executable(policy_route_policy_test
       tests/policy_route_policy_test.cpp
     )

@@ -10,10 +10,17 @@
 namespace bytetaper::apg {
 
 struct ApgTransformContext {
+    static constexpr std::size_t kRawPathBufferSize = 1024;
+    static constexpr std::size_t kRawQueryBufferSize = 1024;
+
     std::uint64_t request_id = 0;
     std::size_t input_payload_bytes = 0;
     std::size_t output_payload_bytes = 0;
     std::uint32_t executed_stage_count = 0;
+    char raw_path[kRawPathBufferSize] = {};
+    std::size_t raw_path_length = 0;
+    char raw_query[kRawQueryBufferSize] = {};
+    std::size_t raw_query_length = 0;
     char* trace_buffer = nullptr;
     std::size_t trace_capacity = 0;
     std::size_t trace_length = 0;
