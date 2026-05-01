@@ -137,6 +137,49 @@ The tool will print a detailed per-route report on success or a descriptive erro
 - `2`: YAML parse/load failure
 - `3`: Validation rule violation (e.g., missing ID, invalid path prefix)
 
+### Documentation
+
+For more details on matching logic and configuration options, see [Route Policy Reference](docs/route-policy.md).
+
+## Field Selection
+
+Field Selection is a core ByteTaper primitive designed to reduce API payload sizes by selectively including or excluding JSON response fields. By stripping unnecessary data at the edge, ByteTaper reduces egress costs and improves client processing performance without requiring backend modifications.
+
+### Capabilities
+
+- **Allowlist Mode**: Explicitly select which fields to **keep**. Any field not in the list is automatically removed from the response body. This is the most effective mode for drastic payload reduction.
+- **Denylist Mode**: Select which fields to **remove**. This is ideal for stripping sensitive or internal-only fields while keeping the rest of the response intact.
+
+### Technical Design & Performance
+
+The Field Selection engine is built with strict **Orthodox C++** principles to ensure zero latency impact on the hot path:
+
+- **Zero Heap Allocation**: All field name storage and matching logic use fixed-capacity flat buffers. This eliminates memory fragmentation and unpredictable GC pauses.
+- **Sequential Matching**: Field names are matched using high-performance C string primitives, ensuring consistent O(N) performance where N is the number of filtered fields.
+- **Memory Efficiency**: Each policy entry uses exactly 1 KB of pre-allocated memory to store up to 16 field names, regardless of the actual response size.
+
+### Constraints
+
+To maintain high performance and predictable memory usage, the following limits apply:
+- **Max Fields**: 16 fields can be defined per route.
+- **Max Field Length**: Field names are capped at 64 characters.
+- **JSON Only**: Field selection currently operates on valid UTF-8 JSON response bodies.
+
+### Example Configuration
+
+```yaml
+field_filter:
+  mode: "allowlist"
+  fields:
+    - "id"
+    - "display_name"
+    - "public_metadata"
+```
+
+### Documentation
+
+For a detailed behavior reference and example scenarios, see [Field Selection Reference](docs/field-selection.md).
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our development process and how to contribute.
