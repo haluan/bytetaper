@@ -165,6 +165,20 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     PRIVATE
       bytetaper_extproc_grpc
   )
+
+  add_executable(bytetaper-extproc-server
+    src/extproc/server_main.cpp
+  )
+  target_include_directories(bytetaper-extproc-server
+    PRIVATE
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+      ${BYTETAPER_GENERATED_PROTO_DIR}
+  )
+  target_link_libraries(bytetaper-extproc-server
+    PRIVATE
+      bytetaper_extproc_grpc_server
+      bytetaper_extproc_grpc
+  )
 endif()
 
 if(BUILD_TESTING)

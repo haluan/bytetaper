@@ -16,6 +16,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libprotobuf-dev \
     make \
     ninja-build \
+    python3 \
     protobuf-compiler-grpc \
     pkg-config \
     protobuf-compiler \
