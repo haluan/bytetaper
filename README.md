@@ -1,5 +1,7 @@
 # ByteTaper: API response optimization without backend rewrites
 
+![CI](https://github.com/haluan/bytetaper/actions/workflows/ci.yml/badge.svg)
+
 ## Development Commands
 
 Use Docker Compose workflows only. Do not run local host build/test commands.
