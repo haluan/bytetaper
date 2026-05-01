@@ -10,3 +10,15 @@ add_compile_options(
   -fno-exceptions
   -fno-rtti
 )
+
+add_executable(bytetaper-extproc
+  src/main.cpp
+)
+
+include(CTest)
+if(BUILD_TESTING)
+  add_test(
+    NAME bytetaper_extproc_smoke
+    COMMAND $<TARGET_FILE:bytetaper-extproc>
+  )
+endif()

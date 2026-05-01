@@ -12,3 +12,6 @@ services:
       - |
         set -eu
         cmake -S . -B build -G Ninja
+        cmake --build build --target bytetaper-extproc
+        ctest --test-dir build --output-on-failure
+        ./build/bytetaper-extproc

@@ -3,7 +3,8 @@
 ## Development (Docker Compose only)
 
 Run the development build container from the repository root.
-For this phase, the command validates the CMake skeleton by configuring into `./build`:
+For this phase, the command configures CMake into `./build`, builds
+`bytetaper-extproc`, runs a CTest smoke test, and executes the binary:
 
 ```bash
 docker compose run --rm bytetaper-build
