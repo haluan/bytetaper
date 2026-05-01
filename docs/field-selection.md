@@ -37,9 +37,39 @@ routes:
 | :--- | :--- | :--- |
 | **Keep specific fields** | `mode: allowlist`, `fields: ["id", "name"]` | Only `id` and `name` are kept; all other top-level fields are stripped. |
 | **Strip sensitive data** | `mode: denylist`, `fields: ["internal_id", "hash"]` | `internal_id` and `hash` are removed; all other fields are kept. |
-| **Pass-through (default)** | `mode: none` (or block absent) | The response body is passed through unchanged. |
+| **Nested Objects** | `mode: allowlist`, `fields: ["user.id", "user.name"]` | Keeps only `id` and `name` inside the `user` object. |
+| **Arrays of Objects** | `mode: allowlist`, `fields: ["items[].price"]` | For each object in `items`, keeps only the `price` field. |
 | **Empty Allowlist** | `mode: allowlist`, `fields: []` | All fields are stripped (resulting in an empty JSON object). |
 | **Empty Denylist** | `mode: denylist`, `fields: []` | All fields are kept (no fields match the removal criteria). |
+| **Pass-through (default)** | `mode: none` (or block absent) | The response body is passed through unchanged. |
 
-> [!NOTE]
-> **Shallow Matching**: The current implementation performs shallow matching on top-level JSON fields. Nested field filtering within child objects is reserved for future updates.
+## Advanced Implementation Details
+
+ByteTaper's field selection engine has been upgraded from simple shallow matching to a robust, streaming nested filter.
+
+### Nested Path Support
+
+You can now target specific data within complex JSON structures using two types of notation:
+-   **Dotted Notation (`a.b.c`)**: Target fields within nested objects.
+-   **Array Notation (`items[]`)**: Target fields within every object contained in an array.
+
+### Streaming Performance
+
+The engine uses a custom "Flat JSON" parser designed for extreme efficiency:
+-   **Zero Heap Allocation**: No temporary objects or strings are created during parsing.
+-   **Single Pass**: Data is filtered and written to the output buffer in a single streaming pass.
+-   **Bounded Memory**: The parser uses fixed-size stack buffers (e.g., 512 bytes for path tracking) to prevent memory exhaustion attacks.
+
+### Metrics & Visibility
+
+ByteTaper tracks the efficiency of your field selection policies in real-time:
+-   **Encountered Fields**: Total number of fields found in the original response.
+-   **Emitted Fields**: Total number of fields kept in the optimized response.
+-   **Removed Field Count**: Automatically reported in the transformation context for observability.
+
+## Constraints & Limits
+
+-   **Max Selection Path**: Path strings are limited to 512 characters.
+-   **Path Depth**: Deeply nested structures are supported as long as the full path fits within the 512-character limit.
+-   **Scalar Array Filtering**: Array notation (`[]`) is optimized for arrays of objects. Filtering specific indices (e.g., `items[0]`) is currently not supported.
+-   **Invalid JSON**: If a response contains invalid JSON, ByteTaper safely aborts the transformation and returns an error response (`{"error":"invalid_json"}`) to prevent data corruption.

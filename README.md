@@ -147,23 +147,24 @@ Field Selection is a core ByteTaper primitive designed to reduce API payload siz
 
 ### Capabilities
 
-- **Allowlist Mode**: Explicitly select which fields to **keep**. Any field not in the list is automatically removed from the response body. This is the most effective mode for drastic payload reduction.
-- **Denylist Mode**: Select which fields to **remove**. This is ideal for stripping sensitive or internal-only fields while keeping the rest of the response intact.
+- **Nested Path Support**: Target data within complex structures using **dotted notation** (`user.id`) or **array notation** (`items[]`).
+- **Allowlist Mode**: Explicitly select which fields to **keep**. Any field not in the list is automatically removed from the response body.
+- **Denylist Mode**: Select which fields to **remove**. Ideal for stripping sensitive or internal-only fields while keeping the rest of the response intact.
 
 ### Technical Design & Performance
 
 The Field Selection engine is built with strict **Orthodox C++** principles to ensure zero latency impact on the hot path:
 
-- **Zero Heap Allocation**: All field name storage and matching logic use fixed-capacity flat buffers. This eliminates memory fragmentation and unpredictable GC pauses.
-- **Sequential Matching**: Field names are matched using high-performance C string primitives, ensuring consistent O(N) performance where N is the number of filtered fields.
-- **Memory Efficiency**: Each policy entry uses exactly 1 KB of pre-allocated memory to store up to 16 field names, regardless of the actual response size.
+- **Streaming Single-Pass**: Data is filtered and written to the output buffer in a single pass without intermediate object creation.
+- **Zero Heap Allocation**: All parsing, path tracking, and matching logic use fixed-capacity flat buffers. This eliminates memory fragmentation and unpredictable allocation latency jitter.
+- **Predictable O(N) Complexity**: Performance scales linearly with the size of the response body.
 
 ### Constraints
 
 To maintain high performance and predictable memory usage, the following limits apply:
-- **Max Fields**: 16 fields can be defined per route.
-- **Max Field Length**: Field names are capped at 64 characters.
-- **JSON Only**: Field selection currently operates on valid UTF-8 JSON response bodies.
+- **Max Selection Path**: Path strings are capped at 512 characters.
+- **Max Field Rules**: 16 field rules can be defined per route.
+- **JSON Only**: Field selection operates on valid UTF-8 JSON response bodies.
 
 ### Example Configuration
 
@@ -172,8 +173,8 @@ field_filter:
   mode: "allowlist"
   fields:
     - "id"
-    - "display_name"
-    - "public_metadata"
+    - "user.display_name"
+    - "items[].price"
 ```
 
 ### Documentation
