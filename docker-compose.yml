@@ -11,10 +11,4 @@ services:
       - -lc
       - |
         set -eu
-        echo "bytetaper-build: environment check"
-        echo "workspace: $(pwd)"
-        test -f README.md
-        g++ --version
-        cmake --version
-        make --version
-        ninja --version
+        cmake -S . -B build -G Ninja
