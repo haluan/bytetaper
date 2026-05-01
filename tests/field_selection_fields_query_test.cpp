@@ -22,6 +22,8 @@ TEST(FieldSelectionFieldsQueryTest, ParsesCommaSeparatedFieldsFromFirstFieldsPar
         { "page=1&fields=id,name&sort=desc", { "id", "name" }, 2 },
         { "sort=desc&page=1", { nullptr }, 0 },
         { "fields=", { nullptr }, 0 },
+        { "fields=,,", { nullptr }, 0 },
+        { "a=1&fields=&b=2", { nullptr }, 0 },
         { "fields=id&fields=ignored", { "id" }, 1 },
         { "fields=id,,name,", { "id", "name" }, 2 },
     };

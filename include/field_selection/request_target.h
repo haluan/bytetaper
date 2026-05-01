@@ -17,8 +17,15 @@ struct ParsedFieldsQuery {
 };
 
 bool extract_raw_path_and_query(const char* request_target, apg::ApgTransformContext* context);
+// Parses only the first `fields` query parameter from `context.raw_query`.
+// Empty parameter values and empty comma tokens are ignored safely:
+// - `fields=` -> zero parsed fields
+// - `fields=,,` -> zero parsed fields
+// - `fields=id,,name,` -> parsed fields are `id`, `name`
 bool parse_fields_query_parameter(const apg::ApgTransformContext& context,
                                   ParsedFieldsQuery* parsed_fields);
+// Clears previous selected fields, then parses and stores bounded results into context.
+// Missing/empty `fields` is non-error and leaves `selected_field_count == 0`.
 bool parse_and_store_selected_fields(apg::ApgTransformContext* context);
 
 } // namespace bytetaper::field_selection

@@ -22,7 +22,10 @@ TEST(FieldSelectionStoreSelectedFieldsTest, StoresSelectedFieldsFromRawQuery) {
         { "page=1&fields=id,name&sort=desc", { "id", "name" }, 2 },
         { "sort=desc&page=1", { nullptr }, 0 },
         { "fields=", { nullptr }, 0 },
+        { "fields=,,", { nullptr }, 0 },
+        { "a=1&fields=&b=2", { nullptr }, 0 },
         { "fields=id&fields=ignored", { "id" }, 1 },
+        { "fields=id,,name,", { "id", "name" }, 2 },
     };
 
     for (const TestCase& test_case : cases) {
@@ -49,7 +52,7 @@ TEST(FieldSelectionStoreSelectedFieldsTest, OverwritesPreviousSelections) {
     ASSERT_STREQ(context.selected_fields[0], "id");
     ASSERT_STREQ(context.selected_fields[1], "name");
 
-    std::strcpy(context.raw_query, "page=1");
+    std::strcpy(context.raw_query, "fields=");
     context.raw_query_length = std::strlen(context.raw_query);
     EXPECT_TRUE(parse_and_store_selected_fields(&context));
     EXPECT_EQ(context.selected_field_count, 0u);
