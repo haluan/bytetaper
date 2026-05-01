@@ -19,6 +19,22 @@ add_compile_options(
 add_executable(bytetaper-extproc
   src/main.cpp
 )
+target_include_directories(bytetaper-extproc
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+add_executable(bytetaper-validate-policy
+  src/policy/validate_policy_main.cpp
+)
+target_include_directories(bytetaper-validate-policy
+  PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(bytetaper-validate-policy
+  PRIVATE
+    policy_yaml_loader
+)
 
 if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
   find_package(Protobuf REQUIRED)
@@ -443,6 +459,30 @@ if(BUILD_TESTING)
     add_test(
       NAME policy_yaml_loader_cache_test
       COMMAND policy_yaml_loader_cache_test
+    )
+
+    add_executable(policy_validate_command_test
+      tests/policy_validate_command_test.cpp
+    )
+    target_include_directories(policy_validate_command_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(policy_validate_command_test
+      PRIVATE
+        policy_yaml_loader
+        gtest_main
+    )
+
+    add_test(
+      NAME policy_validate_command_test
+      COMMAND policy_validate_command_test
+    )
+
+    add_test(
+      NAME policy_validate_command_example_smoke
+      COMMAND bytetaper-validate-policy
+              ${CMAKE_CURRENT_SOURCE_DIR}/examples/policy/bytetaper-policy.yaml
     )
   endif()
 
