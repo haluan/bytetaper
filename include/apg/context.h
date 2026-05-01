@@ -14,6 +14,9 @@ struct ApgTransformContext {
     std::size_t input_payload_bytes = 0;
     std::size_t output_payload_bytes = 0;
     std::uint32_t executed_stage_count = 0;
+    char* trace_buffer = nullptr;
+    std::size_t trace_capacity = 0;
+    std::size_t trace_length = 0;
 };
 
 } // namespace bytetaper::apg

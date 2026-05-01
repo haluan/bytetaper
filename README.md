@@ -41,3 +41,22 @@ workspaces. Example:
 ```bash
 LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose run --rm bytetaper-unit-test
 ```
+
+## APG Stage Behavior
+
+Stage behavior contract:
+- Stage input is mutable `ApgTransformContext&`.
+- Stage output is `StageOutput{ result, note }`.
+- `StageResult::Continue` executes the next stage.
+- `StageResult::Error` stops the pipeline immediately and returns that exact output.
+- `StageResult::SkipRemaining` stops the pipeline immediately (non-error flow) and
+  returns that exact output.
+- `note` is non-owning (`const char*`) and is propagated unchanged.
+
+Pipeline trace behavior:
+- Trace fields live in context: `trace_buffer`, `trace_capacity`, `trace_length`.
+- Trace is reset at pipeline start.
+- One token is appended per executed stage:
+  `C` (Continue), `E` (Error), `S` (SkipRemaining).
+- Trace writes are skipped when buffer is null or capacity is zero.
+- Trace writes are safely truncated and never write out-of-bounds.

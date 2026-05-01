@@ -108,6 +108,9 @@ StageOutput StageCAdapter(ApgTransformContext& context) {
 
 TEST(ApgPipelineRunnerTest, ExecutesStagesInOrderAndReturnsLastOutput) {
     ApgTransformContext context{};
+    char trace[8] = { '\0' };
+    context.trace_buffer = trace;
+    context.trace_capacity = sizeof(trace);
     const ApgStage stages[] = {
         &FirstStage,
         &ContinueSecondStage,
@@ -121,16 +124,24 @@ TEST(ApgPipelineRunnerTest, ExecutesStagesInOrderAndReturnsLastOutput) {
     EXPECT_EQ(context.output_payload_bytes, 64u);
     EXPECT_EQ(output.result, StageResult::SkipRemaining);
     EXPECT_STREQ(output.note, "third stage");
+    EXPECT_STREQ(context.trace_buffer, "CCS");
+    EXPECT_EQ(context.trace_length, 3u);
 }
 
 TEST(ApgPipelineRunnerTest, EmptyPipelineReturnsDefaultOutput) {
     ApgTransformContext context{};
+    char trace[4] = { 'X', 'X', '\0', '\0' };
+    context.trace_buffer = trace;
+    context.trace_capacity = sizeof(trace);
+    context.trace_length = 2;
 
     const StageOutput output = run_pipeline(nullptr, 0, context);
 
     EXPECT_EQ(context.executed_stage_count, 0u);
     EXPECT_EQ(output.result, StageResult::Continue);
     EXPECT_EQ(output.note, nullptr);
+    EXPECT_STREQ(context.trace_buffer, "");
+    EXPECT_EQ(context.trace_length, 0u);
 }
 
 TEST(ApgPipelineRunnerTest, StageExecutionOrderMatchesRegistrationOrder) {
@@ -164,6 +175,9 @@ TEST(ApgPipelineRunnerTest, StopsOnErrorAndPreservesFailingOutput) {
     g_write_index = &write_index;
 
     ApgTransformContext context{};
+    char trace[8] = { '\0' };
+    context.trace_buffer = trace;
+    context.trace_capacity = sizeof(trace);
 
     const ApgStage stages[] = {
         &StageAAdapter,
@@ -179,6 +193,8 @@ TEST(ApgPipelineRunnerTest, StopsOnErrorAndPreservesFailingOutput) {
     EXPECT_STREQ(execution_log, "AB");
     EXPECT_EQ(output.result, StageResult::Error);
     EXPECT_STREQ(output.note, "B");
+    EXPECT_STREQ(context.trace_buffer, "CE");
+    EXPECT_EQ(context.trace_length, 2u);
 }
 
 TEST(ApgPipelineRunnerTest, StopsOnSkipRemainingAndPreservesReason) {
@@ -188,6 +204,9 @@ TEST(ApgPipelineRunnerTest, StopsOnSkipRemainingAndPreservesReason) {
     g_write_index = &write_index;
 
     ApgTransformContext context{};
+    char trace[8] = { '\0' };
+    context.trace_buffer = trace;
+    context.trace_capacity = sizeof(trace);
 
     const ApgStage stages[] = {
         &StageAAdapter,
@@ -203,6 +222,27 @@ TEST(ApgPipelineRunnerTest, StopsOnSkipRemainingAndPreservesReason) {
     EXPECT_STREQ(execution_log, "AC");
     EXPECT_EQ(output.result, StageResult::SkipRemaining);
     EXPECT_STREQ(output.note, "C");
+    EXPECT_STREQ(context.trace_buffer, "CS");
+    EXPECT_EQ(context.trace_length, 2u);
+}
+
+TEST(ApgPipelineRunnerTest, TraceTruncatesSafelyWhenBufferIsFull) {
+    ApgTransformContext context{};
+    char trace[3] = { '\0', '\0', '\0' };
+    context.trace_buffer = trace;
+    context.trace_capacity = sizeof(trace);
+
+    const ApgStage stages[] = {
+        &FirstStage,
+        &ContinueSecondStage,
+        &ThirdStage,
+    };
+
+    const StageOutput output = run_pipeline(stages, 3, context);
+
+    EXPECT_EQ(output.result, StageResult::SkipRemaining);
+    EXPECT_STREQ(context.trace_buffer, "CC");
+    EXPECT_EQ(context.trace_length, 2u);
 }
 
 } // namespace bytetaper::apg
