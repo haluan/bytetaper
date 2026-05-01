@@ -22,9 +22,14 @@ add_executable(bytetaper-extproc
 
 if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
   find_package(Protobuf REQUIRED)
+  find_package(gRPC CONFIG REQUIRED)
+  if(NOT gRPC_CPP_PLUGIN_EXECUTABLE)
+    find_program(gRPC_CPP_PLUGIN_EXECUTABLE grpc_cpp_plugin REQUIRED)
+  endif()
 
   set(BYTETAPER_PROTO_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/proto")
   set(BYTETAPER_GENERATED_PROTO_DIR "${CMAKE_CURRENT_BINARY_DIR}/generated/extproc")
+  set(BYTETAPER_EXTPROC_SERVICE_PROTO "envoy/service/ext_proc/v3/external_processor.proto")
 
   file(GLOB_RECURSE BYTETAPER_VENDORED_PROTO_RELATIVE
     RELATIVE "${BYTETAPER_PROTO_ROOT}"
@@ -65,6 +70,29 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     DEPENDS ${BYTETAPER_GENERATED_PROTO_SOURCES} ${BYTETAPER_GENERATED_PROTO_HEADERS}
   )
 
+  string(REPLACE ".proto" ".grpc.pb.cc" BYTETAPER_EXTPROC_GRPC_CC "${BYTETAPER_EXTPROC_SERVICE_PROTO}")
+  string(REPLACE ".proto" ".grpc.pb.h" BYTETAPER_EXTPROC_GRPC_H "${BYTETAPER_EXTPROC_SERVICE_PROTO}")
+  set(BYTETAPER_GENERATED_GRPC_SOURCE "${BYTETAPER_GENERATED_PROTO_DIR}/${BYTETAPER_EXTPROC_GRPC_CC}")
+  set(BYTETAPER_GENERATED_GRPC_HEADER "${BYTETAPER_GENERATED_PROTO_DIR}/${BYTETAPER_EXTPROC_GRPC_H}")
+
+  add_custom_command(
+    OUTPUT ${BYTETAPER_GENERATED_GRPC_SOURCE} ${BYTETAPER_GENERATED_GRPC_HEADER}
+    COMMAND ${Protobuf_PROTOC_EXECUTABLE}
+    ARGS
+      --grpc_out=${BYTETAPER_GENERATED_PROTO_DIR}
+      --plugin=protoc-gen-grpc=${gRPC_CPP_PLUGIN_EXECUTABLE}
+      -I ${BYTETAPER_PROTO_ROOT}
+      ${BYTETAPER_EXTPROC_SERVICE_PROTO}
+    WORKING_DIRECTORY ${BYTETAPER_PROTO_ROOT}
+    DEPENDS "${BYTETAPER_PROTO_ROOT}/${BYTETAPER_EXTPROC_SERVICE_PROTO}"
+    COMMENT "Generating C++ gRPC sources for Envoy ext_proc service"
+    VERBATIM
+  )
+
+  add_custom_target(bytetaper_extproc_grpc_codegen
+    DEPENDS ${BYTETAPER_GENERATED_GRPC_SOURCE} ${BYTETAPER_GENERATED_GRPC_HEADER}
+  )
+
   add_library(bytetaper_extproc_proto STATIC
     ${BYTETAPER_GENERATED_PROTO_SOURCES}
   )
@@ -75,6 +103,21 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
   )
   target_link_libraries(bytetaper_extproc_proto
     PUBLIC
+      protobuf::libprotobuf
+  )
+
+  add_library(bytetaper_extproc_grpc STATIC
+    ${BYTETAPER_GENERATED_GRPC_SOURCE}
+  )
+  add_dependencies(bytetaper_extproc_grpc bytetaper_extproc_grpc_codegen bytetaper_extproc_proto_codegen)
+  target_include_directories(bytetaper_extproc_grpc
+    PUBLIC
+      ${BYTETAPER_GENERATED_PROTO_DIR}
+  )
+  target_link_libraries(bytetaper_extproc_grpc
+    PUBLIC
+      bytetaper_extproc_proto
+      gRPC::grpc++
       protobuf::libprotobuf
   )
 
@@ -90,6 +133,20 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
   target_link_libraries(bytetaper_extproc_proto_boundary
     PRIVATE
       bytetaper_extproc_proto
+  )
+
+  add_library(bytetaper_extproc_grpc_server STATIC
+    src/extproc/grpc_server.cpp
+  )
+  target_include_directories(bytetaper_extproc_grpc_server
+    PUBLIC
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+    PRIVATE
+      ${BYTETAPER_GENERATED_PROTO_DIR}
+  )
+  target_link_libraries(bytetaper_extproc_grpc_server
+    PRIVATE
+      bytetaper_extproc_grpc
   )
 endif()
 
@@ -178,21 +235,23 @@ if(BUILD_TESTING)
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
-    add_executable(extproc_protobuf_generation_integration_test
-      tests/integration/extproc/protobuf_generation_integration_test.cpp
+    add_executable(extproc_grpc_server_skeleton_integration_test
+      tests/integration/extproc/grpc_server_skeleton_integration_test.cpp
     )
-    target_include_directories(extproc_protobuf_generation_integration_test
+    target_include_directories(extproc_grpc_server_skeleton_integration_test
       PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${BYTETAPER_GENERATED_PROTO_DIR}
     )
-    target_link_libraries(extproc_protobuf_generation_integration_test
+    target_link_libraries(extproc_grpc_server_skeleton_integration_test
       PRIVATE
-        bytetaper_extproc_proto_boundary
+        bytetaper_extproc_grpc_server
+        bytetaper_extproc_grpc
     )
 
     add_test(
-      NAME extproc_protobuf_generation_integration_test
-      COMMAND extproc_protobuf_generation_integration_test
+      NAME extproc_grpc_server_skeleton_integration_test
+      COMMAND extproc_grpc_server_skeleton_integration_test
     )
   endif()
 endif()

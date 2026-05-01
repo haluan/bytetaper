@@ -11,9 +11,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     clang-format \
     cmake \
+    libgrpc++-dev \
     libprotobuf-dev \
     make \
     ninja-build \
+    protobuf-compiler-grpc \
     pkg-config \
     protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*

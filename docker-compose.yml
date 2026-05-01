@@ -70,5 +70,5 @@ services:
       - |
         set -eu
         cmake -S . -B build -G Ninja -DBYTETAPER_ENABLE_INTEGRATION_TESTS=ON -DBYTETAPER_ENABLE_GTEST_TESTS=OFF
-        cmake --build build --target extproc_protobuf_generation_integration_test
-        ctest --test-dir build -R extproc_protobuf_generation_integration_test --output-on-failure
+        cmake --build build --target extproc_grpc_server_skeleton_integration_test
+        ctest --test-dir build -R extproc_grpc_server_skeleton_integration_test --output-on-failure
