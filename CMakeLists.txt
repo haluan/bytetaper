@@ -83,5 +83,23 @@ if(BUILD_TESTING)
       NAME apg_result_output_test
       COMMAND apg_result_output_test
     )
+
+    add_executable(apg_pipeline_runner_test
+      tests/apg_pipeline_runner_test.cpp
+      src/apg/pipeline.cpp
+    )
+    target_include_directories(apg_pipeline_runner_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(apg_pipeline_runner_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME apg_pipeline_runner_test
+      COMMAND apg_pipeline_runner_test
+    )
   endif()
 endif()
