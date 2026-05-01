@@ -44,7 +44,6 @@ compile_commands.json
 CTestTestfile.cmake
 
 # Make and autotools files
-Makefile
 makedep*
 libtool
 aclocal.m4

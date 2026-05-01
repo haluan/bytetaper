@@ -11,3 +11,21 @@ docker compose run --rm bytetaper-build
 ```
 
 Local host build/test workflows are out of scope. Use Docker Compose commands only.
+
+Format C++ sources:
+
+```bash
+make format
+```
+
+Run test flow in Docker Compose:
+
+```bash
+make test
+```
+
+Canonical unit-test service command:
+
+```bash
+docker compose run --rm bytetaper-unit-test
+```
