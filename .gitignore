@@ -1,0 +1,71 @@
+# Compiled object files
+*.o
+*.obj
+*.lo
+*.slo
+
+# Precompiled headers
+*.gch
+*.pch
+
+# Compiled static and dynamic libraries
+*.a
+*.la
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+
+# Compiled executables
+*.exe
+*.out
+*.app
+
+# Debug and symbol files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Build directories
+build/
+bin/
+obj/
+out/
+cmake-build-*/
+
+# CMake files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+
+# Make and autotools files
+Makefile
+makedep*
+libtool
+aclocal.m4
+m4/
+autom4te.cache/
+
+# Ninja files
+.ninja_deps
+.ninja_log
+build.ninja
+
+# IDE and editor directories/files
+.idea/
+.vscode/
+*.code-workspace
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Internal folders
+.internalx/
+tmp/
+bin/
