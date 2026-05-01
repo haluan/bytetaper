@@ -1,10 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Haluan Irsad
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
 
-#include "policy/route_policy.h"
+#include "policy/policy_reporter.h"
 #include "policy/yaml_loader.h"
-#include <cstdio>
-#include <cstring>
 
 /**
  * bytetaper-validate-policy CLI tool.
@@ -39,6 +37,6 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    std::printf("OK: %zu route(s) validated\n", result.count);
+    bytetaper::policy::print_route_policy_report(stdout, result.policies, result.count);
     return 0;
 }

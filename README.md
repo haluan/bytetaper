@@ -82,6 +82,61 @@ Pipeline trace behavior:
 - Trace writes are skipped when buffer is null or capacity is zero.
 - Trace writes are safely truncated and never write out-of-bounds.
 
+## Route Policy
+
+ByteTaper uses a static YAML-driven policy framework to define how specific routes should be optimized. Policies are loaded at startup and enforced by the Envoy ExtProc adapter.
+
+### Features
+
+- **YAML Configuration**: Human-readable policy definitions using the `yaml-cpp` library.
+- **Request Matching**:
+  - **Path Matching**: Support for `prefix` and `exact` path matching logic.
+  - **Method Filtering**: Filter policies by HTTP method (GET, POST, PUT, DELETE, PATCH, or Any).
+- **Optimization Primitives**:
+  - **Field Filtering**: Define `allowlist` or `denylist` rules for JSON response body fields.
+  - **Response Size Limits**: Enforce a `max_response_bytes` cap to reject or truncate oversized payloads.
+- **Cache Control**: Declarative `cache` placeholders for future-ready caching behavior (bypass/store/TTL).
+- **Validation Tooling**: Standalone `bytetaper-validate-policy` CLI for pre-deployment configuration verification.
+
+### Policy Example
+
+```yaml
+routes:
+  - id: "api-v1-proxy"
+    match:
+      kind: "prefix"
+      prefix: "/api/v1/"
+    method: "get"
+    mutation: "disabled"
+    max_response_bytes: 1048576 # 1 MiB
+    cache:
+      behavior: "store"
+      ttl_seconds: 300
+    field_filter:
+      mode: "allowlist"
+      fields:
+        - "id"
+        - "name"
+        - "status"
+```
+
+### Policy Validation
+
+Validate your policy file before deployment using the built-in validator:
+
+```bash
+# Using Docker (recommended)
+docker compose run --rm bytetaper-build build/bytetaper-validate-policy examples/policy/bytetaper-policy.yaml
+```
+
+The tool will print a detailed per-route report on success or a descriptive error message on failure.
+
+#### Exit Codes
+- `0`: Success (all routes valid)
+- `1`: Usage error
+- `2`: YAML parse/load failure
+- `3`: Validation rule violation (e.g., missing ID, invalid path prefix)
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our development process and how to contribute.

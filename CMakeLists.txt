@@ -484,6 +484,23 @@ if(BUILD_TESTING)
       COMMAND bytetaper-validate-policy
               ${CMAKE_CURRENT_SOURCE_DIR}/examples/policy/bytetaper-policy.yaml
     )
+
+    add_executable(policy_report_output_test
+      tests/policy_report_output_test.cpp
+    )
+    target_include_directories(policy_report_output_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(policy_report_output_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME policy_report_output_test
+      COMMAND policy_report_output_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
