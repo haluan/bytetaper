@@ -36,7 +36,10 @@ public:
             if (kind == ProcessingRequestKind::RequestHeaders) {
                 continue;
             }
-            // Non-request_headers variants are unsupported in BT-030-004: safe no-op.
+            if (kind == ProcessingRequestKind::ResponseHeaders) {
+                continue;
+            }
+            // Non-supported variants are safe no-op; response_body support is deferred.
         }
 
         (void) stream_stats;

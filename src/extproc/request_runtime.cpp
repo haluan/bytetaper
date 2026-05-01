@@ -10,7 +10,9 @@ ProcessingRequestKind classify_request_kind(bool has_request_headers, bool has_r
     if (has_request_headers) {
         return ProcessingRequestKind::RequestHeaders;
     }
-    (void) has_response_headers;
+    if (has_response_headers) {
+        return ProcessingRequestKind::ResponseHeaders;
+    }
     (void) has_response_body;
     return ProcessingRequestKind::Unsupported;
 }
@@ -23,6 +25,10 @@ void record_request_kind(ProcessingRequestKind kind, ProcessingStreamStats* stat
     stats->total_messages += 1;
     if (kind == ProcessingRequestKind::RequestHeaders) {
         stats->request_headers_count += 1;
+        return;
+    }
+    if (kind == ProcessingRequestKind::ResponseHeaders) {
+        stats->response_headers_count += 1;
         return;
     }
     stats->unsupported_count += 1;
