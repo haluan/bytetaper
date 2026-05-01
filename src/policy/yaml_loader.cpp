@@ -151,6 +151,40 @@ bool parse_one_route(const YAML::Node& node, PolicyFileResult* result, std::size
         }
     }
 
+    if (node["cache"]) {
+        const YAML::Node& cache_node = node["cache"];
+        if (cache_node["behavior"]) {
+            if (!cache_node["behavior"].IsScalar()) {
+                result->error = "cache.behavior must be a scalar string";
+                return false;
+            }
+            const std::string behavior_str = cache_node["behavior"].as<std::string>();
+            if (behavior_str == "default") {
+                policy.cache.behavior = CacheBehavior::Default;
+            } else if (behavior_str == "bypass") {
+                policy.cache.behavior = CacheBehavior::Bypass;
+            } else if (behavior_str == "store") {
+                policy.cache.behavior = CacheBehavior::Store;
+            } else {
+                result->error = "unknown cache.behavior (expected 'default', 'bypass', or 'store')";
+                return false;
+            }
+        }
+
+        if (cache_node["ttl_seconds"]) {
+            if (!cache_node["ttl_seconds"].IsScalar()) {
+                result->error = "cache.ttl_seconds must be a scalar integer";
+                return false;
+            }
+            try {
+                policy.cache.ttl_seconds = cache_node["ttl_seconds"].as<std::uint32_t>();
+            } catch (...) {
+                result->error = "cache.ttl_seconds must be a valid positive integer";
+                return false;
+            }
+        }
+    }
+
     return true;
 }
 

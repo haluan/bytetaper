@@ -7,6 +7,7 @@
 #include <cstdint>
 #include <cstring>
 
+#include "policy/cache_policy.h"
 #include "policy/field_filter_policy.h"
 
 namespace bytetaper::policy {
@@ -39,6 +40,7 @@ struct RoutePolicy {
     HttpMethod allowed_method = HttpMethod::Any;
     FieldFilterPolicy field_filter = {};
     std::uint32_t max_response_bytes = 0;
+    CachePolicy cache = {};
 };
 
 // Validates a RoutePolicy. Returns true if usable.

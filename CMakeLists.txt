@@ -409,6 +409,41 @@ if(BUILD_TESTING)
       NAME policy_yaml_loader_max_bytes_test
       COMMAND policy_yaml_loader_max_bytes_test
     )
+
+    add_executable(policy_cache_policy_test
+      tests/policy_cache_policy_test.cpp
+    )
+    target_include_directories(policy_cache_policy_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(policy_cache_policy_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME policy_cache_policy_test
+      COMMAND policy_cache_policy_test
+    )
+
+    add_executable(policy_yaml_loader_cache_test
+      tests/policy_yaml_loader_cache_test.cpp
+    )
+    target_include_directories(policy_yaml_loader_cache_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(policy_yaml_loader_cache_test
+      PRIVATE
+        policy_yaml_loader
+        gtest_main
+    )
+
+    add_test(
+      NAME policy_yaml_loader_cache_test
+      COMMAND policy_yaml_loader_cache_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)

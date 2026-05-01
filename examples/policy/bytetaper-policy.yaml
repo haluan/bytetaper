@@ -6,6 +6,9 @@ routes:
     method: "get"
     mutation: "disabled"
     max_response_bytes: 1048576
+    cache:
+      behavior: "store"
+      ttl_seconds: 300
     field_filter:
       mode: "allowlist"
       fields:
