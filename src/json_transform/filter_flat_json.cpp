@@ -10,6 +10,8 @@ namespace bytetaper::json_transform {
 
 namespace {
 
+constexpr const char* kInvalidJsonSafeErrorBody = R"({"error":"invalid_json"})";
+
 struct BoundedWriter {
     char* output = nullptr;
     std::size_t capacity = 0;
@@ -90,6 +92,29 @@ FlatJsonFilterStatus copy_original_body(const char* input_body, char* output,
     return writer.fits_capacity() ? FlatJsonFilterStatus::Ok : FlatJsonFilterStatus::OutputTooSmall;
 }
 
+FlatJsonFilterStatus write_invalid_json_safe_error(char* output, std::size_t output_capacity,
+                                                   std::size_t* output_length) {
+    if (output == nullptr || output_length == nullptr) {
+        return FlatJsonFilterStatus::InvalidInput;
+    }
+
+    *output_length = 0;
+    BoundedWriter writer{ output, output_capacity, 0 };
+    writer.initialize();
+
+    std::size_t index = 0;
+    while (kInvalidJsonSafeErrorBody[index] != '\0') {
+        writer.append_char(kInvalidJsonSafeErrorBody[index]);
+        index += 1;
+    }
+
+    *output_length = writer.length;
+    if (!writer.fits_capacity()) {
+        return FlatJsonFilterStatus::OutputTooSmall;
+    }
+    return FlatJsonFilterStatus::InvalidJsonSafeError;
+}
+
 } // namespace
 
 FlatJsonFilterStatus filter_flat_json_by_selected_fields(const ParsedFlatJsonObject& parsed,
@@ -144,9 +169,36 @@ FlatJsonFilterStatus transform_flat_json_with_filter_toggle(const char* input_bo
                                                             bool filtering_enabled, char* output,
                                                             std::size_t output_capacity,
                                                             std::size_t* output_length) {
+    if (parsed == nullptr) {
+        return transform_flat_json_with_filter_toggle(input_body, FlatJsonParseStatus::InvalidInput,
+                                                      parsed, context, filtering_enabled, output,
+                                                      output_capacity, output_length);
+    }
+    return transform_flat_json_with_filter_toggle(input_body, FlatJsonParseStatus::Ok, parsed,
+                                                  context, filtering_enabled, output,
+                                                  output_capacity, output_length);
+}
+
+FlatJsonFilterStatus transform_flat_json_with_filter_toggle(
+    const char* input_body, FlatJsonParseStatus parse_status, const ParsedFlatJsonObject* parsed,
+    const apg::ApgTransformContext& context, bool filtering_enabled, char* output,
+    std::size_t output_capacity, std::size_t* output_length) {
     if (!filtering_enabled) {
         return copy_original_body(input_body, output, output_capacity, output_length);
     }
+
+    if (parse_status == FlatJsonParseStatus::InvalidJson) {
+        return write_invalid_json_safe_error(output, output_capacity, output_length);
+    }
+
+    if (parse_status == FlatJsonParseStatus::SkipUnsupported) {
+        return FlatJsonFilterStatus::SkipUnsupported;
+    }
+
+    if (parse_status == FlatJsonParseStatus::InvalidInput) {
+        return FlatJsonFilterStatus::InvalidInput;
+    }
+
     if (parsed == nullptr) {
         return FlatJsonFilterStatus::InvalidInput;
     }

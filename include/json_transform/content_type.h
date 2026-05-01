@@ -51,6 +51,7 @@ enum class FlatJsonFilterStatus {
     SkipUnsupported,
     InvalidInput,
     OutputTooSmall,
+    InvalidJsonSafeError,
 };
 
 // The filter copies value slices directly from parsed.source without coercion,
@@ -67,6 +68,11 @@ FlatJsonFilterStatus transform_flat_json_with_filter_toggle(const char* input_bo
                                                             bool filtering_enabled, char* output,
                                                             std::size_t output_capacity,
                                                             std::size_t* output_length);
+
+FlatJsonFilterStatus transform_flat_json_with_filter_toggle(
+    const char* input_body, FlatJsonParseStatus parse_status, const ParsedFlatJsonObject* parsed,
+    const apg::ApgTransformContext& context, bool filtering_enabled, char* output,
+    std::size_t output_capacity, std::size_t* output_length);
 
 } // namespace bytetaper::json_transform
 
