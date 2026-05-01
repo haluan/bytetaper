@@ -74,7 +74,7 @@ TEST(JsonTransformFilterFlatJsonTest, SupportsAdditionalSelectedFieldCombination
 }
 
 TEST(JsonTransformFilterFlatJsonTest, PreservesPrimitiveValueRepresentations) {
-    const char* body = R"({"count":123,"flag":false,"empty":null,"name":"Andi"})";
+    const char* body = R"({"count":123,"flag":false,"empty":null,"name":"Andi","s":"123"})";
     const ParsedFlatJsonObject parsed = parse_or_fail(body);
 
     apg::ApgTransformContext context{};
@@ -86,6 +86,42 @@ TEST(JsonTransformFilterFlatJsonTest, PreservesPrimitiveValueRepresentations) {
                                                   &output_length),
               FlatJsonFilterStatus::Ok);
     EXPECT_STREQ(output, R"({"count":123,"flag":false,"empty":null})");
+}
+
+TEST(JsonTransformFilterFlatJsonTest, PreservesNumberTokenShapes) {
+    const char* body = R"({"i":123,"n":-42,"d":3.14,"e":6.02e23,"m":-1.5E-2})";
+    const ParsedFlatJsonObject parsed = parse_or_fail(body);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "i", "n", "d");
+
+    char output[128] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(filter_flat_json_by_selected_fields(parsed, context, output, sizeof(output),
+                                                  &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, R"({"i":123,"n":-42,"d":3.14})");
+
+    set_selected_fields(&context, "e", "m");
+    ASSERT_EQ(filter_flat_json_by_selected_fields(parsed, context, output, sizeof(output),
+                                                  &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, R"({"e":6.02e23,"m":-1.5E-2})");
+}
+
+TEST(JsonTransformFilterFlatJsonTest, KeepsStringAndNumberDistinct) {
+    const char* body = R"({"as_string":"123","as_number":123})";
+    const ParsedFlatJsonObject parsed = parse_or_fail(body);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "as_string", "as_number");
+
+    char output[128] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(filter_flat_json_by_selected_fields(parsed, context, output, sizeof(output),
+                                                  &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, R"({"as_string":"123","as_number":123})");
 }
 
 TEST(JsonTransformFilterFlatJsonTest, IgnoresUnknownSelectedFieldsSafely) {

@@ -53,6 +53,8 @@ enum class FlatJsonFilterStatus {
     OutputTooSmall,
 };
 
+// The filter copies value slices directly from parsed.source without coercion,
+// preserving primitive JSON token representation (number/bool/null/string).
 FlatJsonFilterStatus filter_flat_json_by_selected_fields(const ParsedFlatJsonObject& parsed,
                                                          const apg::ApgTransformContext& context,
                                                          char* output, std::size_t output_capacity,
