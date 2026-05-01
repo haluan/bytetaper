@@ -154,6 +154,10 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
   add_library(bytetaper_extproc_grpc_server STATIC
     src/extproc/grpc_server.cpp
     src/extproc/request_runtime.cpp
+    src/field_selection/request_target.cpp
+    src/json_transform/content_type.cpp
+    src/json_transform/flat_json.cpp
+    src/json_transform/filter_flat_json.cpp
   )
   target_include_directories(bytetaper_extproc_grpc_server
     PUBLIC

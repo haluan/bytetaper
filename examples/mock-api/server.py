@@ -5,6 +5,7 @@
 
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from urllib.parse import urlsplit
 
 HOST = "0.0.0.0"
 PORT = 8080
@@ -42,7 +43,7 @@ PAYLOAD = build_payload_bytes()
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        if self.path != PATH:
+        if urlsplit(self.path).path != PATH:
             self.send_response(404)
             self.send_header("Content-Type", "application/json")
             self.end_headers()
