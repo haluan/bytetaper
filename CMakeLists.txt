@@ -250,6 +250,43 @@ if(BUILD_TESTING)
       NAME policy_route_policy_test
       COMMAND policy_route_policy_test
     )
+
+    find_package(PkgConfig REQUIRED)
+    pkg_check_modules(YAML_CPP REQUIRED yaml-cpp)
+
+    add_library(policy_yaml_loader STATIC
+      src/policy/yaml_loader.cpp
+    )
+    set_source_files_properties(src/policy/yaml_loader.cpp
+      PROPERTIES COMPILE_OPTIONS "-fexceptions"
+    )
+    target_include_directories(policy_yaml_loader
+      PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${YAML_CPP_INCLUDE_DIRS}
+    )
+    target_link_libraries(policy_yaml_loader
+      PUBLIC
+        ${YAML_CPP_LIBRARIES}
+    )
+
+    add_executable(policy_yaml_loader_test
+      tests/policy_yaml_loader_test.cpp
+    )
+    target_include_directories(policy_yaml_loader_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(policy_yaml_loader_test
+      PRIVATE
+        policy_yaml_loader
+        gtest_main
+    )
+
+    add_test(
+      NAME policy_yaml_loader_test
+      COMMAND policy_yaml_loader_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)

@@ -1,0 +1,12 @@
+routes:
+  - id: "api-v1-proxy"
+    match:
+      kind: "prefix"
+      prefix: "/api/v1/"
+    mutation: "disabled"
+
+  - id: "admin-exact"
+    match:
+      kind: "exact"
+      prefix: "/admin"
+    mutation: "headers_only"
