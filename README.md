@@ -1,48 +1,42 @@
 # ByteTaper: API response optimization without backend rewrites
 
-## Development (Docker Compose only)
+## Development Commands
 
-Run the development build container from the repository root.
-For this phase, the command configures CMake into `./build`, builds
-`bytetaper-extproc`, runs a CTest smoke test, and executes the binary:
+Use Docker Compose workflows only. Do not run local host build/test commands.
+
+Build/demo flow:
 
 ```bash
 docker compose run --rm bytetaper-build
 ```
 
-Local host build/test workflows are out of scope. Use Docker Compose commands only.
+Unit-test flow:
 
-Format C++ sources:
+```bash
+docker compose run --rm bytetaper-unit-test
+make test
+```
+
+Smoke-test flow:
+
+```bash
+docker compose run --rm bytetaper-smoke-test
+make smoke-test
+```
+
+Format flow:
 
 ```bash
 make format
 ```
 
-Run test flow in Docker Compose:
+Compatibility note:
+If `docker compose` is unavailable in your environment, use the equivalent
+`docker-compose` command form.
 
-```bash
-make test
-```
-
-Canonical unit-test service command:
-
-```bash
-docker compose run --rm bytetaper-unit-test
-```
-
-Run smoke test flow in Docker Compose:
-
-```bash
-make smoke-test
-```
-
-Canonical smoke-test service command:
-
-```bash
-docker compose run --rm bytetaper-smoke-test
-```
-
-Rootless container note:
+Rootless note:
+Containers run with host-mapped UID/GID to avoid root-owned files in mounted
+workspaces. Example:
 
 ```bash
 LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose run --rm bytetaper-unit-test
