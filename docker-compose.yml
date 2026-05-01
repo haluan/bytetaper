@@ -33,7 +33,7 @@ services:
       - -lc
       - |
         set -eu
-        cmake -S . -B build -G Ninja -DBYTETAPER_ENABLE_GTEST_TESTS=ON -DBYTETAPER_ENABLE_INTEGRATION_TESTS=OFF
+        cmake -S . -B build -G Ninja -DBYTETAPER_ENABLE_GTEST_TESTS=ON -DBYTETAPER_ENABLE_INTEGRATION_TESTS=ON
         cmake --build build
         ctest --test-dir build --output-on-failure
   bytetaper-smoke-test:

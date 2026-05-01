@@ -7,9 +7,11 @@ import json
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 URL = "http://envoy:10000/api/v1/oversized"
+ENVOY_ADMIN_URL = "http://envoy:9901/stats"
 MIN_BYTES = 1_048_576
 EXPECTED_SENTINEL = "bt-001"
 TIMEOUT_SECONDS = 30
@@ -20,7 +22,26 @@ def fail(message: str, code: int) -> int:
     return code
 
 
+def read_counter(name: str) -> int:
+    query = urllib.parse.urlencode({"filter": f"^{name}$"})
+    with urllib.request.urlopen(f"{ENVOY_ADMIN_URL}?{query}", timeout=3) as response:
+        body = response.read().decode("utf-8")
+
+    for line in body.splitlines():
+        if not line.startswith(f"{name}:"):
+            continue
+        _, raw_value = line.split(":", 1)
+        return int(raw_value.strip())
+
+    return 0
+
+
 def main() -> int:
+    sent_counter = "http.ingress_http.ext_proc.stream_msgs_sent"
+    recv_counter = "http.ingress_http.ext_proc.stream_msgs_received"
+    pre_sent = read_counter(sent_counter)
+    pre_recv = read_counter(recv_counter)
+
     deadline = time.time() + TIMEOUT_SECONDS
     while True:
         try:
@@ -28,6 +49,11 @@ def main() -> int:
                 status_code = response.status
                 content_type = response.headers.get("Content-Type", "")
                 body = response.read()
+
+            if response.headers.get("x-bytetaper-extproc-response-body") != "true":
+                return fail(
+                    "missing or incorrect x-bytetaper-extproc-response-body header in response", 10
+                )
 
             if status_code != 200:
                 return fail(f"expected status 200, got {status_code}", 2)
@@ -54,6 +80,11 @@ def main() -> int:
                 return fail(
                     "missing or incorrect scenario marker in payload", 7
                 )
+
+            post_sent = read_counter(sent_counter)
+            post_recv = read_counter(recv_counter)
+            if (post_sent - pre_sent) < 3 or (post_recv - pre_recv) < 3:
+                return fail("ext_proc response-body buffered callback proof did not execute", 9)
 
             print("SUCCESS: oversized payload received through envoy")
             return 0

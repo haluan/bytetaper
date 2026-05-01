@@ -8,6 +8,7 @@ admin:
 static_resources:
   listeners:
     - name: ingress_http
+      per_connection_buffer_limit_bytes: 4194304
       address:
         socket_address:
           address: 0.0.0.0
@@ -43,7 +44,7 @@ static_resources:
                         request_header_mode: SEND
                         response_header_mode: SEND
                         request_body_mode: NONE
-                        response_body_mode: NONE
+                        response_body_mode: BUFFERED
                         request_trailer_mode: SKIP
                         response_trailer_mode: SKIP
                   - name: envoy.filters.http.router
@@ -54,6 +55,7 @@ static_resources:
     - name: mock_api_cluster
       type: STRICT_DNS
       connect_timeout: 1s
+      per_connection_buffer_limit_bytes: 4194304
       lb_policy: ROUND_ROBIN
       load_assignment:
         cluster_name: mock_api_cluster
@@ -68,6 +70,7 @@ static_resources:
     - name: extproc_cluster
       type: STRICT_DNS
       connect_timeout: 1s
+      per_connection_buffer_limit_bytes: 4194304
       lb_policy: ROUND_ROBIN
       typed_extension_protocol_options:
         envoy.extensions.upstreams.http.v3.HttpProtocolOptions:

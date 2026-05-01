@@ -104,6 +104,21 @@ int main() {
         bytetaper::extproc::stop_grpc_server(&handle);
         return 15;
     }
+    {
+        bool found = false;
+        for (const auto& mutation :
+             r2.response_headers().response().header_mutation().set_headers()) {
+            if (mutation.header().key() == bytetaper::extproc::kResponseBodyHeader &&
+                mutation.header().raw_value() == "true") {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            bytetaper::extproc::stop_grpc_server(&handle);
+            return 100;
+        }
+    }
 
     // Response 3: response_body continue
     envoy::service::ext_proc::v3::ProcessingResponse r3{};
@@ -114,6 +129,20 @@ int main() {
     if (!r3.has_response_body()) {
         bytetaper::extproc::stop_grpc_server(&handle);
         return 17;
+    }
+    {
+        bool found = false;
+        for (const auto& mutation : r3.response_body().response().header_mutation().set_headers()) {
+            if (mutation.header().key() == bytetaper::extproc::kResponseBodyHeader &&
+                mutation.header().raw_value() == "true") {
+                found = true;
+                break;
+            }
+        }
+        if (!found) {
+            bytetaper::extproc::stop_grpc_server(&handle);
+            return 101;
+        }
     }
 
     // No response 4: unsupported variant must not produce a response

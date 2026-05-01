@@ -14,6 +14,20 @@ namespace bytetaper::extproc {
 
 namespace {
 
+void add_response_body_signal_header(envoy::service::ext_proc::v3::CommonResponse* common) {
+    if (common == nullptr) {
+        return;
+    }
+
+    common->set_status(envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
+    auto* option = common->mutable_header_mutation()->add_set_headers();
+    auto* header = option->mutable_header();
+    header->set_key(kResponseBodyHeader);
+    header->set_raw_value("true");
+    option->set_append_action(
+        envoy::config::core::v3::HeaderValueOption::OVERWRITE_IF_EXISTS_OR_ADD);
+}
+
 class ExternalProcessorSkeletonService final
     : public envoy::service::ext_proc::v3::ExternalProcessor::Service {
 public:
@@ -41,13 +55,15 @@ public:
             }
             if (kind == ProcessingRequestKind::ResponseHeaders) {
                 envoy::service::ext_proc::v3::ProcessingResponse response{};
-                response.mutable_response_headers();
+                add_response_body_signal_header(
+                    response.mutable_response_headers()->mutable_response());
                 stream->Write(response);
                 continue;
             }
             if (kind == ProcessingRequestKind::ResponseBody) {
                 envoy::service::ext_proc::v3::ProcessingResponse response{};
-                response.mutable_response_body();
+                add_response_body_signal_header(
+                    response.mutable_response_body()->mutable_response());
                 stream->Write(response);
                 continue;
             }
