@@ -1,0 +1,20 @@
+services:
+  bytetaper-build:
+    build:
+      context: .
+      dockerfile: docker/dev.Dockerfile
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        set -eu
+        echo "bytetaper-build: environment check"
+        echo "workspace: $(pwd)"
+        test -f README.md
+        g++ --version
+        cmake --version
+        make --version
+        ninja --version
