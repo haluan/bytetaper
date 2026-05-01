@@ -268,6 +268,24 @@ if(BUILD_TESTING)
       COMMAND field_selection_test
     )
 
+    add_executable(json_transform_content_type_test
+      tests/json_transform_content_type_test.cpp
+      src/json_transform/content_type.cpp
+    )
+    target_include_directories(json_transform_content_type_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(json_transform_content_type_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME json_transform_content_type_test
+      COMMAND json_transform_content_type_test
+    )
+
     add_executable(policy_route_policy_test
       tests/policy_route_policy_test.cpp
     )
