@@ -55,6 +55,7 @@ TEST(JsonTransformFilterFlatJsonTest, FiltersExamplePayloadBySelectedFields) {
               FlatJsonFilterStatus::Ok);
     EXPECT_STREQ(output, R"({"id":1,"name":"Andi"})");
     EXPECT_EQ(output_length, std::strlen(output));
+    EXPECT_EQ(context.removed_field_count, 2u);
 }
 
 TEST(JsonTransformFilterFlatJsonTest, SupportsAdditionalSelectedFieldCombination) {
@@ -244,6 +245,7 @@ TEST(JsonTransformFilterFlatJsonTest, ToggleReturnsOriginalBodyWhenFilteringDisa
               FlatJsonFilterStatus::Ok);
     EXPECT_STREQ(output, body);
     EXPECT_EQ(output_length, std::strlen(body));
+    EXPECT_EQ(context.removed_field_count, 0u);
 }
 
 TEST(JsonTransformFilterFlatJsonTest, ToggleReturnsOriginalBodyEvenIfSelectionWouldFilter) {
@@ -252,6 +254,7 @@ TEST(JsonTransformFilterFlatJsonTest, ToggleReturnsOriginalBodyEvenIfSelectionWo
 
     apg::ApgTransformContext context{};
     set_selected_fields(&context, "id", "name");
+    context.removed_field_count = 7u;
 
     char output[256] = {};
     std::size_t output_length = 0;
@@ -259,6 +262,7 @@ TEST(JsonTransformFilterFlatJsonTest, ToggleReturnsOriginalBodyEvenIfSelectionWo
                                                      sizeof(output), &output_length),
               FlatJsonFilterStatus::Ok);
     EXPECT_STREQ(output, body);
+    EXPECT_EQ(context.removed_field_count, 0u);
 }
 
 TEST(JsonTransformFilterFlatJsonTest, ToggleEnabledPathUsesExistingFilteringBehavior) {
@@ -292,6 +296,7 @@ TEST(JsonTransformFilterFlatJsonTest, ToggleEnabledSupportsSimpleNestedSelection
                                                      output, sizeof(output), &output_length),
               FlatJsonFilterStatus::Ok);
     EXPECT_STREQ(output, R"({"user":{"name":"A"}})");
+    EXPECT_EQ(context.removed_field_count, 2u);
 }
 
 TEST(JsonTransformFilterFlatJsonTest, ToggleEnabledSupportsMultiLevelNestedSelection) {
@@ -347,6 +352,7 @@ TEST(JsonTransformFilterFlatJsonTest, ToggleEnabledIgnoresUnknownNestedPathsSafe
                                                      output, sizeof(output), &output_length),
               FlatJsonFilterStatus::Ok);
     EXPECT_STREQ(output, R"({"id":9})");
+    EXPECT_EQ(context.removed_field_count, 2u);
 }
 
 TEST(JsonTransformFilterFlatJsonTest, ToggleEnabledSupportsArrayObjectWildcardFiltering) {
@@ -383,6 +389,7 @@ TEST(JsonTransformFilterFlatJsonTest, ToggleEnabledSupportsMixedRootAndArraySele
                                                      output, sizeof(output), &output_length),
               FlatJsonFilterStatus::Ok);
     EXPECT_STREQ(output, R"({"id":7,"items":[{"name":"A"},{"name":"B"}]})");
+    EXPECT_EQ(context.removed_field_count, 2u);
 }
 
 TEST(JsonTransformFilterFlatJsonTest, ToggleEnabledSupportsDeepArrayObjectPath) {
@@ -476,6 +483,45 @@ TEST(JsonTransformFilterFlatJsonTest, ToggleEnabledReturnsSkipUnsupportedForArra
     EXPECT_EQ(transform_flat_json_with_filter_toggle(body, parse_status, &parsed, context, true,
                                                      output, sizeof(output), &output_length),
               FlatJsonFilterStatus::SkipUnsupported);
+    EXPECT_EQ(context.removed_field_count, 0u);
+}
+
+TEST(JsonTransformFilterFlatJsonTest, UnknownSelectionsDoNotInflateRemovedFieldCount) {
+    const char* body = R"({"id":9,"user":{"name":"A"}})";
+    ParsedFlatJsonObject parsed{};
+    const FlatJsonParseStatus parse_status =
+        parse_flat_json_object(body, JsonResponseKind::EligibleJson, &parsed);
+    ASSERT_EQ(parse_status, FlatJsonParseStatus::SkipUnsupported);
+
+    apg::ApgTransformContext with_unknown{};
+    set_selected_fields(&with_unknown, "user.missing", "id");
+    char output[128] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(transform_flat_json_with_filter_toggle(body, parse_status, &parsed, with_unknown,
+                                                     true, output, sizeof(output), &output_length),
+              FlatJsonFilterStatus::Ok);
+
+    apg::ApgTransformContext baseline{};
+    set_selected_fields(&baseline, "id", nullptr);
+    ASSERT_EQ(transform_flat_json_with_filter_toggle(body, parse_status, &parsed, baseline, true,
+                                                     output, sizeof(output), &output_length),
+              FlatJsonFilterStatus::Ok);
+
+    EXPECT_EQ(with_unknown.removed_field_count, baseline.removed_field_count);
+}
+
+TEST(JsonTransformFilterFlatJsonTest, InvalidJsonSafeErrorResetsRemovedFieldCount) {
+    apg::ApgTransformContext context{};
+    context.removed_field_count = 42u;
+
+    char output[128] = {};
+    std::size_t output_length = 0;
+    EXPECT_EQ(transform_flat_json_with_filter_toggle("{invalid", FlatJsonParseStatus::InvalidJson,
+                                                     nullptr, context, true, output, sizeof(output),
+                                                     &output_length),
+              FlatJsonFilterStatus::InvalidJsonSafeError);
+    EXPECT_STREQ(output, R"({"error":"invalid_json"})");
+    EXPECT_EQ(context.removed_field_count, 0u);
 }
 
 TEST(JsonTransformFilterFlatJsonTest, ToggleDisabledReturnsOutputTooSmallWhenBodyDoesNotFit) {

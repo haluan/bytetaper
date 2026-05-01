@@ -13,6 +13,20 @@ namespace {
 constexpr const char* kInvalidJsonSafeErrorBody = R"({"error":"invalid_json"})";
 constexpr std::size_t kMaxSelectionPathLen = 512;
 
+struct FieldCountMetrics {
+    std::size_t encountered_field_count = 0;
+    std::size_t emitted_field_count = 0;
+};
+
+void assign_removed_field_count(const apg::ApgTransformContext& context,
+                                const FieldCountMetrics& metrics) {
+    if (metrics.encountered_field_count >= metrics.emitted_field_count) {
+        context.removed_field_count = metrics.encountered_field_count - metrics.emitted_field_count;
+        return;
+    }
+    context.removed_field_count = 0;
+}
+
 struct BoundedWriter {
     char* output = nullptr;
     std::size_t capacity = 0;
@@ -285,9 +299,10 @@ bool parse_literal_token(const char* body, std::size_t length, std::size_t* inde
 }
 
 FlatJsonFilterStatus consume_json_value_any(const char* body, std::size_t length,
-                                            std::size_t* index);
+                                            std::size_t* index, FieldCountMetrics* metrics);
 
-FlatJsonFilterStatus consume_object_any(const char* body, std::size_t length, std::size_t* index) {
+FlatJsonFilterStatus consume_object_any(const char* body, std::size_t length, std::size_t* index,
+                                        FieldCountMetrics* metrics) {
     if (*index >= length || body[*index] != '{') {
         return FlatJsonFilterStatus::SkipUnsupported;
     }
@@ -308,7 +323,11 @@ FlatJsonFilterStatus consume_object_any(const char* body, std::size_t length, st
         }
         *index += 1;
         skip_whitespace(body, length, index);
-        const FlatJsonFilterStatus value_status = consume_json_value_any(body, length, index);
+        if (metrics != nullptr) {
+            metrics->encountered_field_count += 1;
+        }
+        const FlatJsonFilterStatus value_status =
+            consume_json_value_any(body, length, index, metrics);
         if (value_status != FlatJsonFilterStatus::Ok) {
             return value_status;
         }
@@ -330,7 +349,8 @@ FlatJsonFilterStatus consume_object_any(const char* body, std::size_t length, st
     return FlatJsonFilterStatus::SkipUnsupported;
 }
 
-FlatJsonFilterStatus consume_array_any(const char* body, std::size_t length, std::size_t* index) {
+FlatJsonFilterStatus consume_array_any(const char* body, std::size_t length, std::size_t* index,
+                                       FieldCountMetrics* metrics) {
     if (*index >= length || body[*index] != '[') {
         return FlatJsonFilterStatus::SkipUnsupported;
     }
@@ -342,7 +362,8 @@ FlatJsonFilterStatus consume_array_any(const char* body, std::size_t length, std
     }
 
     while (*index < length) {
-        const FlatJsonFilterStatus element_status = consume_json_value_any(body, length, index);
+        const FlatJsonFilterStatus element_status =
+            consume_json_value_any(body, length, index, metrics);
         if (element_status != FlatJsonFilterStatus::Ok) {
             return element_status;
         }
@@ -365,17 +386,17 @@ FlatJsonFilterStatus consume_array_any(const char* body, std::size_t length, std
 }
 
 FlatJsonFilterStatus consume_json_value_any(const char* body, std::size_t length,
-                                            std::size_t* index) {
+                                            std::size_t* index, FieldCountMetrics* metrics) {
     if (*index >= length) {
         return FlatJsonFilterStatus::SkipUnsupported;
     }
 
     const char ch = body[*index];
     if (ch == '{') {
-        return consume_object_any(body, length, index);
+        return consume_object_any(body, length, index, metrics);
     }
     if (ch == '[') {
-        return consume_array_any(body, length, index);
+        return consume_array_any(body, length, index, metrics);
     }
     if (ch == '"') {
         if (!parse_json_string_token(body, length, index, nullptr, nullptr, nullptr, 0, nullptr)) {
@@ -406,11 +427,12 @@ FlatJsonFilterStatus consume_json_value_any(const char* body, std::size_t length
 }
 
 FlatJsonFilterStatus consume_json_value_object_only(const char* body, std::size_t length,
-                                                    std::size_t* index) {
+                                                    std::size_t* index,
+                                                    FieldCountMetrics* metrics) {
     if (*index < length && body[*index] == '[') {
         return FlatJsonFilterStatus::SkipUnsupported;
     }
-    return consume_json_value_any(body, length, index);
+    return consume_json_value_any(body, length, index, metrics);
 }
 
 bool build_full_path(const char* prefix, const char* key, char* output, std::size_t capacity) {
@@ -466,18 +488,21 @@ FlatJsonFilterStatus filter_nested_object_value(const char* body, std::size_t le
                                                 std::size_t* index,
                                                 const apg::ApgTransformContext& context,
                                                 const char* prefix, BoundedWriter* writer,
-                                                std::size_t* emitted_field_count);
+                                                std::size_t* emitted_field_count,
+                                                FieldCountMetrics* metrics);
 
 FlatJsonFilterStatus filter_nested_array_value(const char* body, std::size_t length,
                                                std::size_t* index,
                                                const apg::ApgTransformContext& context,
                                                const char* array_path, BoundedWriter* writer,
-                                               std::size_t* emitted_element_count);
+                                               std::size_t* emitted_element_count,
+                                               FieldCountMetrics* metrics);
 
 FlatJsonFilterStatus write_filtered_object(const char* body, std::size_t length, std::size_t* index,
                                            const apg::ApgTransformContext& context,
                                            const char* prefix, BoundedWriter* writer,
-                                           std::size_t* emitted_field_count) {
+                                           std::size_t* emitted_field_count,
+                                           FieldCountMetrics* metrics) {
     if (*index >= length || body[*index] != '{' || writer == nullptr ||
         emitted_field_count == nullptr) {
         return FlatJsonFilterStatus::SkipUnsupported;
@@ -503,6 +528,9 @@ FlatJsonFilterStatus write_filtered_object(const char* body, std::size_t length,
             return FlatJsonFilterStatus::SkipUnsupported;
         }
         (void) key_length;
+        if (metrics != nullptr) {
+            metrics->encountered_field_count += 1;
+        }
 
         skip_whitespace(body, length, index);
         if (*index >= length || body[*index] != ':') {
@@ -515,7 +543,7 @@ FlatJsonFilterStatus write_filtered_object(const char* body, std::size_t length,
         if (!build_full_path(prefix, key, full_path, sizeof(full_path))) {
             // Path too long for selection matching; consume safely and ignore field.
             const FlatJsonFilterStatus consume_status =
-                consume_json_value_object_only(body, length, index);
+                consume_json_value_object_only(body, length, index, metrics);
             if (consume_status != FlatJsonFilterStatus::Ok) {
                 return consume_status;
             }
@@ -525,8 +553,10 @@ FlatJsonFilterStatus write_filtered_object(const char* body, std::size_t length,
             const std::size_t value_start = *index;
             if (body[*index] == '{') {
                 if (match.exact_selected) {
+                    const std::size_t encountered_before =
+                        (metrics != nullptr) ? metrics->encountered_field_count : 0;
                     const FlatJsonFilterStatus consume_status =
-                        consume_object_any(body, length, index);
+                        consume_object_any(body, length, index, metrics);
                     if (consume_status != FlatJsonFilterStatus::Ok) {
                         return consume_status;
                     }
@@ -539,6 +569,12 @@ FlatJsonFilterStatus write_filtered_object(const char* body, std::size_t length,
                     writer->append_char(':');
                     writer->append_slice(body, value_start, value_end);
                     *emitted_field_count += 1;
+                    if (metrics != nullptr) {
+                        metrics->emitted_field_count += 1;
+                        const std::size_t nested_encountered =
+                            metrics->encountered_field_count - encountered_before;
+                        metrics->emitted_field_count += nested_encountered;
+                    }
                 } else if (match.has_selected_descendant) {
                     const std::size_t member_checkpoint = writer->checkpoint();
                     if (!first_emitted) {
@@ -548,8 +584,9 @@ FlatJsonFilterStatus write_filtered_object(const char* body, std::size_t length,
                     writer->append_char(':');
 
                     std::size_t nested_emitted_count = 0;
-                    const FlatJsonFilterStatus nested_status = filter_nested_object_value(
-                        body, length, index, context, full_path, writer, &nested_emitted_count);
+                    const FlatJsonFilterStatus nested_status =
+                        filter_nested_object_value(body, length, index, context, full_path, writer,
+                                                   &nested_emitted_count, metrics);
                     if (nested_status != FlatJsonFilterStatus::Ok) {
                         return nested_status;
                     }
@@ -558,10 +595,13 @@ FlatJsonFilterStatus write_filtered_object(const char* body, std::size_t length,
                     } else {
                         first_emitted = false;
                         *emitted_field_count += 1;
+                        if (metrics != nullptr) {
+                            metrics->emitted_field_count += 1;
+                        }
                     }
                 } else {
                     const FlatJsonFilterStatus consume_status =
-                        consume_object_any(body, length, index);
+                        consume_object_any(body, length, index, metrics);
                     if (consume_status != FlatJsonFilterStatus::Ok) {
                         return consume_status;
                     }
@@ -571,7 +611,7 @@ FlatJsonFilterStatus write_filtered_object(const char* body, std::size_t length,
                 if (!build_array_element_path(full_path, array_element_path,
                                               sizeof(array_element_path))) {
                     const FlatJsonFilterStatus consume_status =
-                        consume_array_any(body, length, index);
+                        consume_array_any(body, length, index, metrics);
                     if (consume_status != FlatJsonFilterStatus::Ok) {
                         return consume_status;
                     }
@@ -588,20 +628,24 @@ FlatJsonFilterStatus write_filtered_object(const char* body, std::size_t length,
                         writer->append_char(':');
 
                         std::size_t emitted_elements = 0;
-                        const FlatJsonFilterStatus array_status = filter_nested_array_value(
-                            body, length, index, context, full_path, writer, &emitted_elements);
+                        const FlatJsonFilterStatus array_status =
+                            filter_nested_array_value(body, length, index, context, full_path,
+                                                      writer, &emitted_elements, metrics);
                         if (array_status != FlatJsonFilterStatus::Ok) {
                             return array_status;
                         }
                         if (match.exact_selected || emitted_elements > 0) {
                             first_emitted = false;
                             *emitted_field_count += 1;
+                            if (metrics != nullptr) {
+                                metrics->emitted_field_count += 1;
+                            }
                         } else {
                             writer->rollback(member_checkpoint);
                         }
                     } else {
                         const FlatJsonFilterStatus consume_status =
-                            consume_array_any(body, length, index);
+                            consume_array_any(body, length, index, metrics);
                         if (consume_status != FlatJsonFilterStatus::Ok) {
                             return consume_status;
                         }
@@ -610,7 +654,7 @@ FlatJsonFilterStatus write_filtered_object(const char* body, std::size_t length,
             } else {
                 const std::size_t primitive_start = *index;
                 const FlatJsonFilterStatus primitive_status =
-                    consume_json_value_object_only(body, length, index);
+                    consume_json_value_object_only(body, length, index, metrics);
                 if (primitive_status != FlatJsonFilterStatus::Ok) {
                     return primitive_status;
                 }
@@ -624,6 +668,9 @@ FlatJsonFilterStatus write_filtered_object(const char* body, std::size_t length,
                     writer->append_char(':');
                     writer->append_slice(body, primitive_start, primitive_end);
                     *emitted_field_count += 1;
+                    if (metrics != nullptr) {
+                        metrics->emitted_field_count += 1;
+                    }
                 }
             }
         }
@@ -651,7 +698,8 @@ FlatJsonFilterStatus filter_nested_array_value(const char* body, std::size_t len
                                                std::size_t* index,
                                                const apg::ApgTransformContext& context,
                                                const char* array_path, BoundedWriter* writer,
-                                               std::size_t* emitted_element_count) {
+                                               std::size_t* emitted_element_count,
+                                               FieldCountMetrics* metrics) {
     if (*index >= length || body[*index] != '[' || writer == nullptr ||
         emitted_element_count == nullptr) {
         return FlatJsonFilterStatus::SkipUnsupported;
@@ -683,17 +731,25 @@ FlatJsonFilterStatus filter_nested_array_value(const char* body, std::size_t len
 
             if (element_match.exact_selected && !element_match.has_selected_descendant) {
                 const std::size_t copy_start = *index;
-                const FlatJsonFilterStatus consume_status = consume_object_any(body, length, index);
+                const std::size_t encountered_before =
+                    (metrics != nullptr) ? metrics->encountered_field_count : 0;
+                const FlatJsonFilterStatus consume_status =
+                    consume_object_any(body, length, index, metrics);
                 if (consume_status != FlatJsonFilterStatus::Ok) {
                     return consume_status;
                 }
                 writer->append_slice(body, copy_start, *index);
                 first_emitted = false;
                 *emitted_element_count += 1;
+                if (metrics != nullptr) {
+                    const std::size_t nested_encountered =
+                        metrics->encountered_field_count - encountered_before;
+                    metrics->emitted_field_count += nested_encountered;
+                }
             } else if (element_match.has_selected_descendant) {
                 std::size_t nested_fields = 0;
                 const FlatJsonFilterStatus nested_status = filter_nested_object_value(
-                    body, length, index, context, element_path, writer, &nested_fields);
+                    body, length, index, context, element_path, writer, &nested_fields, metrics);
                 if (nested_status != FlatJsonFilterStatus::Ok) {
                     return nested_status;
                 }
@@ -705,14 +761,16 @@ FlatJsonFilterStatus filter_nested_array_value(const char* body, std::size_t len
                 }
             } else {
                 writer->rollback(element_checkpoint);
-                const FlatJsonFilterStatus consume_status = consume_object_any(body, length, index);
+                const FlatJsonFilterStatus consume_status =
+                    consume_object_any(body, length, index, metrics);
                 if (consume_status != FlatJsonFilterStatus::Ok) {
                     return consume_status;
                 }
             }
         } else {
             // Object-array filtering only in this phase: skip non-object elements safely.
-            const FlatJsonFilterStatus consume_status = consume_json_value_any(body, length, index);
+            const FlatJsonFilterStatus consume_status =
+                consume_json_value_any(body, length, index, metrics);
             if (consume_status != FlatJsonFilterStatus::Ok) {
                 return consume_status;
             }
@@ -741,20 +799,24 @@ FlatJsonFilterStatus filter_nested_object_value(const char* body, std::size_t le
                                                 std::size_t* index,
                                                 const apg::ApgTransformContext& context,
                                                 const char* prefix, BoundedWriter* writer,
-                                                std::size_t* emitted_field_count) {
-    return write_filtered_object(body, length, index, context, prefix, writer, emitted_field_count);
+                                                std::size_t* emitted_field_count,
+                                                FieldCountMetrics* metrics) {
+    return write_filtered_object(body, length, index, context, prefix, writer, emitted_field_count,
+                                 metrics);
 }
 
-FlatJsonFilterStatus filter_nested_json_by_selected_fields(const char* input_body,
-                                                           const apg::ApgTransformContext& context,
-                                                           char* output,
-                                                           std::size_t output_capacity,
-                                                           std::size_t* output_length) {
+FlatJsonFilterStatus filter_nested_json_by_selected_fields(
+    const char* input_body, const apg::ApgTransformContext& context, char* output,
+    std::size_t output_capacity, std::size_t* output_length, FieldCountMetrics* out_metrics) {
     if (input_body == nullptr || output == nullptr || output_length == nullptr) {
         return FlatJsonFilterStatus::InvalidInput;
     }
 
     *output_length = 0;
+    if (out_metrics != nullptr) {
+        out_metrics->encountered_field_count = 0;
+        out_metrics->emitted_field_count = 0;
+    }
     BoundedWriter writer{ output, output_capacity, 0 };
     writer.initialize();
 
@@ -774,8 +836,8 @@ FlatJsonFilterStatus filter_nested_json_by_selected_fields(const char* input_bod
     }
 
     std::size_t emitted_count = 0;
-    const FlatJsonFilterStatus status =
-        write_filtered_object(input_body, length, &index, context, "", &writer, &emitted_count);
+    const FlatJsonFilterStatus status = write_filtered_object(
+        input_body, length, &index, context, "", &writer, &emitted_count, out_metrics);
     if (status != FlatJsonFilterStatus::Ok) {
         return status;
     }
@@ -838,6 +900,7 @@ FlatJsonFilterStatus filter_flat_json_by_selected_fields(const ParsedFlatJsonObj
                                                          const apg::ApgTransformContext& context,
                                                          char* output, std::size_t output_capacity,
                                                          std::size_t* output_length) {
+    context.removed_field_count = 0;
     if (output == nullptr || output_length == nullptr) {
         return FlatJsonFilterStatus::InvalidInput;
     }
@@ -850,12 +913,14 @@ FlatJsonFilterStatus filter_flat_json_by_selected_fields(const ParsedFlatJsonObj
         return FlatJsonFilterStatus::SkipUnsupported;
     }
 
+    FieldCountMetrics metrics{};
     writer.append_char('{');
     bool first_emitted = true;
 
     const std::size_t parsed_field_count =
         (parsed.field_count <= policy::kMaxFields) ? parsed.field_count : policy::kMaxFields;
     for (std::size_t field_index = 0; field_index < parsed_field_count; ++field_index) {
+        metrics.encountered_field_count += 1;
         const FlatJsonFieldView& field = parsed.fields[field_index];
         if (!is_field_selected(context, field.key)) {
             continue;
@@ -873,10 +938,12 @@ FlatJsonFilterStatus filter_flat_json_by_selected_fields(const ParsedFlatJsonObj
         writer.append_cstr(field.key);
         writer.append_cstr("\":");
         writer.append_slice(parsed.source, field.value_begin, field.value_end);
+        metrics.emitted_field_count += 1;
     }
 
     writer.append_char('}');
     *output_length = writer.length;
+    assign_removed_field_count(context, metrics);
     return writer.fits_capacity() ? FlatJsonFilterStatus::Ok : FlatJsonFilterStatus::OutputTooSmall;
 }
 
@@ -886,6 +953,7 @@ FlatJsonFilterStatus transform_flat_json_with_filter_toggle(const char* input_bo
                                                             bool filtering_enabled, char* output,
                                                             std::size_t output_capacity,
                                                             std::size_t* output_length) {
+    context.removed_field_count = 0;
     if (parsed == nullptr) {
         return transform_flat_json_with_filter_toggle(input_body, FlatJsonParseStatus::InvalidInput,
                                                       parsed, context, filtering_enabled, output,
@@ -903,6 +971,7 @@ FlatJsonFilterStatus transform_flat_json_with_filter_toggle(
     const char* input_body, FlatJsonParseStatus parse_status, const ParsedFlatJsonObject* parsed,
     const apg::ApgTransformContext& context, bool filtering_enabled, char* output,
     std::size_t output_capacity, std::size_t* output_length) {
+    context.removed_field_count = 0;
     if (!filtering_enabled) {
         return copy_original_body(input_body, output, output_capacity, output_length);
     }
@@ -921,8 +990,13 @@ FlatJsonFilterStatus transform_flat_json_with_filter_toggle(
         return FlatJsonFilterStatus::InvalidInput;
     }
 
-    return filter_nested_json_by_selected_fields(input_body, context, output, output_capacity,
-                                                 output_length);
+    FieldCountMetrics metrics{};
+    const FlatJsonFilterStatus status = filter_nested_json_by_selected_fields(
+        input_body, context, output, output_capacity, output_length, &metrics);
+    if (status == FlatJsonFilterStatus::Ok || status == FlatJsonFilterStatus::OutputTooSmall) {
+        assign_removed_field_count(context, metrics);
+    }
+    return status;
 }
 
 } // namespace bytetaper::json_transform

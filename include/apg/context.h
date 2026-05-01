@@ -27,6 +27,10 @@ struct ApgTransformContext {
     // Canonical API-intelligence metric.
     // This count represents selected fields after policy filtering.
     std::size_t selected_field_count = 0;
+    // Canonical API-intelligence metric for JSON transform filtering.
+    // This count represents object field keys removed by filtering in the
+    // latest transform call.
+    mutable std::size_t removed_field_count = 0;
     char* trace_buffer = nullptr;
     std::size_t trace_capacity = 0;
     std::size_t trace_length = 0;
