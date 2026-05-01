@@ -9,6 +9,9 @@ namespace bytetaper::apg {
 
 namespace {
 
+char* g_execution_log = nullptr;
+std::size_t* g_write_index = nullptr;
+
 StageOutput FirstStage(ApgTransformContext& context) {
     context.executed_stage_count += 1;
     context.input_payload_bytes = 128;
@@ -32,6 +35,15 @@ StageOutput ThirdStage(ApgTransformContext& context) {
     return StageOutput{
         .result = StageResult::SkipRemaining,
         .note = "third stage",
+    };
+}
+
+StageOutput ContinueSecondStage(ApgTransformContext& context) {
+    context.executed_stage_count += 1;
+    context.output_payload_bytes = context.input_payload_bytes / 2;
+    return StageOutput{
+        .result = StageResult::Continue,
+        .note = "second stage continue",
     };
 }
 
@@ -65,22 +77,31 @@ StageOutput StageC(char* execution_log, std::size_t* write_index, ApgTransformCo
     };
 }
 
+StageOutput ContinueStageB(char* execution_log, std::size_t* write_index,
+                           ApgTransformContext& context) {
+    execution_log[*write_index] = 'B';
+    *write_index += 1;
+    context.executed_stage_count += 1;
+    return StageOutput{
+        .result = StageResult::Continue,
+        .note = "B-continue",
+    };
+}
+
 StageOutput StageAAdapter(ApgTransformContext& context) {
-    char* const execution_log = reinterpret_cast<char*>(context.request_id);
-    std::size_t* const write_index = reinterpret_cast<std::size_t*>(context.input_payload_bytes);
-    return StageA(execution_log, write_index, context);
+    return StageA(g_execution_log, g_write_index, context);
 }
 
 StageOutput StageBAdapter(ApgTransformContext& context) {
-    char* const execution_log = reinterpret_cast<char*>(context.request_id);
-    std::size_t* const write_index = reinterpret_cast<std::size_t*>(context.input_payload_bytes);
-    return StageB(execution_log, write_index, context);
+    return StageB(g_execution_log, g_write_index, context);
+}
+
+StageOutput ContinueStageBAdapter(ApgTransformContext& context) {
+    return ContinueStageB(g_execution_log, g_write_index, context);
 }
 
 StageOutput StageCAdapter(ApgTransformContext& context) {
-    char* const execution_log = reinterpret_cast<char*>(context.request_id);
-    std::size_t* const write_index = reinterpret_cast<std::size_t*>(context.input_payload_bytes);
-    return StageC(execution_log, write_index, context);
+    return StageC(g_execution_log, g_write_index, context);
 }
 
 } // namespace
@@ -89,7 +110,7 @@ TEST(ApgPipelineRunnerTest, ExecutesStagesInOrderAndReturnsLastOutput) {
     ApgTransformContext context{};
     const ApgStage stages[] = {
         &FirstStage,
-        &SecondStage,
+        &ContinueSecondStage,
         &ThirdStage,
     };
 
@@ -113,16 +134,16 @@ TEST(ApgPipelineRunnerTest, EmptyPipelineReturnsDefaultOutput) {
 }
 
 TEST(ApgPipelineRunnerTest, StageExecutionOrderMatchesRegistrationOrder) {
-    char execution_log[4] = {'\0', '\0', '\0', '\0'};
+    char execution_log[4] = { '\0', '\0', '\0', '\0' };
     std::size_t write_index = 0;
+    g_execution_log = execution_log;
+    g_write_index = &write_index;
 
     ApgTransformContext context{};
-    context.request_id = reinterpret_cast<std::uint64_t>(execution_log);
-    context.input_payload_bytes = reinterpret_cast<std::size_t>(&write_index);
 
     const ApgStage stages[] = {
         &StageAAdapter,
-        &StageBAdapter,
+        &ContinueStageBAdapter,
         &StageCAdapter,
     };
 
@@ -134,6 +155,30 @@ TEST(ApgPipelineRunnerTest, StageExecutionOrderMatchesRegistrationOrder) {
     EXPECT_STREQ(execution_log, "ABC");
     EXPECT_EQ(output.result, StageResult::SkipRemaining);
     EXPECT_STREQ(output.note, "C");
+}
+
+TEST(ApgPipelineRunnerTest, StopsOnErrorAndPreservesFailingOutput) {
+    char execution_log[4] = { '\0', '\0', '\0', '\0' };
+    std::size_t write_index = 0;
+    g_execution_log = execution_log;
+    g_write_index = &write_index;
+
+    ApgTransformContext context{};
+
+    const ApgStage stages[] = {
+        &StageAAdapter,
+        &StageBAdapter,
+        &StageCAdapter,
+    };
+
+    const StageOutput output = run_pipeline(stages, 3, context);
+
+    execution_log[write_index] = '\0';
+
+    EXPECT_EQ(context.executed_stage_count, 2u);
+    EXPECT_STREQ(execution_log, "AB");
+    EXPECT_EQ(output.result, StageResult::Error);
+    EXPECT_STREQ(output.note, "B");
 }
 
 } // namespace bytetaper::apg
