@@ -14,7 +14,7 @@ services:
       - -lc
       - |
         set -eu
-        cmake -S . -B build -G Ninja
+        cmake -S . -B build -G Ninja -DBYTETAPER_ENABLE_GTEST_TESTS=OFF
         cmake --build build --target bytetaper-extproc
         ctest --test-dir build --output-on-failure
         ./build/bytetaper-extproc
@@ -33,8 +33,8 @@ services:
       - -lc
       - |
         set -eu
-        cmake -S . -B build -G Ninja
-        cmake --build build --target bytetaper-extproc
+        cmake -S . -B build -G Ninja -DBYTETAPER_ENABLE_GTEST_TESTS=ON
+        cmake --build build
         ctest --test-dir build --output-on-failure
   bytetaper-smoke-test:
     build:
