@@ -195,4 +195,32 @@ bool parse_and_store_selected_fields(apg::ApgTransformContext* context) {
     return true;
 }
 
+bool enforce_selected_fields_policy(apg::ApgTransformContext* context,
+                                    const policy::FieldFilterPolicy& policy) {
+    if (context == nullptr) {
+        return false;
+    }
+
+    std::size_t write_index = 0;
+    const std::size_t original_count = context->selected_field_count;
+    for (std::size_t i = 0; i < original_count; ++i) {
+        if (!policy::apply_field_filter(policy, context->selected_fields[i])) {
+            continue;
+        }
+        if (write_index != i) {
+            const std::size_t copied_length =
+                bounded_copy(context->selected_fields[i], policy::kMaxFieldNameLen - 1,
+                             context->selected_fields[write_index], policy::kMaxFieldNameLen);
+            (void) copied_length;
+        }
+        write_index += 1;
+    }
+
+    for (std::size_t i = write_index; i < policy::kMaxFields; ++i) {
+        context->selected_fields[i][0] = '\0';
+    }
+    context->selected_field_count = write_index;
+    return true;
+}
+
 } // namespace bytetaper::field_selection

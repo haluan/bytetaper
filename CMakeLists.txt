@@ -250,58 +250,22 @@ if(BUILD_TESTING)
       COMMAND apg_pipeline_runner_test
     )
 
-    add_executable(field_selection_request_target_test
-      tests/field_selection_request_target_test.cpp
+    add_executable(field_selection_test
+      tests/field_selection_test.cpp
       src/field_selection/request_target.cpp
     )
-    target_include_directories(field_selection_request_target_test
+    target_include_directories(field_selection_test
       PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
     )
-    target_link_libraries(field_selection_request_target_test
+    target_link_libraries(field_selection_test
       PRIVATE
         gtest_main
     )
 
     add_test(
-      NAME field_selection_request_target_test
-      COMMAND field_selection_request_target_test
-    )
-
-    add_executable(field_selection_fields_query_test
-      tests/field_selection_fields_query_test.cpp
-      src/field_selection/request_target.cpp
-    )
-    target_include_directories(field_selection_fields_query_test
-      PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-    )
-    target_link_libraries(field_selection_fields_query_test
-      PRIVATE
-        gtest_main
-    )
-
-    add_test(
-      NAME field_selection_fields_query_test
-      COMMAND field_selection_fields_query_test
-    )
-
-    add_executable(field_selection_store_selected_fields_test
-      tests/field_selection_store_selected_fields_test.cpp
-      src/field_selection/request_target.cpp
-    )
-    target_include_directories(field_selection_store_selected_fields_test
-      PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-    )
-    target_link_libraries(field_selection_store_selected_fields_test
-      PRIVATE
-        gtest_main
-    )
-
-    add_test(
-      NAME field_selection_store_selected_fields_test
-      COMMAND field_selection_store_selected_fields_test
+      NAME field_selection_test
+      COMMAND field_selection_test
     )
 
     add_executable(policy_route_policy_test
