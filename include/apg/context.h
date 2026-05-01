@@ -24,6 +24,8 @@ struct ApgTransformContext {
     char raw_query[kRawQueryBufferSize] = {};
     std::size_t raw_query_length = 0;
     char selected_fields[policy::kMaxFields][policy::kMaxFieldNameLen] = {};
+    // Canonical API-intelligence metric.
+    // This count represents selected fields after policy filtering.
     std::size_t selected_field_count = 0;
     char* trace_buffer = nullptr;
     std::size_t trace_capacity = 0;

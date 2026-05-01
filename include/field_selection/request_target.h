@@ -26,10 +26,13 @@ bool parse_fields_query_parameter(const apg::ApgTransformContext& context,
                                   ParsedFieldsQuery* parsed_fields);
 // Clears previous selected fields, then parses and stores bounded results into context.
 // Missing/empty `fields` is non-error and leaves `selected_field_count == 0`.
+// `selected_field_count` is the API-intelligence count for this phase and is
+// interpreted as "currently selected fields in context" before policy enforcement.
 bool parse_and_store_selected_fields(apg::ApgTransformContext* context);
 // Enforces policy against context.selected_fields.
 // Disallowed fields are removed and allowed fields are compacted in-place
 // while preserving order. If all fields are disallowed, `selected_field_count` becomes 0.
+// After this call, `selected_field_count` is the post-filter API-intelligence count.
 // Returns false only for invalid input (e.g. null context).
 bool enforce_selected_fields_policy(apg::ApgTransformContext* context,
                                     const policy::FieldFilterPolicy& policy);

@@ -62,7 +62,8 @@ void set_selected_fields(apg::ApgTransformContext* context, const char* first, c
         }
         std::strncpy(context->selected_fields[context->selected_field_count], values[i],
                      policy::kMaxFieldNameLen - 1);
-        context->selected_fields[context->selected_field_count][policy::kMaxFieldNameLen - 1] = '\0';
+        context->selected_fields[context->selected_field_count][policy::kMaxFieldNameLen - 1] =
+            '\0';
         context->selected_field_count += 1;
     }
 }
@@ -146,12 +147,9 @@ TEST(FieldSelectionParseTest, ParsesCanonicalScenarios) {
 
 TEST(FieldSelectionParseTest, HandlesBoundarySegmentsAndFirstFieldsPrecedence) {
     const QueryScenario cases[] = {
-        { "fields&x=1", { nullptr }, 0 },
-        { "fields", { nullptr }, 0 },
-        { "fields=id&", { "id" }, 1 },
-        { "fields=&fields=id", { nullptr }, 0 },
-        { "a=1&fields&b=2", { nullptr }, 0 },
-        { "a=1&fields=id&fields=", { "id" }, 1 },
+        { "fields&x=1", { nullptr }, 0 },     { "fields", { nullptr }, 0 },
+        { "fields=id&", { "id" }, 1 },        { "fields=&fields=id", { nullptr }, 0 },
+        { "a=1&fields&b=2", { nullptr }, 0 }, { "a=1&fields=id&fields=", { "id" }, 1 },
     };
 
     for (const QueryScenario& scenario : cases) {
@@ -216,6 +214,75 @@ TEST(FieldSelectionStoreTest, OverwritesPreviousSelectionsDeterministically) {
 
 TEST(FieldSelectionStoreTest, ReturnsFalseForNullContext) {
     EXPECT_FALSE(parse_and_store_selected_fields(nullptr));
+}
+
+TEST(FieldSelectionCountContractTest, ParseStoreAndPolicyUpdateCanonicalCount) {
+    apg::ApgTransformContext context{};
+    set_raw_query(&context, "fields=id,internal,name");
+    ASSERT_TRUE(parse_and_store_selected_fields(&context));
+    EXPECT_EQ(context.selected_field_count, 3u);
+
+    policy::FieldFilterPolicy filter{};
+    filter.mode = policy::FieldFilterMode::Denylist;
+    std::strcpy(filter.fields[0], "internal");
+    filter.field_count = 1;
+
+    ASSERT_TRUE(enforce_selected_fields_policy(&context, filter));
+    EXPECT_EQ(context.selected_field_count, 2u);
+    EXPECT_STREQ(context.selected_fields[0], "id");
+    EXPECT_STREQ(context.selected_fields[1], "name");
+}
+
+TEST(FieldSelectionCountContractTest, AllDisallowedAfterPolicyResultsInZeroCount) {
+    apg::ApgTransformContext context{};
+    set_raw_query(&context, "fields=internal,secret");
+    ASSERT_TRUE(parse_and_store_selected_fields(&context));
+    ASSERT_EQ(context.selected_field_count, 2u);
+
+    policy::FieldFilterPolicy filter{};
+    filter.mode = policy::FieldFilterMode::Denylist;
+    std::strcpy(filter.fields[0], "internal");
+    std::strcpy(filter.fields[1], "secret");
+    filter.field_count = 2;
+
+    ASSERT_TRUE(enforce_selected_fields_policy(&context, filter));
+    EXPECT_EQ(context.selected_field_count, 0u);
+    EXPECT_STREQ(context.selected_fields[0], "");
+    EXPECT_STREQ(context.selected_fields[1], "");
+}
+
+TEST(FieldSelectionCountContractTest, EmptyOrMissingFieldsKeepCountAtZero) {
+    const char* queries[] = { "fields=", "sort=desc&page=1", "fields=,," };
+    for (const char* query : queries) {
+        apg::ApgTransformContext context{};
+        set_raw_query(&context, query);
+        ASSERT_TRUE(parse_and_store_selected_fields(&context));
+        EXPECT_EQ(context.selected_field_count, 0u);
+
+        policy::FieldFilterPolicy filter{};
+        filter.mode = policy::FieldFilterMode::Allowlist;
+        std::strcpy(filter.fields[0], "id");
+        filter.field_count = 1;
+        ASSERT_TRUE(enforce_selected_fields_policy(&context, filter));
+        EXPECT_EQ(context.selected_field_count, 0u);
+    }
+}
+
+TEST(FieldSelectionCountContractTest, NullInputSafetyForHelpers) {
+    ParsedFieldsQuery parsed_fields{};
+    apg::ApgTransformContext context{};
+    set_raw_query(&context, "fields=id");
+    ASSERT_TRUE(parse_fields_query_parameter(context, &parsed_fields));
+    ASSERT_EQ(parsed_fields.field_count, 1u);
+
+    EXPECT_FALSE(parse_fields_query_parameter(context, nullptr));
+    EXPECT_FALSE(parse_and_store_selected_fields(nullptr));
+    policy::FieldFilterPolicy filter{};
+    EXPECT_FALSE(enforce_selected_fields_policy(nullptr, filter));
+
+    // Existing valid context state remains defined and usable after null-input checks.
+    ASSERT_TRUE(parse_and_store_selected_fields(&context));
+    EXPECT_EQ(context.selected_field_count, 1u);
 }
 
 TEST(FieldSelectionPolicyTest, AllowlistCompactsAndPreservesOrder) {
