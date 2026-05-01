@@ -29,3 +29,21 @@ Canonical unit-test service command:
 ```bash
 docker compose run --rm bytetaper-unit-test
 ```
+
+Run smoke test flow in Docker Compose:
+
+```bash
+make smoke-test
+```
+
+Canonical smoke-test service command:
+
+```bash
+docker compose run --rm bytetaper-smoke-test
+```
+
+Rootless container note:
+
+```bash
+LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose run --rm bytetaper-unit-test
+```

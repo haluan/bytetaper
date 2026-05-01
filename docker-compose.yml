@@ -3,6 +3,9 @@ services:
     build:
       context: .
       dockerfile: docker/dev.Dockerfile
+      args:
+        LOCAL_UID: ${LOCAL_UID:-1000}
+        LOCAL_GID: ${LOCAL_GID:-1000}
     working_dir: /workspace
     volumes:
       - ./:/workspace
@@ -19,6 +22,9 @@ services:
     build:
       context: .
       dockerfile: docker/dev.Dockerfile
+      args:
+        LOCAL_UID: ${LOCAL_UID:-1000}
+        LOCAL_GID: ${LOCAL_GID:-1000}
     working_dir: /workspace
     volumes:
       - ./:/workspace
@@ -30,3 +36,21 @@ services:
         cmake -S . -B build -G Ninja
         cmake --build build --target bytetaper-extproc
         ctest --test-dir build --output-on-failure
+  bytetaper-smoke-test:
+    build:
+      context: .
+      dockerfile: docker/dev.Dockerfile
+      args:
+        LOCAL_UID: ${LOCAL_UID:-1000}
+        LOCAL_GID: ${LOCAL_GID:-1000}
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        set -eu
+        cmake -S . -B build -G Ninja
+        cmake --build build --target bytetaper-extproc
+        ./build/bytetaper-extproc

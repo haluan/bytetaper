@@ -2,6 +2,9 @@ FROM ubuntu:24.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
+ARG LOCAL_UID=1000
+ARG LOCAL_GID=1000
+
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     build-essential \
@@ -13,4 +16,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd -f -o -g "${LOCAL_GID}" bytetaper \
+    && useradd -m -o -u "${LOCAL_UID}" -g "${LOCAL_GID}" -s /bin/bash bytetaper
+
 WORKDIR /workspace
+USER bytetaper

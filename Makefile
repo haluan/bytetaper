@@ -1,7 +1,10 @@
 FORMAT_FILES := $(shell find src include tests -type f \( -name '*.h' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cpp' \))
 DOCKER_COMPOSE ?= docker compose
+LOCAL_UID ?= $(shell id -u)
+LOCAL_GID ?= $(shell id -g)
+COMPOSE_ENV := LOCAL_UID=$(LOCAL_UID) LOCAL_GID=$(LOCAL_GID)
 
-.PHONY: format test
+.PHONY: format test smoke-test
 format:
 	@if [ -z "$(FORMAT_FILES)" ]; then \
 		echo "No C++ files found to format."; \
@@ -11,4 +14,7 @@ format:
 	fi
 
 test:
-	@$(DOCKER_COMPOSE) run --rm bytetaper-unit-test
+	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-unit-test
+
+smoke-test:
+	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-smoke-test
