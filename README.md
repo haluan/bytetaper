@@ -48,6 +48,21 @@ workspaces. Example:
 LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose run --rm bytetaper-unit-test
 ```
 
+## Envoy ExtProc Adapter
+
+The extproc adapter is a high-performance gRPC implementation of the Envoy `ExternalProcessor` service.
+
+### Features
+
+- **gRPC Server Lifecycle**: Managed through `GrpcServerHandle` with support for explicit startup, dynamic port binding, and clean shutdown.
+- **ExternalProcessor Service**: Full implementation of the `envoy.service.ext_proc.v3.ExternalProcessor` gRPC contract.
+- **Synchronous Message Handling**:
+    - **Request Headers**: Efficient classification and recording of request header metadata.
+    - **Response Headers**: Classification and recording of response header metadata.
+    - **Response Body**: Handling of response body chunks.
+- **Stateless Continuation**: Automatically returns a `ProcessingResponse` with a "continue" instruction (zero mutations) for all supported message types, ensuring minimal latency overhead.
+- **Resilience**: Unsupported message variants are handled as safe no-ops, preventing stream disruptions.
+
 ## APG Stage Behavior
 
 Stage behavior contract:
@@ -66,3 +81,17 @@ Pipeline trace behavior:
   `C` (Continue), `E` (Error), `S` (SkipRemaining).
 - Trace writes are skipped when buffer is null or capacity is zero.
 - Trace writes are safely truncated and never write out-of-bounds.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our development process and how to contribute.
+
+## License
+
+This tool is licensed under:
+
+- `AGPL-3.0-only`, or
+- `LicenseRef-Commercial`
+
+See repository license files and source SPDX headers for details.
+See `LICENSES/` for full license texts.

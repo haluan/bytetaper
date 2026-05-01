@@ -236,6 +236,25 @@ if(BUILD_TESTING)
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
+    add_executable(extproc_server_smoke_test
+      tests/integration/extproc/extproc_server_smoke_test.cpp
+    )
+    target_include_directories(extproc_server_smoke_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${BYTETAPER_GENERATED_PROTO_DIR}
+    )
+    target_link_libraries(extproc_server_smoke_test
+      PRIVATE
+        bytetaper_extproc_grpc_server
+        bytetaper_extproc_grpc
+    )
+
+    add_test(
+      NAME extproc_server_smoke_test
+      COMMAND extproc_server_smoke_test
+    )
+
     add_executable(extproc_externalprocessor_service_integration_test
       tests/integration/extproc/externalprocessor_service_integration_test.cpp
     )
