@@ -276,6 +276,113 @@ TEST(JsonTransformFilterFlatJsonTest, ToggleEnabledPathUsesExistingFilteringBeha
     EXPECT_STREQ(output, R"({"id":1,"email":"a@example.com"})");
 }
 
+TEST(JsonTransformFilterFlatJsonTest, ToggleEnabledSupportsSimpleNestedSelection) {
+    const char* body = R"({"user":{"name":"A","age":1},"id":9})";
+    ParsedFlatJsonObject parsed{};
+    const FlatJsonParseStatus parse_status =
+        parse_flat_json_object(body, JsonResponseKind::EligibleJson, &parsed);
+    ASSERT_EQ(parse_status, FlatJsonParseStatus::SkipUnsupported);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "user.name", nullptr);
+
+    char output[128] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(transform_flat_json_with_filter_toggle(body, parse_status, &parsed, context, true,
+                                                     output, sizeof(output), &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, R"({"user":{"name":"A"}})");
+}
+
+TEST(JsonTransformFilterFlatJsonTest, ToggleEnabledSupportsMultiLevelNestedSelection) {
+    const char* body =
+        R"({"user":{"name":"A","profile":{"email":"a@example.com","phone":"x"},"age":1},"id":9})";
+    ParsedFlatJsonObject parsed{};
+    const FlatJsonParseStatus parse_status =
+        parse_flat_json_object(body, JsonResponseKind::EligibleJson, &parsed);
+    ASSERT_EQ(parse_status, FlatJsonParseStatus::SkipUnsupported);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "user.profile.email", "user.name");
+
+    char output[256] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(transform_flat_json_with_filter_toggle(body, parse_status, &parsed, context, true,
+                                                     output, sizeof(output), &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, R"({"user":{"name":"A","profile":{"email":"a@example.com"}}})");
+}
+
+TEST(JsonTransformFilterFlatJsonTest, ToggleEnabledSupportsMixedFlatAndNestedSelection) {
+    const char* body = R"({"id":9,"user":{"name":"A","age":1},"tenant":"t1"})";
+    ParsedFlatJsonObject parsed{};
+    const FlatJsonParseStatus parse_status =
+        parse_flat_json_object(body, JsonResponseKind::EligibleJson, &parsed);
+    ASSERT_EQ(parse_status, FlatJsonParseStatus::SkipUnsupported);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "user.name", "id");
+
+    char output[256] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(transform_flat_json_with_filter_toggle(body, parse_status, &parsed, context, true,
+                                                     output, sizeof(output), &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, R"({"id":9,"user":{"name":"A"}})");
+}
+
+TEST(JsonTransformFilterFlatJsonTest, ToggleEnabledIgnoresUnknownNestedPathsSafely) {
+    const char* body = R"({"id":9,"user":{"name":"A"}})";
+    ParsedFlatJsonObject parsed{};
+    const FlatJsonParseStatus parse_status =
+        parse_flat_json_object(body, JsonResponseKind::EligibleJson, &parsed);
+    ASSERT_EQ(parse_status, FlatJsonParseStatus::SkipUnsupported);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "user.missing", "id");
+
+    char output[128] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(transform_flat_json_with_filter_toggle(body, parse_status, &parsed, context, true,
+                                                     output, sizeof(output), &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, R"({"id":9})");
+}
+
+TEST(JsonTransformFilterFlatJsonTest, ToggleEnabledReturnsSkipUnsupportedForArrayValues) {
+    const char* body = R"({"id":9,"items":[{"name":"A"}]})";
+    ParsedFlatJsonObject parsed{};
+    const FlatJsonParseStatus parse_status =
+        parse_flat_json_object(body, JsonResponseKind::EligibleJson, &parsed);
+    ASSERT_EQ(parse_status, FlatJsonParseStatus::SkipUnsupported);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "id", nullptr);
+
+    char output[128] = {};
+    std::size_t output_length = 0;
+    EXPECT_EQ(transform_flat_json_with_filter_toggle(body, parse_status, &parsed, context, true,
+                                                     output, sizeof(output), &output_length),
+              FlatJsonFilterStatus::SkipUnsupported);
+}
+
+TEST(JsonTransformFilterFlatJsonTest, ToggleEnabledReturnsSkipUnsupportedForArrayPathNotation) {
+    const char* body = R"({"items":{"name":"A"}})";
+    ParsedFlatJsonObject parsed{};
+    const FlatJsonParseStatus parse_status =
+        parse_flat_json_object(body, JsonResponseKind::EligibleJson, &parsed);
+    ASSERT_EQ(parse_status, FlatJsonParseStatus::SkipUnsupported);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "items[0].name", nullptr);
+
+    char output[128] = {};
+    std::size_t output_length = 0;
+    EXPECT_EQ(transform_flat_json_with_filter_toggle(body, parse_status, &parsed, context, true,
+                                                     output, sizeof(output), &output_length),
+              FlatJsonFilterStatus::SkipUnsupported);
+}
+
 TEST(JsonTransformFilterFlatJsonTest, ToggleDisabledReturnsOutputTooSmallWhenBodyDoesNotFit) {
     const char* body = R"({"id":1,"name":"Andi"})";
     const ParsedFlatJsonObject parsed = parse_or_fail(body);
