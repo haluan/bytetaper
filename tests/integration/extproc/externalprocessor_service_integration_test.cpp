@@ -83,10 +83,44 @@ int main() {
         return 11;
     }
 
-    envoy::service::ext_proc::v3::ProcessingResponse response{};
-    if (stream->Read(&response)) {
+    // Response 1: request_headers continue
+    envoy::service::ext_proc::v3::ProcessingResponse r1{};
+    if (!stream->Read(&r1)) {
         bytetaper::extproc::stop_grpc_server(&handle);
         return 12;
+    }
+    if (!r1.has_request_headers()) {
+        bytetaper::extproc::stop_grpc_server(&handle);
+        return 13;
+    }
+
+    // Response 2: response_headers continue
+    envoy::service::ext_proc::v3::ProcessingResponse r2{};
+    if (!stream->Read(&r2)) {
+        bytetaper::extproc::stop_grpc_server(&handle);
+        return 14;
+    }
+    if (!r2.has_response_headers()) {
+        bytetaper::extproc::stop_grpc_server(&handle);
+        return 15;
+    }
+
+    // Response 3: response_body continue
+    envoy::service::ext_proc::v3::ProcessingResponse r3{};
+    if (!stream->Read(&r3)) {
+        bytetaper::extproc::stop_grpc_server(&handle);
+        return 16;
+    }
+    if (!r3.has_response_body()) {
+        bytetaper::extproc::stop_grpc_server(&handle);
+        return 17;
+    }
+
+    // No response 4: unsupported variant must not produce a response
+    envoy::service::ext_proc::v3::ProcessingResponse r4{};
+    if (stream->Read(&r4)) {
+        bytetaper::extproc::stop_grpc_server(&handle);
+        return 18;
     }
 
     const grpc::Status status = stream->Finish();
@@ -94,7 +128,7 @@ int main() {
     bytetaper::extproc::stop_grpc_server(&handle);
 
     if (!status.ok()) {
-        return 13;
+        return 19;
     }
 
     return 0;

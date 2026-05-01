@@ -34,12 +34,21 @@ public:
             record_request_kind(kind, &stream_stats);
 
             if (kind == ProcessingRequestKind::RequestHeaders) {
+                envoy::service::ext_proc::v3::ProcessingResponse response{};
+                response.mutable_request_headers();
+                stream->Write(response);
                 continue;
             }
             if (kind == ProcessingRequestKind::ResponseHeaders) {
+                envoy::service::ext_proc::v3::ProcessingResponse response{};
+                response.mutable_response_headers();
+                stream->Write(response);
                 continue;
             }
             if (kind == ProcessingRequestKind::ResponseBody) {
+                envoy::service::ext_proc::v3::ProcessingResponse response{};
+                response.mutable_response_body();
+                stream->Write(response);
                 continue;
             }
             // Non-supported variants are safe no-op.
