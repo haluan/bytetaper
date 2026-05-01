@@ -4,6 +4,7 @@
 #ifndef BYTETAPER_JSON_TRANSFORM_CONTENT_TYPE_H
 #define BYTETAPER_JSON_TRANSFORM_CONTENT_TYPE_H
 
+#include "apg/context.h"
 #include "policy/field_filter_policy.h"
 
 #include <cstddef>
@@ -44,6 +45,18 @@ struct ParsedFlatJsonObject {
 
 FlatJsonParseStatus parse_flat_json_object(const char* body, JsonResponseKind response_kind,
                                            ParsedFlatJsonObject* out_object);
+
+enum class FlatJsonFilterStatus {
+    Ok,
+    SkipUnsupported,
+    InvalidInput,
+    OutputTooSmall,
+};
+
+FlatJsonFilterStatus filter_flat_json_by_selected_fields(const ParsedFlatJsonObject& parsed,
+                                                         const apg::ApgTransformContext& context,
+                                                         char* output, std::size_t output_capacity,
+                                                         std::size_t* output_length);
 
 } // namespace bytetaper::json_transform
 

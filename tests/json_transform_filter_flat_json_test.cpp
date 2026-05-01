@@ -1,0 +1,167 @@
+// SPDX-FileCopyrightText: 2026 Haluan Irsad
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
+
+#include "json_transform/content_type.h"
+
+#include <cstring>
+
+#include <gtest/gtest.h>
+
+namespace bytetaper::json_transform {
+
+namespace {
+
+void set_selected_fields(apg::ApgTransformContext* context, const char* first, const char* second,
+                         const char* third = nullptr) {
+    context->selected_field_count = 0;
+    for (std::size_t index = 0; index < policy::kMaxFields; ++index) {
+        context->selected_fields[index][0] = '\0';
+    }
+
+    const char* values[3] = { first, second, third };
+    for (std::size_t index = 0; index < 3; ++index) {
+        if (values[index] == nullptr) {
+            continue;
+        }
+        std::strncpy(context->selected_fields[context->selected_field_count], values[index],
+                     policy::kMaxFieldNameLen - 1);
+        context->selected_fields[context->selected_field_count][policy::kMaxFieldNameLen - 1] =
+            '\0';
+        context->selected_field_count += 1;
+    }
+}
+
+ParsedFlatJsonObject parse_or_fail(const char* body) {
+    ParsedFlatJsonObject parsed{};
+    const FlatJsonParseStatus status =
+        parse_flat_json_object(body, JsonResponseKind::EligibleJson, &parsed);
+    EXPECT_EQ(status, FlatJsonParseStatus::Ok);
+    return parsed;
+}
+
+} // namespace
+
+TEST(JsonTransformFilterFlatJsonTest, FiltersExamplePayloadBySelectedFields) {
+    const char* body = R"({"id":1,"name":"Andi","email":"a@example.com","address":"Jakarta"})";
+    const ParsedFlatJsonObject parsed = parse_or_fail(body);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "id", "name");
+
+    char output[128] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(filter_flat_json_by_selected_fields(parsed, context, output, sizeof(output),
+                                                  &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, R"({"id":1,"name":"Andi"})");
+    EXPECT_EQ(output_length, std::strlen(output));
+}
+
+TEST(JsonTransformFilterFlatJsonTest, SupportsAdditionalSelectedFieldCombination) {
+    const char* body = R"({"id":1,"name":"Andi","email":"a@example.com","address":"Jakarta"})";
+    const ParsedFlatJsonObject parsed = parse_or_fail(body);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "email", "address");
+
+    char output[128] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(filter_flat_json_by_selected_fields(parsed, context, output, sizeof(output),
+                                                  &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, R"({"email":"a@example.com","address":"Jakarta"})");
+    EXPECT_EQ(output_length, std::strlen(output));
+}
+
+TEST(JsonTransformFilterFlatJsonTest, PreservesPrimitiveValueRepresentations) {
+    const char* body = R"({"count":123,"flag":false,"empty":null,"name":"Andi"})";
+    const ParsedFlatJsonObject parsed = parse_or_fail(body);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "count", "flag", "empty");
+
+    char output[128] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(filter_flat_json_by_selected_fields(parsed, context, output, sizeof(output),
+                                                  &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, R"({"count":123,"flag":false,"empty":null})");
+}
+
+TEST(JsonTransformFilterFlatJsonTest, IgnoresUnknownSelectedFieldsSafely) {
+    const char* body = R"({"id":1,"name":"Andi"})";
+    const ParsedFlatJsonObject parsed = parse_or_fail(body);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "unknown", "id");
+
+    char output[128] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(filter_flat_json_by_selected_fields(parsed, context, output, sizeof(output),
+                                                  &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, R"({"id":1})");
+}
+
+TEST(JsonTransformFilterFlatJsonTest, ReturnsEmptyObjectForEmptyOrAllUnknownSelections) {
+    const char* body = R"({"id":1,"name":"Andi"})";
+    const ParsedFlatJsonObject parsed = parse_or_fail(body);
+
+    apg::ApgTransformContext empty_context{};
+    char output[128] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(filter_flat_json_by_selected_fields(parsed, empty_context, output, sizeof(output),
+                                                  &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, "{}");
+
+    apg::ApgTransformContext unknown_context{};
+    set_selected_fields(&unknown_context, "missing", nullptr);
+    ASSERT_EQ(filter_flat_json_by_selected_fields(parsed, unknown_context, output, sizeof(output),
+                                                  &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, "{}");
+}
+
+TEST(JsonTransformFilterFlatJsonTest, ReturnsOutputTooSmallAndKeepsWritesBounded) {
+    const char* body = R"({"id":1,"name":"Andi"})";
+    const ParsedFlatJsonObject parsed = parse_or_fail(body);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "id", "name");
+
+    char output[8] = {};
+    std::size_t output_length = 0;
+    EXPECT_EQ(filter_flat_json_by_selected_fields(parsed, context, output, sizeof(output),
+                                                  &output_length),
+              FlatJsonFilterStatus::OutputTooSmall);
+    EXPECT_EQ(output[sizeof(output) - 1], '\0');
+    EXPECT_GT(output_length, sizeof(output) - 1);
+}
+
+TEST(JsonTransformFilterFlatJsonTest, ReturnsInvalidInputForInvalidPointers) {
+    const char* body = R"({"id":1})";
+    const ParsedFlatJsonObject parsed = parse_or_fail(body);
+    apg::ApgTransformContext context{};
+
+    std::size_t output_length = 0;
+    EXPECT_EQ(filter_flat_json_by_selected_fields(parsed, context, nullptr, 16, &output_length),
+              FlatJsonFilterStatus::InvalidInput);
+
+    char output[16] = {};
+    EXPECT_EQ(filter_flat_json_by_selected_fields(parsed, context, output, sizeof(output), nullptr),
+              FlatJsonFilterStatus::InvalidInput);
+}
+
+TEST(JsonTransformFilterFlatJsonTest, ReturnsSkipUnsupportedForUnusableParsedInput) {
+    ParsedFlatJsonObject parsed{};
+    apg::ApgTransformContext context{};
+    char output[16] = {};
+    std::size_t output_length = 0;
+
+    EXPECT_EQ(filter_flat_json_by_selected_fields(parsed, context, output, sizeof(output),
+                                                  &output_length),
+              FlatJsonFilterStatus::SkipUnsupported);
+}
+
+} // namespace bytetaper::json_transform
