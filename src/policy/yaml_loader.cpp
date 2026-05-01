@@ -25,6 +25,7 @@ bool parse_one_route(const YAML::Node& node, PolicyFileResult* result, std::size
     const std::string kind = node["match"]["kind"].as<std::string>();
     const std::string prefix = node["match"]["prefix"].as<std::string>();
     const std::string mut = node["mutation"] ? node["mutation"].as<std::string>() : "disabled";
+    const std::string method = node["method"] ? node["method"].as<std::string>() : "any";
 
     if (id.size() >= kMaxRouteIdLen) {
         result->error = "route_id exceeds max length";
@@ -59,6 +60,24 @@ bool parse_one_route(const YAML::Node& node, PolicyFileResult* result, std::size
         policy.mutation = MutationMode::Full;
     } else {
         result->error = "unknown mutation (expected 'disabled', 'headers_only', or 'full')";
+        return false;
+    }
+
+    if (method == "any") {
+        policy.allowed_method = HttpMethod::Any;
+    } else if (method == "get") {
+        policy.allowed_method = HttpMethod::Get;
+    } else if (method == "post") {
+        policy.allowed_method = HttpMethod::Post;
+    } else if (method == "put") {
+        policy.allowed_method = HttpMethod::Put;
+    } else if (method == "delete") {
+        policy.allowed_method = HttpMethod::Delete;
+    } else if (method == "patch") {
+        policy.allowed_method = HttpMethod::Patch;
+    } else {
+        result->error =
+            "unknown method (expected 'get', 'post', 'put', 'delete', 'patch', or 'any')";
         return false;
     }
 

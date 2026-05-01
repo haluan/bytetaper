@@ -304,6 +304,41 @@ if(BUILD_TESTING)
       NAME policy_route_matcher_test
       COMMAND policy_route_matcher_test
     )
+
+    add_executable(policy_method_matcher_test
+      tests/policy_method_matcher_test.cpp
+    )
+    target_include_directories(policy_method_matcher_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(policy_method_matcher_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME policy_method_matcher_test
+      COMMAND policy_method_matcher_test
+    )
+
+    add_executable(policy_yaml_loader_method_test
+      tests/policy_yaml_loader_method_test.cpp
+    )
+    target_include_directories(policy_yaml_loader_method_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(policy_yaml_loader_method_test
+      PRIVATE
+        policy_yaml_loader
+        gtest_main
+    )
+
+    add_test(
+      NAME policy_yaml_loader_method_test
+      COMMAND policy_yaml_loader_method_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)

@@ -20,11 +20,21 @@ enum class MutationMode : std::uint8_t {
     Full = 2,
 };
 
+enum class HttpMethod : std::uint8_t {
+    Any = 0,
+    Get = 1,
+    Post = 2,
+    Put = 3,
+    Delete = 4,
+    Patch = 5,
+};
+
 struct RoutePolicy {
     const char* route_id = nullptr;
     const char* match_prefix = nullptr;
     RouteMatchKind match_kind = RouteMatchKind::Prefix;
     MutationMode mutation = MutationMode::Disabled;
+    HttpMethod allowed_method = HttpMethod::Any;
 };
 
 // Validates a RoutePolicy. Returns true if usable.
