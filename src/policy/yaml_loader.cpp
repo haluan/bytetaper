@@ -76,7 +76,8 @@ bool parse_one_route(const YAML::Node& node, PolicyFileResult* result, std::size
     } else if (method == "patch") {
         policy.allowed_method = HttpMethod::Patch;
     } else {
-        result->error = "unknown method (expected 'get', 'post', 'put', 'delete', 'patch', or 'any')";
+        result->error =
+            "unknown method (expected 'get', 'post', 'put', 'delete', 'patch', or 'any')";
         return false;
     }
 
@@ -95,7 +96,8 @@ bool parse_one_route(const YAML::Node& node, PolicyFileResult* result, std::size
         } else if (mode_str == "denylist") {
             policy.field_filter.mode = FieldFilterMode::Denylist;
         } else {
-            result->error = "unknown field_filter.mode (expected 'none', 'allowlist', or 'denylist')";
+            result->error =
+                "unknown field_filter.mode (expected 'none', 'allowlist', or 'denylist')";
             return false;
         }
 
@@ -128,6 +130,24 @@ bool parse_one_route(const YAML::Node& node, PolicyFileResult* result, std::size
                 std::memcpy(policy.field_filter.fields[i], f.c_str(), f.size() + 1);
             }
             policy.field_filter.field_count = fields_node.size();
+        }
+    }
+
+    if (node["max_response_bytes"]) {
+        if (!node["max_response_bytes"].IsScalar()) {
+            result->error = "max_response_bytes must be a scalar integer";
+            return false;
+        }
+        try {
+            const std::uint64_t val = node["max_response_bytes"].as<std::uint64_t>();
+            if (val > (std::uint64_t) 0xFFFFFFFFu) {
+                result->error = "max_response_bytes exceeds uint32 max";
+                return false;
+            }
+            policy.max_response_bytes = static_cast<std::uint32_t>(val);
+        } catch (...) {
+            result->error = "max_response_bytes must be a valid positive integer";
+            return false;
         }
     }
 

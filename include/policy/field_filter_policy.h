@@ -5,8 +5,8 @@
 #define BYTETAPER_POLICY_FIELD_FILTER_POLICY_H
 
 #include <cstddef>
-#include <cstring>
 #include <cstdint>
+#include <cstring>
 
 namespace bytetaper::policy {
 

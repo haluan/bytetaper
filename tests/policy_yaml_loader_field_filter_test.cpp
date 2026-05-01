@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Haluan Irsad
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
 
-#include "policy/yaml_loader.h"
 #include "policy/route_policy.h"
+#include "policy/yaml_loader.h"
 
 #include <gtest/gtest.h>
 

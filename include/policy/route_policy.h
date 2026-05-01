@@ -38,6 +38,7 @@ struct RoutePolicy {
     MutationMode mutation = MutationMode::Disabled;
     HttpMethod allowed_method = HttpMethod::Any;
     FieldFilterPolicy field_filter = {};
+    std::uint32_t max_response_bytes = 0;
 };
 
 // Validates a RoutePolicy. Returns true if usable.
@@ -58,6 +59,15 @@ inline bool validate_route_policy(const RoutePolicy& policy, const char** reason
         }
     }
     return true;
+}
+
+// Returns true if the given response_size (in bytes) exceeds the policy limit.
+// If policy.max_response_bytes is 0, always returns false (no limit).
+inline bool exceeds_max_response_bytes(const RoutePolicy& policy, std::uint32_t response_size) {
+    if (policy.max_response_bytes == 0) {
+        return false;
+    }
+    return response_size > policy.max_response_bytes;
 }
 
 } // namespace bytetaper::policy
