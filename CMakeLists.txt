@@ -339,6 +339,41 @@ if(BUILD_TESTING)
       NAME policy_yaml_loader_method_test
       COMMAND policy_yaml_loader_method_test
     )
+
+    add_executable(policy_field_filter_test
+      tests/policy_field_filter_test.cpp
+    )
+    target_include_directories(policy_field_filter_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(policy_field_filter_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME policy_field_filter_test
+      COMMAND policy_field_filter_test
+    )
+
+    add_executable(policy_yaml_loader_field_filter_test
+      tests/policy_yaml_loader_field_filter_test.cpp
+    )
+    target_include_directories(policy_yaml_loader_field_filter_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(policy_yaml_loader_field_filter_test
+      PRIVATE
+        policy_yaml_loader
+        gtest_main
+    )
+
+    add_test(
+      NAME policy_yaml_loader_field_filter_test
+      COMMAND policy_yaml_loader_field_filter_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)

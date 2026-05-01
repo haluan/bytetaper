@@ -5,6 +5,12 @@ routes:
       prefix: "/api/v1/"
     method: "get"
     mutation: "disabled"
+    field_filter:
+      mode: "allowlist"
+      fields:
+        - "id"
+        - "name"
+        - "status"
 
   - id: "admin-exact"
     match:

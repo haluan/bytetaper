@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <cstring>
 
+#include "policy/field_filter_policy.h"
+
 namespace bytetaper::policy {
 
 enum class RouteMatchKind : std::uint8_t {
@@ -35,6 +37,7 @@ struct RoutePolicy {
     RouteMatchKind match_kind = RouteMatchKind::Prefix;
     MutationMode mutation = MutationMode::Disabled;
     HttpMethod allowed_method = HttpMethod::Any;
+    FieldFilterPolicy field_filter = {};
 };
 
 // Validates a RoutePolicy. Returns true if usable.

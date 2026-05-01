@@ -76,9 +76,59 @@ bool parse_one_route(const YAML::Node& node, PolicyFileResult* result, std::size
     } else if (method == "patch") {
         policy.allowed_method = HttpMethod::Patch;
     } else {
-        result->error =
-            "unknown method (expected 'get', 'post', 'put', 'delete', 'patch', or 'any')";
+        result->error = "unknown method (expected 'get', 'post', 'put', 'delete', 'patch', or 'any')";
         return false;
+    }
+
+    if (node["field_filter"]) {
+        const YAML::Node& filter_node = node["field_filter"];
+        if (!filter_node["mode"] || !filter_node["mode"].IsScalar()) {
+            result->error = "field_filter missing 'mode'";
+            return false;
+        }
+
+        const std::string mode_str = filter_node["mode"].as<std::string>();
+        if (mode_str == "none") {
+            policy.field_filter.mode = FieldFilterMode::None;
+        } else if (mode_str == "allowlist") {
+            policy.field_filter.mode = FieldFilterMode::Allowlist;
+        } else if (mode_str == "denylist") {
+            policy.field_filter.mode = FieldFilterMode::Denylist;
+        } else {
+            result->error = "unknown field_filter.mode (expected 'none', 'allowlist', or 'denylist')";
+            return false;
+        }
+
+        if (policy.field_filter.mode != FieldFilterMode::None) {
+            if (!filter_node["fields"] || !filter_node["fields"].IsSequence()) {
+                result->error = "field_filter with mode must have 'fields' sequence";
+                return false;
+            }
+
+            const YAML::Node& fields_node = filter_node["fields"];
+            if (fields_node.size() > kMaxFields) {
+                result->error = "too many field_filter fields (exceeds kMaxFields)";
+                return false;
+            }
+
+            for (std::size_t i = 0; i < fields_node.size(); ++i) {
+                if (!fields_node[i].IsScalar()) {
+                    result->error = "field_filter field must be a scalar string";
+                    return false;
+                }
+                const std::string f = fields_node[i].as<std::string>();
+                if (f.empty()) {
+                    result->error = "field_filter field name cannot be empty";
+                    return false;
+                }
+                if (f.size() >= kMaxFieldNameLen) {
+                    result->error = "field_filter field name exceeds max length";
+                    return false;
+                }
+                std::memcpy(policy.field_filter.fields[i], f.c_str(), f.size() + 1);
+            }
+            policy.field_filter.field_count = fields_node.size();
+        }
     }
 
     return true;
