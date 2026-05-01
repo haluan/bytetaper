@@ -62,7 +62,7 @@ TEST(JsonTransformFilterFlatJsonTest, SupportsAdditionalSelectedFieldCombination
     const ParsedFlatJsonObject parsed = parse_or_fail(body);
 
     apg::ApgTransformContext context{};
-    set_selected_fields(&context, "email", "address");
+    set_selected_fields(&context, "address", "email");
 
     char output[128] = {};
     std::size_t output_length = 0;
@@ -71,6 +71,21 @@ TEST(JsonTransformFilterFlatJsonTest, SupportsAdditionalSelectedFieldCombination
               FlatJsonFilterStatus::Ok);
     EXPECT_STREQ(output, R"({"email":"a@example.com","address":"Jakarta"})");
     EXPECT_EQ(output_length, std::strlen(output));
+}
+
+TEST(JsonTransformFilterFlatJsonTest, PreservesOriginalSourceOrderInsteadOfSelectionOrder) {
+    const char* body = R"({"id":1,"name":"Andi","email":"a@example.com"})";
+    const ParsedFlatJsonObject parsed = parse_or_fail(body);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "email", "id");
+
+    char output[128] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(filter_flat_json_by_selected_fields(parsed, context, output, sizeof(output),
+                                                  &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, R"({"id":1,"email":"a@example.com"})");
 }
 
 TEST(JsonTransformFilterFlatJsonTest, PreservesPrimitiveValueRepresentations) {
@@ -137,6 +152,21 @@ TEST(JsonTransformFilterFlatJsonTest, IgnoresUnknownSelectedFieldsSafely) {
                                                   &output_length),
               FlatJsonFilterStatus::Ok);
     EXPECT_STREQ(output, R"({"id":1})");
+}
+
+TEST(JsonTransformFilterFlatJsonTest, KeepsSourceOrderWithMixedKnownAndUnknownSelections) {
+    const char* body = R"({"id":1,"name":"Andi","email":"a@example.com"})";
+    const ParsedFlatJsonObject parsed = parse_or_fail(body);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "email", "missing", "id");
+
+    char output[128] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(filter_flat_json_by_selected_fields(parsed, context, output, sizeof(output),
+                                                  &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, R"({"id":1,"email":"a@example.com"})");
 }
 
 TEST(JsonTransformFilterFlatJsonTest, ReturnsEmptyObjectForEmptyOrAllUnknownSelections) {

@@ -54,19 +54,20 @@ struct BoundedWriter {
     }
 };
 
-const FlatJsonFieldView* find_field(const ParsedFlatJsonObject& parsed, const char* key) {
+bool is_field_selected(const apg::ApgTransformContext& context, const char* key) {
     if (key == nullptr) {
-        return nullptr;
+        return false;
     }
 
-    const std::size_t field_count =
-        (parsed.field_count <= policy::kMaxFields) ? parsed.field_count : policy::kMaxFields;
-    for (std::size_t index = 0; index < field_count; ++index) {
-        if (std::strcmp(parsed.fields[index].key, key) == 0) {
-            return &parsed.fields[index];
+    const std::size_t selected_count = (context.selected_field_count <= policy::kMaxFields)
+                                           ? context.selected_field_count
+                                           : policy::kMaxFields;
+    for (std::size_t index = 0; index < selected_count; ++index) {
+        if (std::strcmp(context.selected_fields[index], key) == 0) {
+            return true;
         }
     }
-    return nullptr;
+    return false;
 }
 
 } // namespace
@@ -90,16 +91,14 @@ FlatJsonFilterStatus filter_flat_json_by_selected_fields(const ParsedFlatJsonObj
     writer.append_char('{');
     bool first_emitted = true;
 
-    const std::size_t selected_count = (context.selected_field_count <= policy::kMaxFields)
-                                           ? context.selected_field_count
-                                           : policy::kMaxFields;
-    for (std::size_t selected_index = 0; selected_index < selected_count; ++selected_index) {
-        const FlatJsonFieldView* field =
-            find_field(parsed, context.selected_fields[selected_index]);
-        if (field == nullptr) {
+    const std::size_t parsed_field_count =
+        (parsed.field_count <= policy::kMaxFields) ? parsed.field_count : policy::kMaxFields;
+    for (std::size_t field_index = 0; field_index < parsed_field_count; ++field_index) {
+        const FlatJsonFieldView& field = parsed.fields[field_index];
+        if (!is_field_selected(context, field.key)) {
             continue;
         }
-        if (field->value_begin > field->value_end || field->value_end > parsed.source_length) {
+        if (field.value_begin > field.value_end || field.value_end > parsed.source_length) {
             return FlatJsonFilterStatus::SkipUnsupported;
         }
 
@@ -109,9 +108,9 @@ FlatJsonFilterStatus filter_flat_json_by_selected_fields(const ParsedFlatJsonObj
         first_emitted = false;
 
         writer.append_char('"');
-        writer.append_cstr(field->key);
+        writer.append_cstr(field.key);
         writer.append_cstr("\":");
-        writer.append_slice(parsed.source, field->value_begin, field->value_end);
+        writer.append_slice(parsed.source, field.value_begin, field.value_end);
     }
 
     writer.append_char('}');
