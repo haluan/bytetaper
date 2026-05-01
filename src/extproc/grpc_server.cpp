@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
 
 #include "extproc/grpc_server.h"
+#include "extproc/request_runtime.h"
 
 #include <memory>
 
@@ -16,11 +17,36 @@ namespace {
 class ExternalProcessorSkeletonService final
     : public envoy::service::ext_proc::v3::ExternalProcessor::Service {
 public:
-    grpc::Status
-    Process(grpc::ServerContext*,
-            grpc::ServerReaderWriter<envoy::service::ext_proc::v3::ProcessingResponse,
-                                     envoy::service::ext_proc::v3::ProcessingRequest>*) override {
-        return grpc::Status(grpc::StatusCode::UNIMPLEMENTED, "BT-030-002 transport skeleton");
+    grpc::Status Process(grpc::ServerContext*,
+                         grpc::ServerReaderWriter<envoy::service::ext_proc::v3::ProcessingResponse,
+                                                  envoy::service::ext_proc::v3::ProcessingRequest>*
+                             stream) override {
+        if (stream == nullptr) {
+            return grpc::Status(grpc::StatusCode::INTERNAL, "missing stream");
+        }
+
+        ProcessingStreamStats stream_stats{};
+        envoy::service::ext_proc::v3::ProcessingRequest request{};
+        while (stream->Read(&request)) {
+            const ProcessingRequestKind kind =
+                classify_request_kind(request.has_request_headers(), request.has_response_headers(),
+                                      request.has_response_body());
+            record_request_kind(kind, &stream_stats);
+
+            if (kind == ProcessingRequestKind::RequestHeaders) {
+                continue;
+            }
+            if (kind == ProcessingRequestKind::ResponseHeaders) {
+                continue;
+            }
+            if (kind == ProcessingRequestKind::ResponseBody) {
+                continue;
+            }
+            // Unsupported or currently unhandled request variant: safe no-op.
+        }
+
+        (void) stream_stats;
+        return grpc::Status::OK;
     }
 };
 

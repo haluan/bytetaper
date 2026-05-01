@@ -44,18 +44,43 @@ int main() {
     }
 
     grpc::ClientContext client_context{};
-    const auto stream = stub->Process(&client_context);
+    auto stream = stub->Process(&client_context);
     if (!stream) {
         bytetaper::extproc::stop_grpc_server(&handle);
         return 6;
+    }
+
+    envoy::service::ext_proc::v3::ProcessingRequest supported{};
+    supported.mutable_request_headers();
+    if (!stream->Write(supported)) {
+        bytetaper::extproc::stop_grpc_server(&handle);
+        return 7;
+    }
+
+    envoy::service::ext_proc::v3::ProcessingRequest unsupported{};
+    unsupported.mutable_request_body();
+    if (!stream->Write(unsupported)) {
+        bytetaper::extproc::stop_grpc_server(&handle);
+        return 8;
+    }
+
+    if (!stream->WritesDone()) {
+        bytetaper::extproc::stop_grpc_server(&handle);
+        return 9;
+    }
+
+    envoy::service::ext_proc::v3::ProcessingResponse response{};
+    if (stream->Read(&response)) {
+        bytetaper::extproc::stop_grpc_server(&handle);
+        return 10;
     }
 
     const grpc::Status status = stream->Finish();
 
     bytetaper::extproc::stop_grpc_server(&handle);
 
-    if (status.error_code() != grpc::StatusCode::UNIMPLEMENTED) {
-        return 7;
+    if (!status.ok()) {
+        return 11;
     }
 
     return 0;

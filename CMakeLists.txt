@@ -137,6 +137,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
 
   add_library(bytetaper_extproc_grpc_server STATIC
     src/extproc/grpc_server.cpp
+    src/extproc/request_runtime.cpp
   )
   target_include_directories(bytetaper_extproc_grpc_server
     PUBLIC
@@ -235,23 +236,23 @@ if(BUILD_TESTING)
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
-    add_executable(extproc_grpc_server_skeleton_integration_test
-      tests/integration/extproc/grpc_server_skeleton_integration_test.cpp
+    add_executable(extproc_externalprocessor_service_integration_test
+      tests/integration/extproc/externalprocessor_service_integration_test.cpp
     )
-    target_include_directories(extproc_grpc_server_skeleton_integration_test
+    target_include_directories(extproc_externalprocessor_service_integration_test
       PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/include
         ${BYTETAPER_GENERATED_PROTO_DIR}
     )
-    target_link_libraries(extproc_grpc_server_skeleton_integration_test
+    target_link_libraries(extproc_externalprocessor_service_integration_test
       PRIVATE
         bytetaper_extproc_grpc_server
         bytetaper_extproc_grpc
     )
 
     add_test(
-      NAME extproc_grpc_server_skeleton_integration_test
-      COMMAND extproc_grpc_server_skeleton_integration_test
+      NAME extproc_externalprocessor_service_integration_test
+      COMMAND extproc_externalprocessor_service_integration_test
     )
   endif()
 endif()
