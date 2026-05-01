@@ -5,10 +5,11 @@
 #define BYTETAPER_APG_STAGE_H
 
 #include "apg/context.h"
+#include "apg/result.h"
 
 namespace bytetaper::apg {
 
-using ApgStage = bool (*)(ApgTransformContext&);
+using ApgStage = StageOutput (*)(ApgTransformContext&);
 
 } // namespace bytetaper::apg
 

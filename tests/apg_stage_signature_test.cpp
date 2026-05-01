@@ -9,9 +9,12 @@ namespace bytetaper::apg {
 
 namespace {
 
-bool IncrementStageCount(ApgTransformContext& context) {
+StageOutput IncrementStageCount(ApgTransformContext& context) {
     context.executed_stage_count += 1;
-    return true;
+    return StageOutput{
+        .result = StageResult::Continue,
+        .note = "stage advanced",
+    };
 }
 
 } // namespace
@@ -20,9 +23,10 @@ TEST(ApgStageSignatureTest, AssignAndDispatchFunctionPointer) {
     ApgTransformContext context{};
     ApgStage stage = &IncrementStageCount;
 
-    const bool stage_ok = stage(context);
+    const StageOutput output = stage(context);
 
-    EXPECT_TRUE(stage_ok);
+    EXPECT_EQ(output.result, StageResult::Continue);
+    EXPECT_STREQ(output.note, "stage advanced");
     EXPECT_EQ(context.executed_stage_count, 1u);
 }
 

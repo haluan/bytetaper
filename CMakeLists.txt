@@ -66,5 +66,22 @@ if(BUILD_TESTING)
       NAME apg_stage_signature_test
       COMMAND apg_stage_signature_test
     )
+
+    add_executable(apg_result_output_test
+      tests/apg_result_output_test.cpp
+    )
+    target_include_directories(apg_result_output_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(apg_result_output_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME apg_result_output_test
+      COMMAND apg_result_output_test
+    )
   endif()
 endif()
