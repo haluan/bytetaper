@@ -287,6 +287,23 @@ if(BUILD_TESTING)
       NAME policy_yaml_loader_test
       COMMAND policy_yaml_loader_test
     )
+
+    add_executable(policy_route_matcher_test
+      tests/policy_route_matcher_test.cpp
+    )
+    target_include_directories(policy_route_matcher_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(policy_route_matcher_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME policy_route_matcher_test
+      COMMAND policy_route_matcher_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
