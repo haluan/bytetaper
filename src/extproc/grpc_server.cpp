@@ -39,7 +39,10 @@ public:
             if (kind == ProcessingRequestKind::ResponseHeaders) {
                 continue;
             }
-            // Non-supported variants are safe no-op; response_body support is deferred.
+            if (kind == ProcessingRequestKind::ResponseBody) {
+                continue;
+            }
+            // Non-supported variants are safe no-op.
         }
 
         (void) stream_stats;

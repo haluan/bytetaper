@@ -11,13 +11,15 @@ namespace bytetaper::extproc {
 enum class ProcessingRequestKind : std::uint8_t {
     RequestHeaders = 0,
     ResponseHeaders = 1,
-    Unsupported = 2,
+    ResponseBody = 2,
+    Unsupported = 3,
 };
 
 struct ProcessingStreamStats {
     std::uint32_t total_messages = 0;
     std::uint32_t request_headers_count = 0;
     std::uint32_t response_headers_count = 0;
+    std::uint32_t response_body_count = 0;
     std::uint32_t unsupported_count = 0;
 };
 
