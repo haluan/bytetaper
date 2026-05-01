@@ -60,6 +60,14 @@ FlatJsonFilterStatus filter_flat_json_by_selected_fields(const ParsedFlatJsonObj
                                                          char* output, std::size_t output_capacity,
                                                          std::size_t* output_length);
 
+// Applies JSON filtering when enabled, otherwise returns the original body unchanged.
+FlatJsonFilterStatus transform_flat_json_with_filter_toggle(const char* input_body,
+                                                            const ParsedFlatJsonObject* parsed,
+                                                            const apg::ApgTransformContext& context,
+                                                            bool filtering_enabled, char* output,
+                                                            std::size_t output_capacity,
+                                                            std::size_t* output_length);
+
 } // namespace bytetaper::json_transform
 
 #endif // BYTETAPER_JSON_TRANSFORM_CONTENT_TYPE_H

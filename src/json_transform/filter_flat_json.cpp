@@ -70,6 +70,26 @@ bool is_field_selected(const apg::ApgTransformContext& context, const char* key)
     return false;
 }
 
+FlatJsonFilterStatus copy_original_body(const char* input_body, char* output,
+                                        std::size_t output_capacity, std::size_t* output_length) {
+    if (input_body == nullptr || output == nullptr || output_length == nullptr) {
+        return FlatJsonFilterStatus::InvalidInput;
+    }
+
+    *output_length = 0;
+    BoundedWriter writer{ output, output_capacity, 0 };
+    writer.initialize();
+
+    std::size_t index = 0;
+    while (input_body[index] != '\0') {
+        writer.append_char(input_body[index]);
+        index += 1;
+    }
+
+    *output_length = writer.length;
+    return writer.fits_capacity() ? FlatJsonFilterStatus::Ok : FlatJsonFilterStatus::OutputTooSmall;
+}
+
 } // namespace
 
 FlatJsonFilterStatus filter_flat_json_by_selected_fields(const ParsedFlatJsonObject& parsed,
@@ -116,6 +136,22 @@ FlatJsonFilterStatus filter_flat_json_by_selected_fields(const ParsedFlatJsonObj
     writer.append_char('}');
     *output_length = writer.length;
     return writer.fits_capacity() ? FlatJsonFilterStatus::Ok : FlatJsonFilterStatus::OutputTooSmall;
+}
+
+FlatJsonFilterStatus transform_flat_json_with_filter_toggle(const char* input_body,
+                                                            const ParsedFlatJsonObject* parsed,
+                                                            const apg::ApgTransformContext& context,
+                                                            bool filtering_enabled, char* output,
+                                                            std::size_t output_capacity,
+                                                            std::size_t* output_length) {
+    if (!filtering_enabled) {
+        return copy_original_body(input_body, output, output_capacity, output_length);
+    }
+    if (parsed == nullptr) {
+        return FlatJsonFilterStatus::InvalidInput;
+    }
+    return filter_flat_json_by_selected_fields(*parsed, context, output, output_capacity,
+                                               output_length);
 }
 
 } // namespace bytetaper::json_transform

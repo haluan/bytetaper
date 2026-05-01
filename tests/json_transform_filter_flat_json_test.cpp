@@ -230,4 +230,86 @@ TEST(JsonTransformFilterFlatJsonTest, ReturnsSkipUnsupportedForUnusableParsedInp
               FlatJsonFilterStatus::SkipUnsupported);
 }
 
+TEST(JsonTransformFilterFlatJsonTest, ToggleReturnsOriginalBodyWhenFilteringDisabled) {
+    const char* body = R"({"id":1,"name":"Andi","email":"a@example.com"})";
+    const ParsedFlatJsonObject parsed = parse_or_fail(body);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "id", nullptr);
+
+    char output[128] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(transform_flat_json_with_filter_toggle(body, &parsed, context, false, output,
+                                                     sizeof(output), &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, body);
+    EXPECT_EQ(output_length, std::strlen(body));
+}
+
+TEST(JsonTransformFilterFlatJsonTest, ToggleReturnsOriginalBodyEvenIfSelectionWouldFilter) {
+    const char* body = R"({"id":1,"name":"Andi","email":"a@example.com","address":"Jakarta"})";
+    const ParsedFlatJsonObject parsed = parse_or_fail(body);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "id", "name");
+
+    char output[256] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(transform_flat_json_with_filter_toggle(body, &parsed, context, false, output,
+                                                     sizeof(output), &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, body);
+}
+
+TEST(JsonTransformFilterFlatJsonTest, ToggleEnabledPathUsesExistingFilteringBehavior) {
+    const char* body = R"({"id":1,"name":"Andi","email":"a@example.com"})";
+    const ParsedFlatJsonObject parsed = parse_or_fail(body);
+
+    apg::ApgTransformContext context{};
+    set_selected_fields(&context, "email", "id");
+
+    char output[128] = {};
+    std::size_t output_length = 0;
+    ASSERT_EQ(transform_flat_json_with_filter_toggle(body, &parsed, context, true, output,
+                                                     sizeof(output), &output_length),
+              FlatJsonFilterStatus::Ok);
+    EXPECT_STREQ(output, R"({"id":1,"email":"a@example.com"})");
+}
+
+TEST(JsonTransformFilterFlatJsonTest, ToggleDisabledReturnsOutputTooSmallWhenBodyDoesNotFit) {
+    const char* body = R"({"id":1,"name":"Andi"})";
+    const ParsedFlatJsonObject parsed = parse_or_fail(body);
+
+    apg::ApgTransformContext context{};
+    char output[8] = {};
+    std::size_t output_length = 0;
+
+    EXPECT_EQ(transform_flat_json_with_filter_toggle(body, &parsed, context, false, output,
+                                                     sizeof(output), &output_length),
+              FlatJsonFilterStatus::OutputTooSmall);
+    EXPECT_EQ(output[sizeof(output) - 1], '\0');
+    EXPECT_GT(output_length, sizeof(output) - 1);
+}
+
+TEST(JsonTransformFilterFlatJsonTest, ToggleReturnsInvalidInputForInvalidPointers) {
+    const char* body = R"({"id":1})";
+    const ParsedFlatJsonObject parsed = parse_or_fail(body);
+    apg::ApgTransformContext context{};
+    char output[16] = {};
+
+    std::size_t output_length = 0;
+    EXPECT_EQ(transform_flat_json_with_filter_toggle(body, &parsed, context, false, nullptr,
+                                                     sizeof(output), &output_length),
+              FlatJsonFilterStatus::InvalidInput);
+    EXPECT_EQ(transform_flat_json_with_filter_toggle(body, &parsed, context, false, output,
+                                                     sizeof(output), nullptr),
+              FlatJsonFilterStatus::InvalidInput);
+    EXPECT_EQ(transform_flat_json_with_filter_toggle(nullptr, &parsed, context, false, output,
+                                                     sizeof(output), &output_length),
+              FlatJsonFilterStatus::InvalidInput);
+    EXPECT_EQ(transform_flat_json_with_filter_toggle(body, nullptr, context, true, output,
+                                                     sizeof(output), &output_length),
+              FlatJsonFilterStatus::InvalidInput);
+}
+
 } // namespace bytetaper::json_transform
