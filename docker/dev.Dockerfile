@@ -11,9 +11,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     clang-format \
     cmake \
+    libprotobuf-dev \
     make \
     ninja-build \
     pkg-config \
+    protobuf-compiler \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd -f -o -g "${LOCAL_GID}" bytetaper \

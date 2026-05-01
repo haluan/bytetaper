@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package udpa.annotations;
+
+import "google/protobuf/descriptor.proto";
+
+// Compatibility subset for vendored Envoy API proto options.
+message MigrateAnnotation {
+  string rename = 1;
+  string oneof_promotion = 2;
+}
+
+extend google.protobuf.FieldOptions {
+  MigrateAnnotation field_migrate = 72295728;
+}

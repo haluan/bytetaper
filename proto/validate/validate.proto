@@ -1,0 +1,88 @@
+syntax = "proto3";
+
+package validate;
+
+import "google/protobuf/descriptor.proto";
+
+// Compatibility subset for protoc options used by vendored Envoy API protos.
+message MessageRules {
+  bool required = 1;
+  bool skip = 2;
+}
+
+message EnumRules {
+  bool defined_only = 1;
+  repeated int32 not_in = 2;
+}
+
+message StringRules {
+  enum WellKnownRegex {
+    UNKNOWN = 0;
+    HTTP_HEADER_NAME = 1;
+    HTTP_HEADER_VALUE = 2;
+  }
+
+  uint64 min_len = 1;
+  uint64 max_len = 2;
+  uint64 max_bytes = 3;
+  bool strict = 4;
+  WellKnownRegex well_known_regex = 5;
+}
+
+message BytesRules {
+  uint64 min_len = 1;
+  uint64 max_len = 2;
+}
+
+message UInt32Rules {
+  uint32 lte = 1;
+}
+
+message DoubleRules {
+  double lte = 1;
+  double gte = 2;
+}
+
+message DurationRules {
+  message Duration {
+    int64 seconds = 1;
+    int32 nanos = 2;
+  }
+
+  Duration gt = 1;
+  Duration gte = 2;
+  Duration lt = 3;
+  bool required = 4;
+}
+
+message AnyRules {
+  bool required = 1;
+}
+
+message MapRules {
+  message Keys {
+    StringRules string = 1;
+  }
+
+  Keys keys = 1;
+}
+
+message FieldRules {
+  MessageRules message = 1;
+  EnumRules enum = 2;
+  StringRules string = 3;
+  BytesRules bytes = 4;
+  UInt32Rules uint32 = 5;
+  DoubleRules double = 6;
+  DurationRules duration = 7;
+  AnyRules any = 8;
+  MapRules map = 9;
+}
+
+extend google.protobuf.OneofOptions {
+  bool required = 1071;
+}
+
+extend google.protobuf.FieldOptions {
+  FieldRules rules = 1071;
+}

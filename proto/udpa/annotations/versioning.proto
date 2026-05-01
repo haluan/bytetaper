@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package udpa.annotations;
+
+import "google/protobuf/descriptor.proto";
+
+// Compatibility subset for vendored Envoy API proto options.
+message VersioningAnnotation {
+  string previous_message_type = 1;
+}
+
+extend google.protobuf.MessageOptions {
+  VersioningAnnotation versioning = 72295728;
+}

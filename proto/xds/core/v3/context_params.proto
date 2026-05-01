@@ -1,0 +1,8 @@
+syntax = "proto3";
+
+package xds.core.v3;
+
+// Compatibility subset for vendored Envoy API proto imports.
+message ContextParams {
+  map<string, string> params = 1;
+}

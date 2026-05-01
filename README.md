@@ -24,6 +24,12 @@ docker compose run --rm bytetaper-smoke-test
 make smoke-test
 ```
 
+Integration-test flow:
+
+```bash
+docker compose run --rm bytetaper-integration-test
+```
+
 Format flow:
 
 ```bash
