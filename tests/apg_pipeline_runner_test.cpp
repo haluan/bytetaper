@@ -181,4 +181,28 @@ TEST(ApgPipelineRunnerTest, StopsOnErrorAndPreservesFailingOutput) {
     EXPECT_STREQ(output.note, "B");
 }
 
+TEST(ApgPipelineRunnerTest, StopsOnSkipRemainingAndPreservesReason) {
+    char execution_log[4] = { '\0', '\0', '\0', '\0' };
+    std::size_t write_index = 0;
+    g_execution_log = execution_log;
+    g_write_index = &write_index;
+
+    ApgTransformContext context{};
+
+    const ApgStage stages[] = {
+        &StageAAdapter,
+        &StageCAdapter,
+        &ContinueStageBAdapter,
+    };
+
+    const StageOutput output = run_pipeline(stages, 3, context);
+
+    execution_log[write_index] = '\0';
+
+    EXPECT_EQ(context.executed_stage_count, 2u);
+    EXPECT_STREQ(execution_log, "AC");
+    EXPECT_EQ(output.result, StageResult::SkipRemaining);
+    EXPECT_STREQ(output.note, "C");
+}
+
 } // namespace bytetaper::apg

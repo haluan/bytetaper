@@ -20,7 +20,8 @@ StageOutput run_pipeline(const ApgStage* stages, std::size_t count, ApgTransform
 
     for (std::size_t index = 0; index < count; ++index) {
         latest_output = stages[index](context);
-        if (latest_output.result == StageResult::Error) {
+        if (latest_output.result == StageResult::Error ||
+            latest_output.result == StageResult::SkipRemaining) {
             return latest_output;
         }
     }
