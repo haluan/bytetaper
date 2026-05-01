@@ -233,6 +233,23 @@ if(BUILD_TESTING)
       NAME apg_pipeline_runner_test
       COMMAND apg_pipeline_runner_test
     )
+
+    add_executable(policy_route_policy_test
+      tests/policy_route_policy_test.cpp
+    )
+    target_include_directories(policy_route_policy_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(policy_route_policy_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME policy_route_policy_test
+      COMMAND policy_route_policy_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
