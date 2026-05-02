@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Haluan Irsad
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
 
+#include "cache/cache_entry_codec.h"
 #include "cache/cache_ttl.h"
 #include "cache/l2_disk_cache.h"
 
@@ -67,44 +68,15 @@ bool l2_put(L2DiskCache* cache, const CacheEntry& entry) {
         return false;
 
     try {
-        // Serialization format:
-        // [uint16_t  status_code         ]   2 bytes
-        // [uint64_t  body_len            ]   8 bytes
-        // [char[64]  content_type        ]  64 bytes
-        // [int64_t   created_at_epoch_ms ]   8 bytes
-        // [int64_t   expires_at_epoch_ms ]   8 bytes
-        // [char*     body data           ]  body_len bytes
-
-        std::string value;
-        std::size_t header_size = 2 + 8 + kCacheContentTypeMaxLen + 8 + 8;
-        value.resize(header_size + entry.body_len);
-
-        char* p = &value[0];
-
-        std::uint16_t sc = entry.status_code;
-        std::memcpy(p, &sc, 2);
-        p += 2;
-
-        std::uint64_t bl = static_cast<std::uint64_t>(entry.body_len);
-        std::memcpy(p, &bl, 8);
-        p += 8;
-
-        std::memcpy(p, entry.content_type, kCacheContentTypeMaxLen);
-        p += kCacheContentTypeMaxLen;
-
-        std::int64_t ca = entry.created_at_epoch_ms;
-        std::memcpy(p, &ca, 8);
-        p += 8;
-
-        std::int64_t ea = entry.expires_at_epoch_ms;
-        std::memcpy(p, &ea, 8);
-        p += 8;
-
-        if (entry.body_len > 0 && entry.body) {
-            std::memcpy(p, entry.body, entry.body_len);
+        const std::size_t enc_size = kCacheEntryEncodedOverhead + entry.body_len;
+        std::vector<char> enc_buf(enc_size);
+        const std::size_t written = cache_entry_encode(entry, enc_buf.data(), enc_buf.size());
+        if (written == 0) {
+            return false;
         }
 
-        rocksdb::Status s = cache->db->Put(rocksdb::WriteOptions(), entry.key, value);
+        rocksdb::Status s = cache->db->Put(rocksdb::WriteOptions(), entry.key,
+                                           rocksdb::Slice(enc_buf.data(), written));
         return s.ok();
     } catch (...) {
         return false;
@@ -123,52 +95,18 @@ bool l2_get(L2DiskCache* cache, const char* key, std::int64_t now_ms, CacheEntry
             return false;
         }
 
-        std::size_t header_size = 2 + 8 + kCacheContentTypeMaxLen + 8 + 8;
-        if (raw.size() < header_size) {
+        CacheEntry decoded{};
+        bool ok = cache_entry_decode(raw.data(), raw.size(), &decoded, body_buf, body_buf_size);
+        if (!ok) {
             return false;
         }
-
-        const char* p = raw.data();
-
-        std::uint16_t sc;
-        std::memcpy(&sc, p, 2);
-        p += 2;
-        out->status_code = sc;
-
-        std::uint64_t bl;
-        std::memcpy(&bl, p, 8);
-        p += 8;
-        out->body_len = static_cast<std::size_t>(bl);
-
-        std::memcpy(out->content_type, p, kCacheContentTypeMaxLen);
-        p += kCacheContentTypeMaxLen;
-
-        std::int64_t ca;
-        std::memcpy(&ca, p, 8);
-        p += 8;
-        out->created_at_epoch_ms = ca;
-
-        std::int64_t ea;
-        std::memcpy(&ea, p, 8);
-        p += 8;
-        out->expires_at_epoch_ms = ea;
 
         // TTL Check
-        if (now_ms > 0 && !cache_ttl_valid(now_ms, out->expires_at_epoch_ms)) {
+        if (now_ms > 0 && !cache_ttl_valid(now_ms, decoded.expires_at_epoch_ms)) {
             return false;
         }
 
-        if (out->body_len > body_buf_size) {
-            return false;
-        }
-
-        if (out->body_len > 0) {
-            std::memcpy(body_buf, p, out->body_len);
-            out->body = body_buf;
-        } else {
-            out->body = nullptr;
-        }
-
+        *out = decoded;
         return true;
     } catch (...) {
         return false;

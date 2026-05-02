@@ -386,6 +386,7 @@ if(BUILD_TESTING)
       tests/l2_cache_lookup_stage_test.cpp
       src/stages/l2_cache_lookup_stage.cpp
       src/cache/l2_rocksdb_cache.cpp
+      src/cache/cache_entry_codec.cpp
       src/cache/cache_entry.cpp
       src/cache/cache_key.cpp
       src/cache/cache_ttl.cpp
@@ -424,6 +425,30 @@ if(BUILD_TESTING)
     add_test(
       NAME l1_cache_store_stage_test
       COMMAND l1_cache_store_stage_test
+    )
+
+    add_executable(l2_cache_store_stage_test
+      tests/l2_cache_store_stage_test.cpp
+      src/stages/l2_cache_store_stage.cpp
+      src/cache/l2_rocksdb_cache.cpp
+      src/cache/cache_entry_codec.cpp
+      src/cache/cache_entry.cpp
+      src/cache/cache_key.cpp
+      src/cache/cache_ttl.cpp
+    )
+    target_include_directories(l2_cache_store_stage_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(l2_cache_store_stage_test
+      PRIVATE
+        gtest_main
+        RocksDB::RocksDB
+    )
+
+    add_test(
+      NAME l2_cache_store_stage_test
+      COMMAND l2_cache_store_stage_test
     )
 
     add_executable(json_transform_content_type_test
@@ -790,6 +815,7 @@ if(BUILD_TESTING)
     add_executable(l2_rocksdb_cache_test
       tests/l2_rocksdb_cache_test.cpp
       src/cache/l2_rocksdb_cache.cpp
+      src/cache/cache_entry_codec.cpp
       src/cache/cache_entry.cpp
       src/cache/cache_ttl.cpp
     )
