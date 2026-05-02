@@ -38,6 +38,8 @@ const char* get_fail_open_reason_string(FailOpenReason reason) {
         return "payload_too_large";
     case FailOpenReason::Non2xxResponse:
         return "non_2xx_response";
+    case FailOpenReason::NonJsonResponse:
+        return "non_json_response";
     case FailOpenReason::UnknownError:
         return "unknown_error";
     default:

@@ -179,7 +179,7 @@ bool build_filtered_body_response(const envoy::service::ext_proc::v3::Processing
     }
     if (state.response_kind != json_transform::JsonResponseKind::EligibleJson) {
         if (out_reason != nullptr) {
-            *out_reason = safety::FailOpenReason::SkipUnsupported;
+            *out_reason = safety::FailOpenReason::NonJsonResponse;
         }
         return false;
     }

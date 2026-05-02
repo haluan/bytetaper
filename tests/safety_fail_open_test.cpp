@@ -57,6 +57,7 @@ TEST(FailOpenTest, ReasonStrings) {
                  "invalid_json_safe_error");
     EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::PayloadTooLarge), "payload_too_large");
     EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::Non2xxResponse), "non_2xx_response");
+    EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::NonJsonResponse), "non_json_response");
     EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::UnknownError), "unknown_error");
 }
 
