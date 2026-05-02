@@ -673,6 +673,24 @@ if(BUILD_TESTING)
       NAME cache_entry_test
       COMMAND cache_entry_test
     )
+
+    add_executable(cache_key_test
+      tests/cache_key_test.cpp
+      src/cache/cache_key.cpp
+    )
+    target_include_directories(cache_key_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(cache_key_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME cache_key_test
+      COMMAND cache_key_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
