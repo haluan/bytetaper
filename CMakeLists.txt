@@ -161,10 +161,22 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
   add_library(bytetaper_extproc_grpc_server STATIC
     src/extproc/grpc_server.cpp
     src/extproc/request_runtime.cpp
+    src/extproc/bytetaper_to_envoy.cpp
+    src/apg/pipeline.cpp
+    src/stages/l1_cache_lookup_stage.cpp
+    src/stages/l1_cache_store_stage.cpp
+    src/stages/l2_cache_lookup_stage.cpp
+    src/stages/l2_cache_store_stage.cpp
     src/field_selection/request_target.cpp
     src/json_transform/content_type.cpp
     src/json_transform/flat_json.cpp
     src/json_transform/filter_flat_json.cpp
+    src/cache/l1_cache.cpp
+    src/cache/l2_rocksdb_cache.cpp
+    src/cache/cache_entry_codec.cpp
+    src/cache/cache_entry.cpp
+    src/cache/cache_key.cpp
+    src/cache/cache_ttl.cpp
     src/safety/fail_open.cpp
   )
   target_include_directories(bytetaper_extproc_grpc_server
@@ -176,6 +188,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
   target_link_libraries(bytetaper_extproc_grpc_server
     PRIVATE
       bytetaper_extproc_grpc
+      RocksDB::RocksDB
   )
 
   find_package(PkgConfig REQUIRED)

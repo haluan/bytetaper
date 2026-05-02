@@ -26,6 +26,7 @@ routes:
     match:
       kind: prefix
       prefix: /api/v1/cached/
+    mutation: full
     cache:
       behavior: store
       enabled: true
@@ -39,6 +40,7 @@ routes:
     match:
       kind: prefix
       prefix: /api/v1/durable/
+    mutation: full
     cache:
       behavior: store
       enabled: true
@@ -55,6 +57,7 @@ routes:
     match:
       kind: prefix
       prefix: /api/v1/private/
+    mutation: full
     cache:
       behavior: store
       enabled: true

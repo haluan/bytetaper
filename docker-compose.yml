@@ -79,6 +79,33 @@ services:
         set -eu
         python3 tests/integration/e2e/oversized_envoy_assert.py
 
+  bytetaper-cache-hit-test:
+    build:
+      context: .
+      dockerfile: docker/dev.Dockerfile
+      args:
+        LOCAL_UID: ${LOCAL_UID:-1000}
+        LOCAL_GID: ${LOCAL_GID:-1000}
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    environment:
+      - BYTETAPER_TEST_BASE_URL=http://envoy:10000
+      - BYTETAPER_MOCK_COUNTER_URL=http://mock-api:8080/call-count
+    depends_on:
+      mock-api:
+        condition: service_healthy
+      bytetaper-extproc:
+        condition: service_healthy
+      envoy:
+        condition: service_healthy
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        set -eu
+        ./tests/integration/cache_hit_immediate_response_test.sh
+
   bytetaper-extproc:
     depends_on:
       mock-api:

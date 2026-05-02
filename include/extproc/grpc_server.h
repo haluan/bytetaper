@@ -4,6 +4,8 @@
 #ifndef BYTETAPER_EXTPROC_GRPC_SERVER_H
 #define BYTETAPER_EXTPROC_GRPC_SERVER_H
 
+#include "cache/l1_cache.h"
+#include "cache/l2_disk_cache.h"
 #include "policy/route_policy.h"
 
 #include <cstddef>
@@ -15,6 +17,8 @@ struct GrpcServerConfig {
     const char* listen_address = "127.0.0.1:0";
     const policy::RoutePolicy* policies = nullptr;
     std::size_t policy_count = 0;
+    cache::L1Cache* l1_cache = nullptr;
+    cache::L2DiskCache* l2_cache = nullptr;
 };
 
 struct GrpcServerHandle {

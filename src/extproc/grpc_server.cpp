@@ -3,13 +3,21 @@
 
 #include "extproc/grpc_server.h"
 
+#include "apg/pipeline.h"
 #include "envoy/service/ext_proc/v3/external_processor.grpc.pb.h"
+#include "extproc/bytetaper_to_envoy.h"
+#include "extproc/reporting_headers.h"
 #include "extproc/request_runtime.h"
 #include "field_selection/request_target.h"
 #include "json_transform/content_type.h"
 #include "policy/route_matcher.h"
 #include "safety/fail_open.h"
+#include "stages/l1_cache_lookup_stage.h"
+#include "stages/l1_cache_store_stage.h"
+#include "stages/l2_cache_lookup_stage.h"
+#include "stages/l2_cache_store_stage.h"
 
+#include <chrono>
 #include <cstddef>
 #include <grpcpp/grpcpp.h>
 #include <memory>
@@ -32,11 +40,6 @@ constexpr const char* kOriginalBytesHeader = "x-bytetaper-original-bytes";
 constexpr const char* kOptimizedBytesHeader = "x-bytetaper-optimized-bytes";
 constexpr const char* kTransformAppliedHeader = "x-bytetaper-transform-applied";
 constexpr const char* kRoutePolicyHeader = "x-bytetaper-route-policy";
-constexpr const char* kCachedResponseHeader = "x-bytetaper-cached-response";
-
-constexpr const char* kTrueValue = "true";
-constexpr const char* kFalseValue = "false";
-constexpr const char* kNoneValue = "none";
 
 struct StreamFilterState {
     apg::ApgTransformContext context{};
@@ -120,6 +123,15 @@ void apply_request_headers_selection(const envoy::service::ext_proc::v3::Process
         return;
     }
 
+    std::string method{};
+    if (read_header_value(request.request_headers().headers(), ":method", &method)) {
+        if (method == "GET" || method == "get") {
+            state->context.request_method = policy::HttpMethod::Get;
+        } else if (method == "POST" || method == "post") {
+            state->context.request_method = policy::HttpMethod::Post;
+        }
+    }
+
     state->has_query_selection = state->context.selected_field_count > 0;
 }
 
@@ -129,12 +141,16 @@ void apply_response_content_type(const envoy::service::ext_proc::v3::ProcessingR
         return;
     }
 
-    std::string status_code{};
-    if (read_header_value(request.response_headers().headers(), ":status", &status_code)) {
-        if (!status_code.empty() && status_code[0] != '2') {
-            state->is_non_2xx_response = true;
-            state->response_kind = json_transform::JsonResponseKind::SkipUnsupported;
-            return;
+    for (const auto& header : request.response_headers().headers().headers()) {
+        if (header.key() == ":status") {
+            const std::string status_code =
+                header.raw_value().empty() ? header.value() : header.raw_value();
+            if (!status_code.empty() && status_code[0] != '2') {
+                state->is_non_2xx_response = true;
+                state->response_kind = json_transform::JsonResponseKind::SkipUnsupported;
+            }
+            state->context.response_status_code =
+                static_cast<std::uint16_t>(std::atoi(status_code.c_str()));
         }
     }
 
@@ -144,6 +160,8 @@ void apply_response_content_type(const envoy::service::ext_proc::v3::ProcessingR
         state->response_kind = json_transform::JsonResponseKind::SkipUnsupported;
         return;
     }
+    std::strncpy(state->context.response_content_type, content_type.c_str(),
+                 sizeof(state->context.response_content_type) - 1);
 
     json_transform::JsonResponseKind detected = json_transform::JsonResponseKind::SkipUnsupported;
     if (!json_transform::detect_application_json_response(content_type.c_str(), &detected)) {
@@ -263,6 +281,8 @@ class ExternalProcessorSkeletonService final
 public:
     const policy::RoutePolicy* policies = nullptr;
     std::size_t policy_count = 0;
+    cache::L1Cache* l1_cache = nullptr;
+    cache::L2DiskCache* l2_cache = nullptr;
 
     grpc::Status Process(grpc::ServerContext*,
                          grpc::ServerReaderWriter<envoy::service::ext_proc::v3::ProcessingResponse,
@@ -289,6 +309,29 @@ public:
                         policies, policy_count, filter_state.context.raw_path);
                 }
                 envoy::service::ext_proc::v3::ProcessingResponse response{};
+
+                // Run lookup pipeline
+                if (filter_state.matched_policy != nullptr) {
+                    filter_state.context.matched_policy = filter_state.matched_policy;
+                    filter_state.context.l1_cache = l1_cache;
+                    filter_state.context.l2_cache = l2_cache;
+                    filter_state.context.request_epoch_ms =
+                        std::chrono::duration_cast<std::chrono::milliseconds>(
+                            std::chrono::system_clock::now().time_since_epoch())
+                            .count();
+
+                    static constexpr apg::ApgStage kLookupStages[] = {
+                        stages::l1_cache_lookup_stage, stages::l2_cache_lookup_stage
+                    };
+                    apg::run_pipeline(kLookupStages, 2, filter_state.context);
+                }
+
+                if (bytetaper::extproc::map_cache_hit_to_immediate_response(filter_state.context,
+                                                                            &response)) {
+                    stream->Write(response);
+                    continue; // skip all further processing for this request
+                }
+
                 auto* request_headers_response = response.mutable_request_headers();
                 request_headers_response->mutable_response()->set_status(
                     envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
@@ -314,6 +357,7 @@ public:
             }
             if (kind == ProcessingRequestKind::ResponseBody) {
                 envoy::service::ext_proc::v3::ProcessingResponse response{};
+
                 safety::FailOpenReason fail_reason = safety::FailOpenReason::None;
                 if (!build_filtered_body_response(request, filter_state, &response, &fail_reason)) {
                     if (filter_state.matched_policy != nullptr &&
@@ -346,6 +390,22 @@ public:
                             add_overwrite_header(common_response, "x-bytetaper-fail-open-reason",
                                                  safety::get_fail_open_reason_string(fail_reason));
                         }
+                    }
+                } else {
+                    // Success! Store in cache if enabled.
+                    if (filter_state.matched_policy != nullptr &&
+                        filter_state.matched_policy->cache.behavior ==
+                            policy::CacheBehavior::Store) {
+
+                        const std::string& filtered_body =
+                            response.response_body().response().body_mutation().body();
+                        filter_state.context.response_body = filtered_body.c_str();
+                        filter_state.context.response_body_len = filtered_body.size();
+
+                        static constexpr apg::ApgStage kStoreStages[] = {
+                            stages::l1_cache_store_stage, stages::l2_cache_store_stage
+                        };
+                        apg::run_pipeline(kStoreStages, 2, filter_state.context);
                     }
                 }
                 stream->Write(response);
@@ -387,6 +447,8 @@ bool start_grpc_server(const GrpcServerConfig& config, GrpcServerHandle* handle)
 
     impl->service.policies = config.policies;
     impl->service.policy_count = config.policy_count;
+    impl->service.l1_cache = config.l1_cache;
+    impl->service.l2_cache = config.l2_cache;
     impl->server = builder.BuildAndStart();
     if (!impl->server) {
         return false;
