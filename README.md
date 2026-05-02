@@ -183,6 +183,12 @@ field_filter:
 
 For a detailed behavior reference and example scenarios, see [Field Selection Reference](docs/field-selection.md).
 
+## Observability
+
+ByteTaper provides comprehensive observability through Prometheus metrics and HTTP response headers. These tools allow you to monitor the performance, savings, and safety status of your JSON optimizations.
+
+See [Observability Guide](docs/observability.md) for a complete reference on monitoring ByteTaper.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our development process and how to contribute.
