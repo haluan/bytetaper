@@ -170,6 +170,29 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
       bytetaper_extproc_grpc
   )
 
+  find_package(Threads REQUIRED)
+
+  add_library(bytetaper_prometheus_registry STATIC
+    src/metrics/prometheus_registry.cpp
+  )
+  target_include_directories(bytetaper_prometheus_registry
+    PUBLIC
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+  )
+
+  add_library(bytetaper_metrics_http_server STATIC
+    src/metrics/metrics_http_server.cpp
+  )
+  target_include_directories(bytetaper_metrics_http_server
+    PUBLIC
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+  )
+  target_link_libraries(bytetaper_metrics_http_server
+    PRIVATE
+      bytetaper_prometheus_registry
+      Threads::Threads
+  )
+
   add_executable(bytetaper-extproc-server
     src/extproc/server_main.cpp
   )
@@ -592,6 +615,24 @@ if(BUILD_TESTING)
       NAME policy_report_output_test
       COMMAND policy_report_output_test
     )
+
+    add_executable(metrics_prometheus_registry_test
+      tests/metrics_prometheus_registry_test.cpp
+      src/metrics/prometheus_registry.cpp
+    )
+    target_include_directories(metrics_prometheus_registry_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(metrics_prometheus_registry_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME metrics_prometheus_registry_test
+      COMMAND metrics_prometheus_registry_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
@@ -745,6 +786,23 @@ if(BUILD_TESTING)
     add_test(
       NAME extproc_route_policy_integration_test
       COMMAND extproc_route_policy_integration_test
+    )
+
+    add_executable(extproc_metrics_endpoint_integration_test
+      tests/integration/extproc/extproc_metrics_endpoint_integration_test.cpp
+    )
+    target_include_directories(extproc_metrics_endpoint_integration_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(extproc_metrics_endpoint_integration_test
+      PRIVATE
+        bytetaper_prometheus_registry
+        bytetaper_metrics_http_server
+    )
+    add_test(
+      NAME extproc_metrics_endpoint_integration_test
+      COMMAND extproc_metrics_endpoint_integration_test
     )
   endif()
 endif()
