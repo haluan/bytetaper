@@ -19,11 +19,6 @@ struct L1Cache {
     std::size_t write_cursor;                // next write position (mod kL1SlotCount)
 };
 
-namespace internal {
-// Simple, fast hash function (DJB2)
-std::size_t hash_key(const char* key);
-} // namespace internal
-
 void l1_init(L1Cache* cache);
 
 // Stores a copy of entry at slots[write_cursor % kL1SlotCount] or hash index,

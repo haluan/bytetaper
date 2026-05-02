@@ -32,6 +32,7 @@ constexpr const char* kOriginalBytesHeader = "x-bytetaper-original-bytes";
 constexpr const char* kOptimizedBytesHeader = "x-bytetaper-optimized-bytes";
 constexpr const char* kTransformAppliedHeader = "x-bytetaper-transform-applied";
 constexpr const char* kRoutePolicyHeader = "x-bytetaper-route-policy";
+constexpr const char* kCachedResponseHeader = "x-bytetaper-cached-response";
 
 constexpr const char* kTrueValue = "true";
 constexpr const char* kFalseValue = "false";
@@ -60,8 +61,8 @@ void add_overwrite_header(envoy::service::ext_proc::v3::CommonResponse* common, 
 
 void add_bytetaper_report_headers(envoy::service::ext_proc::v3::CommonResponse* common,
                                   std::size_t original_bytes, std::size_t optimized_bytes,
-                                  std::size_t removed_fields, std::size_t saved_bytes,
-                                  bool applied) {
+                                  std::size_t removed_fields, std::size_t saved_bytes, bool applied,
+                                  bool cache_hit) {
     if (common == nullptr) {
         return;
     }
@@ -73,6 +74,7 @@ void add_bytetaper_report_headers(envoy::service::ext_proc::v3::CommonResponse* 
     add_overwrite_header(common, kOriginalBytesHeader, std::to_string(original_bytes));
     add_overwrite_header(common, kOptimizedBytesHeader, std::to_string(optimized_bytes));
     add_overwrite_header(common, kTransformAppliedHeader, applied ? kTrueValue : kFalseValue);
+    add_overwrite_header(common, kCachedResponseHeader, cache_hit ? kTrueValue : kFalseValue);
 }
 
 bool read_header_value(const envoy::config::core::v3::HeaderMap& headers, const char* key,
@@ -249,7 +251,8 @@ bool build_filtered_body_response(const envoy::service::ext_proc::v3::Processing
 
     add_overwrite_header(common, kContentLengthHeader, std::to_string(filtered_body.size()));
     add_bytetaper_report_headers(common, input_body.size(), filtered_body.size(),
-                                 state.context.removed_field_count, saved_bytes, true);
+                                 state.context.removed_field_count, saved_bytes, true,
+                                 state.context.cache_hit);
     state.context.output_payload_bytes = filtered_body.size();
 
     return true;
@@ -298,7 +301,8 @@ public:
                 auto* response_headers = response.mutable_response_headers();
                 auto* common_response = response_headers->mutable_response();
                 common_response->set_status(envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
-                add_bytetaper_report_headers(common_response, 0, 0, 0, 0, false);
+                add_bytetaper_report_headers(common_response, 0, 0, 0, 0, false,
+                                             filter_state.context.cache_hit);
                 {
                     const char* route_id = (filter_state.matched_policy != nullptr)
                                                ? filter_state.matched_policy->route_id
@@ -334,9 +338,10 @@ public:
                         auto* common_response = response_body->mutable_response();
                         common_response->set_status(
                             envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
-                        add_bytetaper_report_headers(
-                            common_response, request.response_body().body().size(),
-                            request.response_body().body().size(), 0, 0, false);
+                        add_bytetaper_report_headers(common_response,
+                                                     request.response_body().body().size(),
+                                                     request.response_body().body().size(), 0, 0,
+                                                     false, filter_state.context.cache_hit);
                         if (fail_reason != safety::FailOpenReason::None) {
                             add_overwrite_header(common_response, "x-bytetaper-fail-open-reason",
                                                  safety::get_fail_open_reason_string(fail_reason));

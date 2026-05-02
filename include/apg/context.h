@@ -49,6 +49,12 @@ struct ApgTransformContext {
     const char* cache_layer = nullptr; // "L1" on hit, nullptr on miss
     bool should_return_immediate_response = false;
     cache::CacheEntry cached_response{}; // populated on hit; body is non-owning
+
+    // --- Cache store inputs (set by caller after receiving upstream response) ---
+    std::uint16_t response_status_code = 0;
+    const char* response_body = nullptr; // non-owning
+    std::size_t response_body_len = 0;
+    char response_content_type[cache::kCacheContentTypeMaxLen] = {};
 };
 
 } // namespace bytetaper::apg

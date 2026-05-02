@@ -371,6 +371,27 @@ if(BUILD_TESTING)
       COMMAND l1_cache_lookup_stage_test
     )
 
+    add_executable(l1_cache_store_stage_test
+      tests/l1_cache_store_stage_test.cpp
+      src/stages/l1_cache_store_stage.cpp
+      src/cache/cache_entry.cpp
+      src/cache/cache_key.cpp
+      src/cache/l1_cache.cpp
+    )
+    target_include_directories(l1_cache_store_stage_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(l1_cache_store_stage_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME l1_cache_store_stage_test
+      COMMAND l1_cache_store_stage_test
+    )
+
     add_executable(json_transform_content_type_test
       tests/json_transform_content_type_test.cpp
       src/json_transform/content_type.cpp

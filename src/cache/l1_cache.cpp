@@ -9,7 +9,7 @@
 
 namespace bytetaper::cache {
 
-namespace internal {
+namespace {
 
 // Threshold for switching between sequential ring buffer and hash indexing.
 static constexpr std::size_t kHashLookupThreshold = 256;
@@ -30,7 +30,7 @@ std::size_t hash_key(const char* key) {
     return h;
 }
 
-} // namespace internal
+} // namespace
 
 void l1_init(L1Cache* cache) {
     if (cache == nullptr) {
@@ -44,9 +44,9 @@ void l1_put(L1Cache* cache, const CacheEntry& entry) {
         return;
     }
 
-    if constexpr (kL1SlotCount > internal::kHashLookupThreshold) {
+    if constexpr (kL1SlotCount > kHashLookupThreshold) {
         // Large cache: Use Hash Index for O(1) performance.
-        const std::size_t h = internal::hash_key(entry.key);
+        const std::size_t h = hash_key(entry.key);
         const std::size_t slot_idx = h % kL1SlotCount;
         cache->slots[slot_idx] = entry;
         cache->generations[slot_idx] += 1;
@@ -64,9 +64,9 @@ bool l1_get(const L1Cache* cache, const char* key, std::int64_t now_ms, CacheEnt
         return false;
     }
 
-    if constexpr (kL1SlotCount > internal::kHashLookupThreshold) {
+    if constexpr (kL1SlotCount > kHashLookupThreshold) {
         // Large cache: Use Hash Index for O(1) lookup.
-        const std::size_t h = internal::hash_key(key);
+        const std::size_t h = hash_key(key);
         const std::size_t slot_idx = h % kL1SlotCount;
 
         if (cache->generations[slot_idx] == 0) {
