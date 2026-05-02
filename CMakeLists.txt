@@ -331,6 +331,25 @@ if(BUILD_TESTING)
       COMMAND field_selection_test
     )
 
+    add_executable(l1_ring_cache_test
+      tests/l1_ring_cache_test.cpp
+      src/cache/l1_ring_cache.cpp
+      src/cache/cache_entry.cpp
+    )
+    target_include_directories(l1_ring_cache_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(l1_ring_cache_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME l1_ring_cache_test
+      COMMAND l1_ring_cache_test
+    )
+
     add_executable(json_transform_content_type_test
       tests/json_transform_content_type_test.cpp
       src/json_transform/content_type.cpp
