@@ -48,6 +48,8 @@ const char* get_fail_open_reason_string(FailOpenReason reason) {
         return "timeout";
     case FailOpenReason::InvalidPolicy:
         return "invalid_policy";
+    case FailOpenReason::ObserveMode:
+        return "observe_mode";
     case FailOpenReason::UnknownError:
         return "unknown_error";
     default:

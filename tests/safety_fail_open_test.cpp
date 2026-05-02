@@ -68,6 +68,7 @@ TEST(FailOpenTest, ReasonStrings) {
     EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::PolicyNotFound), "policy_not_found");
     EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::Timeout), "timeout");
     EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::InvalidPolicy), "invalid_policy");
+    EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::ObserveMode), "observe_mode");
     EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::UnknownError), "unknown_error");
 }
 

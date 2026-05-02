@@ -20,6 +20,7 @@ enum class FailOpenReason {
     PolicyNotFound,
     Timeout,
     InvalidPolicy,
+    ObserveMode,
     UnknownError
 };
 

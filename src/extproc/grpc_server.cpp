@@ -177,6 +177,12 @@ bool build_filtered_body_response(const envoy::service::ext_proc::v3::Processing
         }
         return false;
     }
+    if (state.matched_policy->mutation != policy::MutationMode::Full) {
+        if (out_reason != nullptr) {
+            *out_reason = safety::FailOpenReason::ObserveMode;
+        }
+        return false;
+    }
     if (state.is_non_2xx_response) {
         if (out_reason != nullptr) {
             *out_reason = safety::FailOpenReason::Non2xxResponse;
