@@ -807,21 +807,28 @@ if(BUILD_TESTING)
       COMMAND extproc_route_policy_integration_test
     )
 
-    add_executable(extproc_metrics_endpoint_integration_test
-      tests/integration/extproc/extproc_metrics_endpoint_integration_test.cpp
-    )
-    target_include_directories(extproc_metrics_endpoint_integration_test
-      PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-    )
-    target_link_libraries(extproc_metrics_endpoint_integration_test
-      PRIVATE
-        bytetaper_prometheus_registry
-        bytetaper_metrics_http_server
-    )
     add_test(
       NAME extproc_metrics_endpoint_integration_test
       COMMAND extproc_metrics_endpoint_integration_test
+    )
+
+    add_executable(extproc_fail_closed_integration_test
+      tests/integration/extproc/extproc_fail_closed_integration_test.cpp
+    )
+    target_include_directories(extproc_fail_closed_integration_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${BYTETAPER_GENERATED_PROTO_DIR}
+    )
+    target_link_libraries(extproc_fail_closed_integration_test
+      PRIVATE
+        bytetaper_extproc_grpc_server
+        bytetaper_extproc_grpc
+    )
+
+    add_test(
+      NAME extproc_fail_closed_integration_test
+      COMMAND extproc_fail_closed_integration_test
     )
   endif()
 endif()

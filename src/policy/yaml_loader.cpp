@@ -185,6 +185,22 @@ bool parse_one_route(const YAML::Node& node, PolicyFileResult* result, std::size
         }
     }
 
+    if (node["failure_mode"]) {
+        if (!node["failure_mode"].IsScalar()) {
+            result->error = "failure_mode must be a scalar string";
+            return false;
+        }
+        const std::string fail_mode_str = node["failure_mode"].as<std::string>();
+        if (fail_mode_str == "fail_open") {
+            policy.failure_mode = FailureMode::FailOpen;
+        } else if (fail_mode_str == "fail_closed") {
+            policy.failure_mode = FailureMode::FailClosed;
+        } else {
+            result->error = "unknown failure_mode (expected 'fail_open' or 'fail_closed')";
+            return false;
+        }
+    }
+
     return true;
 }
 

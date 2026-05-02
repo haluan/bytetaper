@@ -157,4 +157,38 @@ routes:
     EXPECT_TRUE(validate_route_policy(result.policies[0], nullptr));
 }
 
+TEST(YamlLoaderTest, DefaultFailureModeIsFailOpen) {
+    const char* yaml = R"(
+routes:
+  - id: "r1"
+    match: { kind: "prefix", prefix: "/" }
+)";
+    PolicyFileResult result{};
+    EXPECT_TRUE(load_policy_from_string(yaml, &result));
+    EXPECT_EQ(result.policies[0].failure_mode, FailureMode::FailOpen);
+}
+
+TEST(YamlLoaderTest, ValidYamlFailureModeFailClosed) {
+    const char* yaml = R"(
+routes:
+  - id: "r1"
+    match: { kind: "prefix", prefix: "/" }
+    failure_mode: "fail_closed"
+)";
+    PolicyFileResult result{};
+    EXPECT_TRUE(load_policy_from_string(yaml, &result));
+    EXPECT_EQ(result.policies[0].failure_mode, FailureMode::FailClosed);
+}
+
+TEST(YamlLoaderTest, InvalidYamlBadFailureMode) {
+    const char* yaml = R"(
+routes:
+  - id: "r1"
+    match: { kind: "prefix", prefix: "/" }
+    failure_mode: "crash_now"
+)";
+    PolicyFileResult result{};
+    EXPECT_FALSE(load_policy_from_string(yaml, &result));
+}
+
 } // namespace bytetaper::policy

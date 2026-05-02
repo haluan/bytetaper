@@ -24,7 +24,8 @@ ByteTaper injects headers into the response to provide per-request diagnostics a
 ### Safety & Debugging
 | Header Name | Value Type | Description |
 | :--- | :--- | :--- |
-| `x-bytetaper-fail-open-reason` | `string` | Emitted when transformation is skipped due to a safety constraint. |
+| `x-bytetaper-fail-open-reason` | `string` | Emitted when transformation is skipped due to a safety constraint in fail-open mode. |
+| `x-bytetaper-fail-closed-reason` | `string` | Emitted in the `ImmediateResponse` headers when a request is rejected in fail-closed mode. |
 
 ---
 

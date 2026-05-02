@@ -42,7 +42,7 @@ struct StreamFilterState {
     json_transform::JsonResponseKind response_kind =
         json_transform::JsonResponseKind::SkipUnsupported;
     bool has_query_selection = false;
-    const char* matched_route_id = nullptr;
+    const policy::RoutePolicy* matched_policy = nullptr;
 };
 
 void add_overwrite_header(envoy::service::ext_proc::v3::CommonResponse* common, const char* key,
@@ -238,13 +238,10 @@ public:
 
             if (kind == ProcessingRequestKind::RequestHeaders) {
                 apply_request_headers_selection(request, &filter_state);
-                filter_state.matched_route_id = nullptr;
+                filter_state.matched_policy = nullptr;
                 if (policies != nullptr && filter_state.context.raw_path_length > 0) {
-                    const policy::RoutePolicy* matched = policy::match_route_by_path(
+                    filter_state.matched_policy = policy::match_route_by_path(
                         policies, policy_count, filter_state.context.raw_path);
-                    if (matched != nullptr) {
-                        filter_state.matched_route_id = matched->route_id;
-                    }
                 }
                 envoy::service::ext_proc::v3::ProcessingResponse response{};
                 auto* request_headers_response = response.mutable_request_headers();
@@ -261,8 +258,8 @@ public:
                 common_response->set_status(envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
                 add_bytetaper_report_headers(common_response, 0, 0, 0, 0, false);
                 {
-                    const char* route_id = (filter_state.matched_route_id != nullptr)
-                                               ? filter_state.matched_route_id
+                    const char* route_id = (filter_state.matched_policy != nullptr)
+                                               ? filter_state.matched_policy->route_id
                                                : kNoneValue;
                     add_overwrite_header(common_response, kRoutePolicyHeader, route_id);
                 }
@@ -273,16 +270,35 @@ public:
                 envoy::service::ext_proc::v3::ProcessingResponse response{};
                 safety::FailOpenReason fail_reason = safety::FailOpenReason::None;
                 if (!build_filtered_body_response(request, filter_state, &response, &fail_reason)) {
-                    auto* response_body = response.mutable_response_body();
-                    auto* common_response = response_body->mutable_response();
-                    common_response->set_status(
-                        envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
-                    add_bytetaper_report_headers(
-                        common_response, request.response_body().body().size(),
-                        request.response_body().body().size(), 0, 0, false);
-                    if (fail_reason != safety::FailOpenReason::None) {
-                        add_overwrite_header(common_response, "x-bytetaper-fail-open-reason",
-                                             safety::get_fail_open_reason_string(fail_reason));
+                    if (filter_state.matched_policy != nullptr &&
+                        filter_state.matched_policy->failure_mode ==
+                            policy::FailureMode::FailClosed &&
+                        fail_reason != safety::FailOpenReason::None &&
+                        fail_reason != safety::FailOpenReason::SkipUnsupported) {
+                        auto* immediate = response.mutable_immediate_response();
+                        immediate->mutable_status()->set_code(
+                            envoy::type::v3::StatusCode::InternalServerError);
+                        immediate->set_details("bytetaper_fail_closed");
+                        immediate->set_body("ByteTaper safety constraint triggered (fail-closed)");
+                        auto* headers = immediate->mutable_headers();
+                        auto* mutation = headers->add_set_headers();
+                        mutation->mutable_header()->set_key("x-bytetaper-fail-closed-reason");
+                        mutation->mutable_header()->set_raw_value(
+                            safety::get_fail_open_reason_string(fail_reason));
+                        mutation->set_append_action(
+                            envoy::config::core::v3::HeaderValueOption::OVERWRITE_IF_EXISTS_OR_ADD);
+                    } else {
+                        auto* response_body = response.mutable_response_body();
+                        auto* common_response = response_body->mutable_response();
+                        common_response->set_status(
+                            envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
+                        add_bytetaper_report_headers(
+                            common_response, request.response_body().body().size(),
+                            request.response_body().body().size(), 0, 0, false);
+                        if (fail_reason != safety::FailOpenReason::None) {
+                            add_overwrite_header(common_response, "x-bytetaper-fail-open-reason",
+                                                 safety::get_fail_open_reason_string(fail_reason));
+                        }
                     }
                 }
                 stream->Write(response);

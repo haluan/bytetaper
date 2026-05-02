@@ -23,6 +23,11 @@ enum class MutationMode : std::uint8_t {
     Full = 2,
 };
 
+enum class FailureMode : std::uint8_t {
+    FailOpen = 0,
+    FailClosed = 1,
+};
+
 enum class HttpMethod : std::uint8_t {
     Any = 0,
     Get = 1,
@@ -41,6 +46,7 @@ struct RoutePolicy {
     FieldFilterPolicy field_filter = {};
     std::uint32_t max_response_bytes = 0;
     CachePolicy cache = {};
+    FailureMode failure_mode = FailureMode::FailOpen;
 };
 
 // Validates a RoutePolicy. Returns true if usable.
