@@ -19,6 +19,7 @@ enum class FailOpenReason {
     NonJsonResponse,
     PolicyNotFound,
     Timeout,
+    InvalidPolicy,
     UnknownError
 };
 

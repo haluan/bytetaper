@@ -46,6 +46,8 @@ const char* get_fail_open_reason_string(FailOpenReason reason) {
         return "policy_not_found";
     case FailOpenReason::Timeout:
         return "timeout";
+    case FailOpenReason::InvalidPolicy:
+        return "invalid_policy";
     case FailOpenReason::UnknownError:
         return "unknown_error";
     default:
