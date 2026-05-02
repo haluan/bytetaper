@@ -15,6 +15,7 @@ enum class FailOpenReason {
     OutputTooSmall,
     InvalidJsonSafeError,
     PayloadTooLarge,
+    Non2xxResponse,
     UnknownError
 };
 

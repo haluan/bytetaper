@@ -43,6 +43,7 @@ struct StreamFilterState {
         json_transform::JsonResponseKind::SkipUnsupported;
     bool has_query_selection = false;
     const policy::RoutePolicy* matched_policy = nullptr;
+    bool is_non_2xx_response = false;
 };
 
 void add_overwrite_header(envoy::service::ext_proc::v3::CommonResponse* common, const char* key,
@@ -126,6 +127,15 @@ void apply_response_content_type(const envoy::service::ext_proc::v3::ProcessingR
         return;
     }
 
+    std::string status_code{};
+    if (read_header_value(request.response_headers().headers(), ":status", &status_code)) {
+        if (!status_code.empty() && status_code[0] != '2') {
+            state->is_non_2xx_response = true;
+            state->response_kind = json_transform::JsonResponseKind::SkipUnsupported;
+            return;
+        }
+    }
+
     std::string content_type{};
     if (!read_header_value(request.response_headers().headers(), kContentTypeHeader,
                            &content_type)) {
@@ -152,6 +162,12 @@ bool build_filtered_body_response(const envoy::service::ext_proc::v3::Processing
     if (response_out == nullptr || !request.has_response_body()) {
         if (out_reason != nullptr) {
             *out_reason = safety::FailOpenReason::SkipUnsupported;
+        }
+        return false;
+    }
+    if (state.is_non_2xx_response) {
+        if (out_reason != nullptr) {
+            *out_reason = safety::FailOpenReason::Non2xxResponse;
         }
         return false;
     }

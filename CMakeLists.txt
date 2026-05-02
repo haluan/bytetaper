@@ -849,5 +849,24 @@ if(BUILD_TESTING)
       NAME extproc_payload_too_large_integration_test
       COMMAND extproc_payload_too_large_integration_test
     )
+
+    add_executable(extproc_non_2xx_integration_test
+      tests/integration/extproc/extproc_non_2xx_integration_test.cpp
+    )
+    target_include_directories(extproc_non_2xx_integration_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${BYTETAPER_GENERATED_PROTO_DIR}
+    )
+    target_link_libraries(extproc_non_2xx_integration_test
+      PRIVATE
+        bytetaper_extproc_grpc_server
+        bytetaper_extproc_grpc
+    )
+
+    add_test(
+      NAME extproc_non_2xx_integration_test
+      COMMAND extproc_non_2xx_integration_test
+    )
   endif()
 endif()
