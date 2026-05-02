@@ -879,6 +879,24 @@ if(BUILD_TESTING)
       NAME cache_ttl_test
       COMMAND cache_ttl_test
     )
+
+    add_executable(cache_auth_safety_test
+      tests/cache_auth_safety_test.cpp
+      src/cache/cache_safety.cpp
+    )
+    target_include_directories(cache_auth_safety_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(cache_auth_safety_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME cache_auth_safety_test
+      COMMAND cache_auth_safety_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
