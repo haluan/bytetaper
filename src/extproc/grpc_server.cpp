@@ -27,6 +27,7 @@ constexpr const char* kOriginalResponseBytesHeader = "x-bytetaper-original-respo
 constexpr const char* kWasteRemovedFieldsHeader = "x-bytetaper-waste-removed-fields";
 constexpr const char* kWasteSavedBytesHeader = "x-bytetaper-waste-saved-bytes";
 constexpr const char* kOptimizedResponseBytesHeader = "x-bytetaper-optimized-response-bytes";
+constexpr const char* kOriginalBytesHeader = "x-bytetaper-original-bytes";
 
 constexpr const char* kTrueValue = "true";
 
@@ -167,8 +168,10 @@ bool build_filtered_body_response(const envoy::service::ext_proc::v3::Processing
     add_overwrite_header(common, kContentLengthHeader, std::to_string(filtered_body.size()));
     add_waste_report_headers(common, state.context.removed_field_count, saved_bytes);
     add_overwrite_header(common, kOriginalResponseBytesHeader, std::to_string(input_body.size()));
+    add_overwrite_header(common, kOriginalBytesHeader, std::to_string(input_body.size()));
     state.context.output_payload_bytes = filtered_body.size();
-    add_overwrite_header(common, kOptimizedResponseBytesHeader, std::to_string(filtered_body.size()));
+    add_overwrite_header(common, kOptimizedResponseBytesHeader,
+                         std::to_string(filtered_body.size()));
 
     return true;
 }
@@ -210,6 +213,7 @@ public:
                 common_response->set_status(envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
                 add_overwrite_header(common_response, kResponseBodyHeader, kTrueValue);
                 add_waste_report_headers(common_response, 0, 0);
+                add_overwrite_header(common_response, kOriginalBytesHeader, "0");
                 stream->Write(response);
                 continue;
             }
@@ -225,6 +229,8 @@ public:
                     filter_state.context.input_payload_bytes =
                         request.response_body().body().size();
                     add_overwrite_header(common_response, kOriginalResponseBytesHeader,
+                                         std::to_string(request.response_body().body().size()));
+                    add_overwrite_header(common_response, kOriginalBytesHeader,
                                          std::to_string(request.response_body().body().size()));
                     filter_state.context.output_payload_bytes =
                         request.response_body().body().size();
