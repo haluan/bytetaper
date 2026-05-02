@@ -390,6 +390,7 @@ if(BUILD_TESTING)
       src/cache/cache_entry.cpp
       src/cache/cache_key.cpp
       src/cache/cache_ttl.cpp
+      src/cache/l1_cache.cpp
     )
     target_include_directories(l2_cache_lookup_stage_test
       PRIVATE
@@ -449,6 +450,32 @@ if(BUILD_TESTING)
     add_test(
       NAME l2_cache_store_stage_test
       COMMAND l2_cache_store_stage_test
+    )
+
+    add_executable(l2_promotion_test
+      tests/l2_promotion_test.cpp
+      src/stages/l2_cache_lookup_stage.cpp
+      src/stages/l1_cache_lookup_stage.cpp
+      src/cache/l2_rocksdb_cache.cpp
+      src/cache/cache_entry_codec.cpp
+      src/cache/l1_cache.cpp
+      src/cache/cache_entry.cpp
+      src/cache/cache_key.cpp
+      src/cache/cache_ttl.cpp
+    )
+    target_include_directories(l2_promotion_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(l2_promotion_test
+      PRIVATE
+        gtest_main
+        RocksDB::RocksDB
+    )
+
+    add_test(
+      NAME l2_promotion_test
+      COMMAND l2_promotion_test
     )
 
     add_executable(json_transform_content_type_test
