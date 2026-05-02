@@ -6,6 +6,7 @@
 
 #include "cache/cache_entry.h"
 #include "cache/l1_cache.h"
+#include "cache/l2_disk_cache.h"
 #include "policy/field_filter_policy.h"
 #include "policy/route_policy.h"
 
@@ -55,6 +56,14 @@ struct ApgTransformContext {
     const char* response_body = nullptr; // non-owning
     std::size_t response_body_len = 0;
     char response_content_type[cache::kCacheContentTypeMaxLen] = {};
+
+    static constexpr std::size_t kL2BodyBufSize = 65536; // 64 KiB
+
+    // --- L2 cache input (set by caller before running pipeline) ---
+    cache::L2DiskCache* l2_cache = nullptr;
+
+    // --- L2 body buffer (owned by context; l2_cache_lookup_stage writes body here) ---
+    char l2_body_buf[kL2BodyBufSize] = {};
 };
 
 } // namespace bytetaper::apg
