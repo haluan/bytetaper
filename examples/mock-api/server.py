@@ -37,6 +37,14 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(str(g_call_count).encode("utf-8"))
             return
 
+        if path == "/reset-count":
+            g_call_count = 0
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.end_headers()
+            self.wfile.write(b"ok")
+            return
+
         # Increment counter for any other GET request
         g_call_count += 1
 

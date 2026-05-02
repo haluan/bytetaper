@@ -119,6 +119,7 @@ services:
     working_dir: /workspace
     volumes:
       - ./:/workspace
+      - bt-l2-cache:/var/cache/bytetaper
     command:
       - /bin/bash
       - -lc
@@ -126,7 +127,7 @@ services:
         set -eu
         cmake -S . -B build -G Ninja -DBYTETAPER_ENABLE_INTEGRATION_TESTS=ON -DBYTETAPER_ENABLE_GTEST_TESTS=OFF
         cmake --build build --target bytetaper-extproc-server
-        exec ./build/bytetaper-extproc-server --listen-address 0.0.0.0:18080 --policy-file examples/policy/bytetaper-policy.yaml
+        exec ./build/bytetaper-extproc-server --listen-address 0.0.0.0:18080 --policy-file examples/policy/bytetaper-policy.yaml --l2-cache-path /var/cache/bytetaper/global
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'printf \"\" > /dev/tcp/127.0.0.1/18080'"]
       interval: 2s
@@ -168,3 +169,34 @@ services:
       timeout: 5s
       retries: 20
       start_period: 2s
+
+  bytetaper-cache-e2e-test:
+    build:
+      context: .
+      dockerfile: docker/dev.Dockerfile
+      args:
+        LOCAL_UID: ${LOCAL_UID:-1000}
+        LOCAL_GID: ${LOCAL_GID:-1000}
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    environment:
+      - BYTETAPER_TEST_BASE_URL=http://envoy:10000
+      - BYTETAPER_MOCK_COUNTER_URL=http://mock-api:8080/call-count
+      - BYTETAPER_MOCK_RESET_URL=http://mock-api:8080/reset-count
+    depends_on:
+      mock-api:
+        condition: service_healthy
+      bytetaper-extproc:
+        condition: service_healthy
+      envoy:
+        condition: service_healthy
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        set -eu
+        python3 tests/integration/e2e/cache_e2e_test.py
+
+volumes:
+  bt-l2-cache: {}

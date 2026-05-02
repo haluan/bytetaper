@@ -67,3 +67,27 @@ routes:
         l1:
           enabled: true
           capacity_entries: 8
+
+  - id: "api-v1-e2e-cache"
+    match:
+      kind: prefix
+      prefix: /api/v1/e2e/
+    method: get
+    mutation: full
+    max_response_bytes: 65536
+    cache:
+      behavior: store
+      enabled: true
+      ttl_seconds: 3600
+      layers:
+        l1:
+          enabled: true
+          capacity_entries: 1   # intentionally 1 so second key evicts first
+        l2:
+          enabled: true
+          path: /var/cache/bytetaper/e2e
+    field_filter:
+      mode: allowlist
+      fields:
+        - service
+        - version

@@ -41,6 +41,10 @@ apg::StageOutput l1_cache_store_stage(apg::ApgTransformContext& context) {
         return { apg::StageResult::Continue, "no-l1-cache" };
     }
 
+    if (context.response_body_len > cache::kL1MaxBodySize) {
+        return { apg::StageResult::Continue, "body-too-large-for-l1" };
+    }
+
     // Build cache key
     cache::CacheKeyInput ki{};
     ki.method = context.request_method;

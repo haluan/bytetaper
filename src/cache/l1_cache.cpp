@@ -11,9 +11,6 @@ namespace bytetaper::cache {
 
 namespace {
 
-// Threshold for switching between sequential ring buffer and hash indexing.
-static constexpr std::size_t kHashLookupThreshold = 256;
-
 // Standard initial value for DJB2 hashing algorithm.
 static constexpr std::size_t kDJB2InitialHash = 5381;
 
@@ -30,6 +27,19 @@ std::size_t hash_key(const char* key) {
     return h;
 }
 
+void copy_body_to_slot(L1Cache* cache, std::size_t slot_idx, const CacheEntry& entry) {
+    if (entry.body == nullptr || entry.body_len == 0) {
+        cache->slots[slot_idx].body = nullptr;
+        cache->slots[slot_idx].body_len = 0;
+        return;
+    }
+
+    std::size_t copy_len = (entry.body_len > kL1MaxBodySize) ? kL1MaxBodySize : entry.body_len;
+    std::memcpy(cache->bodies[slot_idx], entry.body, copy_len);
+    cache->slots[slot_idx].body = cache->bodies[slot_idx];
+    cache->slots[slot_idx].body_len = copy_len;
+}
+
 } // namespace
 
 void l1_init(L1Cache* cache) {
@@ -44,16 +54,18 @@ void l1_put(L1Cache* cache, const CacheEntry& entry) {
         return;
     }
 
-    if constexpr (kL1SlotCount > kHashLookupThreshold) {
+    if constexpr (kL1SlotCount >= kHashLookupThreshold) {
         // Large cache: Use Hash Index for O(1) performance.
         const std::size_t h = hash_key(entry.key);
         const std::size_t slot_idx = h % kL1SlotCount;
         cache->slots[slot_idx] = entry;
+        copy_body_to_slot(cache, slot_idx, entry);
         cache->generations[slot_idx] += 1;
     } else {
         // Small cache: Use Ring Buffer flow (Sequential FIFO).
         const std::size_t slot_idx = cache->write_cursor % kL1SlotCount;
         cache->slots[slot_idx] = entry;
+        copy_body_to_slot(cache, slot_idx, entry);
         cache->generations[slot_idx] += 1;
         cache->write_cursor += 1;
     }
@@ -64,7 +76,7 @@ bool l1_get(const L1Cache* cache, const char* key, std::int64_t now_ms, CacheEnt
         return false;
     }
 
-    if constexpr (kL1SlotCount > kHashLookupThreshold) {
+    if constexpr (kL1SlotCount >= kHashLookupThreshold) {
         // Large cache: Use Hash Index for O(1) lookup.
         const std::size_t h = hash_key(key);
         const std::size_t slot_idx = h % kL1SlotCount;
@@ -80,6 +92,10 @@ bool l1_get(const L1Cache* cache, const char* key, std::int64_t now_ms, CacheEnt
         }
 
         *out = cache->slots[slot_idx];
+        // Ensure out->body points to the slot's buffer, not the original source
+        if (out->body_len > 0) {
+            out->body = cache->bodies[slot_idx];
+        }
         return true;
     } else {
         // Small cache: Use Ring Buffer (Linear Scan).
@@ -95,6 +111,10 @@ bool l1_get(const L1Cache* cache, const char* key, std::int64_t now_ms, CacheEnt
             }
 
             *out = cache->slots[i];
+            // Ensure out->body points to the slot's buffer, not the original source
+            if (out->body_len > 0) {
+                out->body = cache->bodies[i];
+            }
             return true;
         }
         return false;

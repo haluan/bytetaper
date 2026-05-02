@@ -11,10 +11,13 @@
 
 namespace bytetaper::cache {
 
-static constexpr std::size_t kL1SlotCount = 8;
+static constexpr std::size_t kL1SlotCount = 16;
+static constexpr std::size_t kHashLookupThreshold = 64; // Use Ring Buffer for small counts
+static constexpr std::size_t kL1MaxBodySize = 3072;     // 3KiB per slot
 
 struct L1Cache {
     CacheEntry slots[kL1SlotCount];
+    char bodies[kL1SlotCount][kL1MaxBodySize];
     std::uint32_t generations[kL1SlotCount]; // incremented on each write to a slot
     std::size_t write_cursor;                // next write position (mod kL1SlotCount)
 };
