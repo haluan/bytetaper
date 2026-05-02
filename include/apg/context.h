@@ -4,7 +4,10 @@
 #ifndef BYTETAPER_APG_CONTEXT_H
 #define BYTETAPER_APG_CONTEXT_H
 
+#include "cache/cache_entry.h"
+#include "cache/l1_cache.h"
 #include "policy/field_filter_policy.h"
+#include "policy/route_policy.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -34,6 +37,18 @@ struct ApgTransformContext {
     char* trace_buffer = nullptr;
     std::size_t trace_capacity = 0;
     std::size_t trace_length = 0;
+
+    // --- Cache lookup inputs (set by caller before running pipeline) ---
+    const policy::RoutePolicy* matched_policy = nullptr;
+    cache::L1Cache* l1_cache = nullptr;
+    std::int64_t request_epoch_ms = 0;
+    policy::HttpMethod request_method = policy::HttpMethod::Get;
+
+    // --- Cache lookup outputs (written by l1_cache_lookup_stage) ---
+    bool cache_hit = false;
+    const char* cache_layer = nullptr; // "L1" on hit, nullptr on miss
+    bool should_return_immediate_response = false;
+    cache::CacheEntry cached_response{}; // populated on hit; body is non-owning
 };
 
 } // namespace bytetaper::apg
