@@ -4,9 +4,9 @@
 #ifndef BYTETAPER_APG_PIPELINE_H
 #define BYTETAPER_APG_PIPELINE_H
 
-#include <cstddef>
-
 #include "apg/stage.h"
+
+#include <cstddef>
 
 namespace bytetaper::apg {
 

@@ -2,6 +2,10 @@ BasedOnStyle: LLVM
 Language: Cpp
 Standard: c++17
 
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+SortUsingDeclarations: true
+
 IndentWidth: 4
 TabWidth: 4
 UseTab: Never
@@ -15,9 +19,6 @@ AllowShortCaseLabelsOnASingleLine: false
 
 PointerAlignment: Left
 ReferenceAlignment: Left
-
-SortIncludes: true
-IncludeBlocks: Preserve
 
 DerivePointerAlignment: false
 SpaceAfterCStyleCast: true

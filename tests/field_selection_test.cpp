@@ -4,9 +4,8 @@
 #include "field_selection/request_target.h"
 
 #include <cstring>
-#include <string>
-
 #include <gtest/gtest.h>
+#include <string>
 
 namespace bytetaper::field_selection {
 

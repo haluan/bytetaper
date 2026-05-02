@@ -4,7 +4,6 @@
 #include "json_transform/content_type.h"
 
 #include <cstring>
-
 #include <gtest/gtest.h>
 
 namespace bytetaper::json_transform {

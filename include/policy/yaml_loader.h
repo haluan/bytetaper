@@ -5,6 +5,7 @@
 #define BYTETAPER_POLICY_YAML_LOADER_H
 
 #include "policy/route_policy.h"
+
 #include <cstddef>
 
 namespace bytetaper::policy {

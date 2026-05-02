@@ -1,15 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Haluan Irsad
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
 
+#include "envoy/service/ext_proc/v3/external_processor.grpc.pb.h"
 #include "extproc/grpc_server.h"
 
 #include <chrono>
 #include <cstdint>
-#include <string>
-
 #include <grpcpp/grpcpp.h>
-
-#include "envoy/service/ext_proc/v3/external_processor.grpc.pb.h"
+#include <string>
 
 // Input: {"id":1,"name":"Alice"} = 23 bytes (two fields, flat JSON)
 // Filter: ?fields=id removes "name", output: {"id":1} = 8 bytes

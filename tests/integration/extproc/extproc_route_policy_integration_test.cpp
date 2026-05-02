@@ -1,17 +1,15 @@
 // SPDX-FileCopyrightText: 2026 Haluan Irsad
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
 
+#include "envoy/service/ext_proc/v3/external_processor.grpc.pb.h"
 #include "extproc/grpc_server.h"
 #include "policy/route_policy.h"
 
 #include <chrono>
 #include <cstdint>
+#include <grpcpp/grpcpp.h>
 #include <memory>
 #include <string>
-
-#include <grpcpp/grpcpp.h>
-
-#include "envoy/service/ext_proc/v3/external_processor.grpc.pb.h"
 
 // Stream 1: /api/items matches prefix /api/ → x-bytetaper-route-policy must be "api-v1"
 // Stream 2: /other/path does not match     → x-bytetaper-route-policy must be "none"

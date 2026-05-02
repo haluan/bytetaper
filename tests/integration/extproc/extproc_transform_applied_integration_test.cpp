@@ -1,15 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Haluan Irsad
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
 
+#include "envoy/service/ext_proc/v3/external_processor.grpc.pb.h"
 #include "extproc/grpc_server.h"
 
 #include <chrono>
 #include <cstdint>
-#include <string>
-
 #include <grpcpp/grpcpp.h>
-
-#include "envoy/service/ext_proc/v3/external_processor.grpc.pb.h"
+#include <string>
 
 // Filtered path: ?fields=id causes field filtering to fire on the response body.
 // r2 (ResponseHeaders): x-bytetaper-transform-applied must be "false" (placeholder)

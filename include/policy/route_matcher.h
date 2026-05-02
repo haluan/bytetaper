@@ -4,10 +4,10 @@
 #ifndef BYTETAPER_POLICY_ROUTE_MATCHER_H
 #define BYTETAPER_POLICY_ROUTE_MATCHER_H
 
+#include "policy/route_policy.h"
+
 #include <cstddef>
 #include <cstring>
-
-#include "policy/route_policy.h"
 
 namespace bytetaper::policy {
 

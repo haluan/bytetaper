@@ -2,19 +2,18 @@
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
 
 #include "extproc/grpc_server.h"
+
+#include "envoy/service/ext_proc/v3/external_processor.grpc.pb.h"
 #include "extproc/request_runtime.h"
 #include "field_selection/request_target.h"
 #include "json_transform/content_type.h"
 #include "policy/route_matcher.h"
 
 #include <cstddef>
+#include <grpcpp/grpcpp.h>
 #include <memory>
 #include <string>
 #include <vector>
-
-#include <grpcpp/grpcpp.h>
-
-#include "envoy/service/ext_proc/v3/external_processor.grpc.pb.h"
 
 namespace bytetaper::extproc {
 

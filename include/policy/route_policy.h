@@ -4,11 +4,11 @@
 #ifndef BYTETAPER_POLICY_ROUTE_POLICY_H
 #define BYTETAPER_POLICY_ROUTE_POLICY_H
 
-#include <cstdint>
-#include <cstring>
-
 #include "policy/cache_policy.h"
 #include "policy/field_filter_policy.h"
+
+#include <cstdint>
+#include <cstring>
 
 namespace bytetaper::policy {
 

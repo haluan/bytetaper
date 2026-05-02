@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
 
 #include "policy/policy_reporter.h"
+
 #include <gtest/gtest.h>
 
 namespace bytetaper::policy {

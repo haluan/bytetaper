@@ -4,10 +4,10 @@
 #ifndef BYTETAPER_POLICY_METHOD_MATCHER_H
 #define BYTETAPER_POLICY_METHOD_MATCHER_H
 
+#include "policy/route_policy.h"
+
 #include <cstring>
 #include <strings.h> // for strcasecmp on POSIX systems
-
-#include "policy/route_policy.h"
 
 namespace bytetaper::policy {
 

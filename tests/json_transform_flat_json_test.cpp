@@ -5,7 +5,6 @@
 
 #include <cstdio>
 #include <cstring>
-
 #include <gtest/gtest.h>
 
 namespace bytetaper::json_transform {

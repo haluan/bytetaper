@@ -4,7 +4,6 @@
 #include "apg/context.h"
 
 #include <cstring>
-
 #include <gtest/gtest.h>
 
 namespace bytetaper::apg {

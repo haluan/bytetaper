@@ -4,10 +4,10 @@
 #ifndef BYTETAPER_EXTPROC_GRPC_SERVER_H
 #define BYTETAPER_EXTPROC_GRPC_SERVER_H
 
+#include "policy/route_policy.h"
+
 #include <cstddef>
 #include <cstdint>
-
-#include "policy/route_policy.h"
 
 namespace bytetaper::extproc {
 
