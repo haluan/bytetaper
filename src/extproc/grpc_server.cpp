@@ -175,6 +175,14 @@ bool build_filtered_body_response(const envoy::service::ext_proc::v3::Processing
     }
 
     const std::string input_body = request.response_body().body();
+    if (state.matched_policy != nullptr &&
+        policy::exceeds_max_response_bytes(*state.matched_policy, input_body.size())) {
+        if (out_reason != nullptr) {
+            *out_reason = safety::FailOpenReason::PayloadTooLarge;
+        }
+        return false;
+    }
+
     state.context.input_payload_bytes = input_body.size();
     json_transform::ParsedFlatJsonObject parsed{};
     const json_transform::FlatJsonParseStatus parse_status =

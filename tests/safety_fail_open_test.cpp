@@ -55,6 +55,7 @@ TEST(FailOpenTest, ReasonStrings) {
     EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::OutputTooSmall), "output_too_small");
     EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::InvalidJsonSafeError),
                  "invalid_json_safe_error");
+    EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::PayloadTooLarge), "payload_too_large");
     EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::UnknownError), "unknown_error");
 }
 
