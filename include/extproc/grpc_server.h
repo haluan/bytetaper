@@ -4,12 +4,17 @@
 #ifndef BYTETAPER_EXTPROC_GRPC_SERVER_H
 #define BYTETAPER_EXTPROC_GRPC_SERVER_H
 
+#include <cstddef>
 #include <cstdint>
+
+#include "policy/route_policy.h"
 
 namespace bytetaper::extproc {
 
 struct GrpcServerConfig {
     const char* listen_address = "127.0.0.1:0";
+    const policy::RoutePolicy* policies = nullptr;
+    std::size_t policy_count = 0;
 };
 
 struct GrpcServerHandle {

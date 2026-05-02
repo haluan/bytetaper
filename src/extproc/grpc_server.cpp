@@ -5,6 +5,7 @@
 #include "extproc/request_runtime.h"
 #include "field_selection/request_target.h"
 #include "json_transform/content_type.h"
+#include "policy/route_matcher.h"
 
 #include <cstddef>
 #include <memory>
@@ -30,14 +31,18 @@ constexpr const char* kOptimizedResponseBytesHeader = "x-bytetaper-optimized-res
 constexpr const char* kOriginalBytesHeader = "x-bytetaper-original-bytes";
 constexpr const char* kOptimizedBytesHeader = "x-bytetaper-optimized-bytes";
 constexpr const char* kTransformAppliedHeader = "x-bytetaper-transform-applied";
+constexpr const char* kRoutePolicyHeader = "x-bytetaper-route-policy";
 
 constexpr const char* kTrueValue = "true";
+constexpr const char* kFalseValue = "false";
+constexpr const char* kNoneValue = "none";
 
 struct StreamFilterState {
     apg::ApgTransformContext context{};
     json_transform::JsonResponseKind response_kind =
         json_transform::JsonResponseKind::SkipUnsupported;
     bool has_query_selection = false;
+    const char* matched_route_id = nullptr;
 };
 
 void add_overwrite_header(envoy::service::ext_proc::v3::CommonResponse* common, const char* key,
@@ -52,10 +57,21 @@ void add_overwrite_header(envoy::service::ext_proc::v3::CommonResponse* common, 
         envoy::config::core::v3::HeaderValueOption::OVERWRITE_IF_EXISTS_OR_ADD);
 }
 
-void add_waste_report_headers(envoy::service::ext_proc::v3::CommonResponse* common,
-                              std::size_t removed_fields, std::size_t saved_bytes) {
+void add_bytetaper_report_headers(envoy::service::ext_proc::v3::CommonResponse* common,
+                                  std::size_t original_bytes, std::size_t optimized_bytes,
+                                  std::size_t removed_fields, std::size_t saved_bytes,
+                                  bool applied) {
+    if (common == nullptr) {
+        return;
+    }
+    add_overwrite_header(common, kResponseBodyHeader, kTrueValue);
     add_overwrite_header(common, kWasteRemovedFieldsHeader, std::to_string(removed_fields));
     add_overwrite_header(common, kWasteSavedBytesHeader, std::to_string(saved_bytes));
+    add_overwrite_header(common, kOriginalResponseBytesHeader, std::to_string(original_bytes));
+    add_overwrite_header(common, kOptimizedResponseBytesHeader, std::to_string(optimized_bytes));
+    add_overwrite_header(common, kOriginalBytesHeader, std::to_string(original_bytes));
+    add_overwrite_header(common, kOptimizedBytesHeader, std::to_string(optimized_bytes));
+    add_overwrite_header(common, kTransformAppliedHeader, applied ? kTrueValue : kFalseValue);
 }
 
 bool read_header_value(const envoy::config::core::v3::HeaderMap& headers, const char* key,
@@ -166,16 +182,10 @@ bool build_filtered_body_response(const envoy::service::ext_proc::v3::Processing
     common->set_status(envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
     common->mutable_body_mutation()->set_body(filtered_body);
 
-    add_overwrite_header(common, kResponseBodyHeader, kTrueValue);
     add_overwrite_header(common, kContentLengthHeader, std::to_string(filtered_body.size()));
-    add_waste_report_headers(common, state.context.removed_field_count, saved_bytes);
-    add_overwrite_header(common, kOriginalResponseBytesHeader, std::to_string(input_body.size()));
-    add_overwrite_header(common, kOriginalBytesHeader, std::to_string(input_body.size()));
+    add_bytetaper_report_headers(common, input_body.size(), filtered_body.size(),
+                                 state.context.removed_field_count, saved_bytes, true);
     state.context.output_payload_bytes = filtered_body.size();
-    add_overwrite_header(common, kOptimizedResponseBytesHeader,
-                         std::to_string(filtered_body.size()));
-    add_overwrite_header(common, kOptimizedBytesHeader, std::to_string(filtered_body.size()));
-    add_overwrite_header(common, kTransformAppliedHeader, kTrueValue);
 
     return true;
 }
@@ -183,6 +193,9 @@ bool build_filtered_body_response(const envoy::service::ext_proc::v3::Processing
 class ExternalProcessorSkeletonService final
     : public envoy::service::ext_proc::v3::ExternalProcessor::Service {
 public:
+    const policy::RoutePolicy* policies = nullptr;
+    std::size_t policy_count = 0;
+
     grpc::Status Process(grpc::ServerContext*,
                          grpc::ServerReaderWriter<envoy::service::ext_proc::v3::ProcessingResponse,
                                                   envoy::service::ext_proc::v3::ProcessingRequest>*
@@ -202,6 +215,14 @@ public:
 
             if (kind == ProcessingRequestKind::RequestHeaders) {
                 apply_request_headers_selection(request, &filter_state);
+                filter_state.matched_route_id = nullptr;
+                if (policies != nullptr && filter_state.context.raw_path_length > 0) {
+                    const policy::RoutePolicy* matched = policy::match_route_by_path(
+                        policies, policy_count, filter_state.context.raw_path);
+                    if (matched != nullptr) {
+                        filter_state.matched_route_id = matched->route_id;
+                    }
+                }
                 envoy::service::ext_proc::v3::ProcessingResponse response{};
                 auto* request_headers_response = response.mutable_request_headers();
                 request_headers_response->mutable_response()->set_status(
@@ -215,11 +236,13 @@ public:
                 auto* response_headers = response.mutable_response_headers();
                 auto* common_response = response_headers->mutable_response();
                 common_response->set_status(envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
-                add_overwrite_header(common_response, kResponseBodyHeader, kTrueValue);
-                add_waste_report_headers(common_response, 0, 0);
-                add_overwrite_header(common_response, kOriginalBytesHeader, "0");
-                add_overwrite_header(common_response, kOptimizedBytesHeader, "0");
-                add_overwrite_header(common_response, kTransformAppliedHeader, "false");
+                add_bytetaper_report_headers(common_response, 0, 0, 0, 0, false);
+                {
+                    const char* route_id = (filter_state.matched_route_id != nullptr)
+                                               ? filter_state.matched_route_id
+                                               : kNoneValue;
+                    add_overwrite_header(common_response, kRoutePolicyHeader, route_id);
+                }
                 stream->Write(response);
                 continue;
             }
@@ -230,21 +253,9 @@ public:
                     auto* common_response = response_body->mutable_response();
                     common_response->set_status(
                         envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
-                    add_overwrite_header(common_response, kResponseBodyHeader, kTrueValue);
-                    add_waste_report_headers(common_response, 0, 0);
-                    filter_state.context.input_payload_bytes =
-                        request.response_body().body().size();
-                    add_overwrite_header(common_response, kOriginalResponseBytesHeader,
-                                         std::to_string(request.response_body().body().size()));
-                    add_overwrite_header(common_response, kOriginalBytesHeader,
-                                         std::to_string(request.response_body().body().size()));
-                    add_overwrite_header(common_response, kOptimizedBytesHeader,
-                                         std::to_string(request.response_body().body().size()));
-                    filter_state.context.output_payload_bytes =
-                        request.response_body().body().size();
-                    add_overwrite_header(common_response, kOptimizedResponseBytesHeader,
-                                         std::to_string(request.response_body().body().size()));
-                    add_overwrite_header(common_response, kTransformAppliedHeader, "false");
+                    add_bytetaper_report_headers(
+                        common_response, request.response_body().body().size(),
+                        request.response_body().body().size(), 0, 0, false);
                 }
                 stream->Write(response);
                 continue;
@@ -283,6 +294,8 @@ bool start_grpc_server(const GrpcServerConfig& config, GrpcServerHandle* handle)
                              &selected_port);
     builder.RegisterService(&impl->service);
 
+    impl->service.policies = config.policies;
+    impl->service.policy_count = config.policy_count;
     impl->server = builder.BuildAndStart();
     if (!impl->server) {
         return false;
