@@ -171,6 +171,25 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
       bytetaper_extproc_grpc
   )
 
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(YAML_CPP REQUIRED yaml-cpp)
+
+  add_library(policy_yaml_loader STATIC
+    src/policy/yaml_loader.cpp
+  )
+  set_source_files_properties(src/policy/yaml_loader.cpp
+    PROPERTIES COMPILE_OPTIONS "-fexceptions"
+  )
+  target_include_directories(policy_yaml_loader
+    PUBLIC
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+      ${YAML_CPP_INCLUDE_DIRS}
+  )
+  target_link_libraries(policy_yaml_loader
+    PUBLIC
+      ${YAML_CPP_LIBRARIES}
+  )
+
   find_package(Threads REQUIRED)
 
   add_library(bytetaper_prometheus_registry STATIC
@@ -206,6 +225,8 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     PRIVATE
       bytetaper_extproc_grpc_server
       bytetaper_extproc_grpc
+      policy_yaml_loader
+      ${YAML_CPP_LIBRARIES}
   )
 endif()
 
@@ -382,24 +403,6 @@ if(BUILD_TESTING)
       COMMAND policy_route_policy_test
     )
 
-    find_package(PkgConfig REQUIRED)
-    pkg_check_modules(YAML_CPP REQUIRED yaml-cpp)
-
-    add_library(policy_yaml_loader STATIC
-      src/policy/yaml_loader.cpp
-    )
-    set_source_files_properties(src/policy/yaml_loader.cpp
-      PROPERTIES COMPILE_OPTIONS "-fexceptions"
-    )
-    target_include_directories(policy_yaml_loader
-      PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${YAML_CPP_INCLUDE_DIRS}
-    )
-    target_link_libraries(policy_yaml_loader
-      PUBLIC
-        ${YAML_CPP_LIBRARIES}
-    )
 
     add_executable(policy_yaml_loader_test
       tests/policy_yaml_loader_test.cpp
@@ -886,6 +889,25 @@ if(BUILD_TESTING)
     add_test(
       NAME extproc_non_json_integration_test
       COMMAND extproc_non_json_integration_test
+    )
+
+    add_executable(extproc_policy_not_found_integration_test
+      tests/integration/extproc/extproc_policy_not_found_integration_test.cpp
+    )
+    target_include_directories(extproc_policy_not_found_integration_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${BYTETAPER_GENERATED_PROTO_DIR}
+    )
+    target_link_libraries(extproc_policy_not_found_integration_test
+      PRIVATE
+        bytetaper_extproc_grpc_server
+        bytetaper_extproc_grpc
+    )
+
+    add_test(
+      NAME extproc_policy_not_found_integration_test
+      COMMAND extproc_policy_not_found_integration_test
     )
   endif()
 endif()

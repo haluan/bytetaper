@@ -12,7 +12,15 @@
 static constexpr const char* kInputBody = "This is not JSON";
 
 int main() {
+    bytetaper::policy::RoutePolicy p1{};
+    p1.route_id = "test-policy";
+    p1.match_kind = bytetaper::policy::RouteMatchKind::Prefix;
+    p1.match_prefix = "/api/";
+    p1.mutation = bytetaper::policy::MutationMode::Full;
+
     bytetaper::extproc::GrpcServerConfig config{};
+    config.policies = &p1;
+    config.policy_count = 1;
     bytetaper::extproc::GrpcServerHandle handle{};
     if (!bytetaper::extproc::start_grpc_server(config, &handle)) {
         return 1;

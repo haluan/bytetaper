@@ -17,6 +17,7 @@ enum class FailOpenReason {
     PayloadTooLarge,
     Non2xxResponse,
     NonJsonResponse,
+    PolicyNotFound,
     UnknownError
 };
 

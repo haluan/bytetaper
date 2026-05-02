@@ -3,6 +3,7 @@
 
 #include "envoy/service/ext_proc/v3/external_processor.grpc.pb.h"
 #include "extproc/grpc_server.h"
+#include "policy/route_policy.h"
 
 #include <chrono>
 #include <cstdint>
@@ -12,15 +13,18 @@
 static constexpr const char* kInputBody = "{\"id\":1}";
 
 int main() {
+    // Only configure policy for /api/allowed
     bytetaper::policy::RoutePolicy p1{};
-    p1.route_id = "test-policy";
+    p1.route_id = "allowed-route";
+    p1.match_prefix = "/api/allowed";
     p1.match_kind = bytetaper::policy::RouteMatchKind::Prefix;
-    p1.match_prefix = "/api/";
     p1.mutation = bytetaper::policy::MutationMode::Full;
 
     bytetaper::extproc::GrpcServerConfig config{};
     config.policies = &p1;
     config.policy_count = 1;
+    config.listen_address = "127.0.0.1:0";
+
     bytetaper::extproc::GrpcServerHandle handle{};
     if (!bytetaper::extproc::start_grpc_server(config, &handle)) {
         return 1;
@@ -33,31 +37,25 @@ int main() {
     grpc::ClientContext client_context{};
     auto stream = stub->Process(&client_context);
 
-    // 1. request_headers
+    // 1. request_headers: Send request to UNMATCHED path
     {
         envoy::service::ext_proc::v3::ProcessingRequest req{};
         auto* hdrs = req.mutable_request_headers()->mutable_headers();
         auto* p = hdrs->add_headers();
         p->set_key(":path");
-        p->set_raw_value("/api/data?fields=id");
+        p->set_raw_value("/api/unmatched?fields=id");
         stream->Write(req);
         envoy::service::ext_proc::v3::ProcessingResponse resp{};
         stream->Read(&resp);
     }
 
-    // 2. response_headers: set :status to 500
+    // 2. response_headers
     {
         envoy::service::ext_proc::v3::ProcessingRequest req{};
         auto* hdrs = req.mutable_response_headers()->mutable_headers();
-
-        auto* st = hdrs->add_headers();
-        st->set_key(":status");
-        st->set_raw_value("500");
-
         auto* ct = hdrs->add_headers();
         ct->set_key("content-type");
         ct->set_raw_value("application/json");
-
         stream->Write(req);
         envoy::service::ext_proc::v3::ProcessingResponse resp{};
         stream->Read(&resp);
@@ -85,7 +83,7 @@ int main() {
         bool found_reason = false;
         for (const auto& h : resp.response_body().response().header_mutation().set_headers()) {
             if (h.header().key() == "x-bytetaper-fail-open-reason" &&
-                h.header().raw_value() == "non_2xx_response") {
+                h.header().raw_value() == "policy_not_found") {
                 found_reason = true;
                 break;
             }

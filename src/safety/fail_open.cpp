@@ -40,6 +40,8 @@ const char* get_fail_open_reason_string(FailOpenReason reason) {
         return "non_2xx_response";
     case FailOpenReason::NonJsonResponse:
         return "non_json_response";
+    case FailOpenReason::PolicyNotFound:
+        return "policy_not_found";
     case FailOpenReason::UnknownError:
         return "unknown_error";
     default:

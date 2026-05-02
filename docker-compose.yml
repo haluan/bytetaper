@@ -99,7 +99,7 @@ services:
         set -eu
         cmake -S . -B build -G Ninja -DBYTETAPER_ENABLE_INTEGRATION_TESTS=ON -DBYTETAPER_ENABLE_GTEST_TESTS=OFF
         cmake --build build --target bytetaper-extproc-server
-        exec ./build/bytetaper-extproc-server --listen-address 0.0.0.0:18080
+        exec ./build/bytetaper-extproc-server --listen-address 0.0.0.0:18080 --policy-file examples/policy/bytetaper-policy.yaml
     healthcheck:
       test: ["CMD-SHELL", "bash -c 'printf \"\" > /dev/tcp/127.0.0.1/18080'"]
       interval: 2s
