@@ -193,6 +193,10 @@ See [Observability Guide](docs/observability.md) for a complete reference on mon
 
 See [Policy Safety](docs/policy-safety.md) for a complete reference on policy safety.
 
+## Cache Policy
+
+See [Cache Policy](docs/cache-policy.md) for a complete reference on tiered caching.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our development process and how to contribute.
