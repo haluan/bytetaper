@@ -17,6 +17,8 @@ FailOpenDecision evaluate_filter_safety(json_transform::FlatJsonFilterStatus sta
         return { false, FailOpenReason::OutputTooSmall };
     case json_transform::FlatJsonFilterStatus::InvalidJsonSafeError:
         return { false, FailOpenReason::InvalidJsonSafeError };
+    case json_transform::FlatJsonFilterStatus::Timeout:
+        return { false, FailOpenReason::Timeout };
     default:
         return { false, FailOpenReason::UnknownError };
     }
@@ -42,6 +44,8 @@ const char* get_fail_open_reason_string(FailOpenReason reason) {
         return "non_json_response";
     case FailOpenReason::PolicyNotFound:
         return "policy_not_found";
+    case FailOpenReason::Timeout:
+        return "timeout";
     case FailOpenReason::UnknownError:
         return "unknown_error";
     default:

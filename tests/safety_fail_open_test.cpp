@@ -46,6 +46,13 @@ TEST(FailOpenTest, EvaluateFilterSafety) {
         EXPECT_FALSE(decision.should_mutate);
         EXPECT_EQ(decision.reason, FailOpenReason::InvalidJsonSafeError);
     }
+
+    // Timeout should not mutate
+    {
+        auto decision = evaluate_filter_safety(json_transform::FlatJsonFilterStatus::Timeout);
+        EXPECT_FALSE(decision.should_mutate);
+        EXPECT_EQ(decision.reason, FailOpenReason::Timeout);
+    }
 }
 
 TEST(FailOpenTest, ReasonStrings) {
@@ -59,6 +66,7 @@ TEST(FailOpenTest, ReasonStrings) {
     EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::Non2xxResponse), "non_2xx_response");
     EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::NonJsonResponse), "non_json_response");
     EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::PolicyNotFound), "policy_not_found");
+    EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::Timeout), "timeout");
     EXPECT_STREQ(get_fail_open_reason_string(FailOpenReason::UnknownError), "unknown_error");
 }
 

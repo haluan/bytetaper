@@ -52,6 +52,7 @@ enum class FlatJsonFilterStatus {
     InvalidInput,
     OutputTooSmall,
     InvalidJsonSafeError,
+    Timeout,
 };
 
 // The filter copies value slices directly from parsed.source without coercion,
