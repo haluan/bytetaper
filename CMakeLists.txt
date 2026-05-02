@@ -187,6 +187,9 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
   set_source_files_properties(src/policy/yaml_loader.cpp
     PROPERTIES COMPILE_OPTIONS "-fexceptions"
   )
+  set_source_files_properties(src/cache/l2_rocksdb_cache.cpp
+    PROPERTIES COMPILE_OPTIONS "-fexceptions"
+  )
   target_include_directories(policy_yaml_loader
     PUBLIC
       ${CMAKE_CURRENT_SOURCE_DIR}/include
@@ -759,6 +762,27 @@ if(BUILD_TESTING)
     add_test(
       NAME cache_key_test
       COMMAND cache_key_test
+    )
+
+    add_executable(l2_rocksdb_cache_test
+      tests/l2_rocksdb_cache_test.cpp
+      src/cache/l2_rocksdb_cache.cpp
+      src/cache/cache_entry.cpp
+      src/cache/cache_ttl.cpp
+    )
+    target_include_directories(l2_rocksdb_cache_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(l2_rocksdb_cache_test
+      PRIVATE
+        gtest_main
+        RocksDB::RocksDB
+    )
+
+    add_test(
+      NAME l2_rocksdb_cache_test
+      COMMAND l2_rocksdb_cache_test
     )
 
     add_executable(cache_ttl_test
