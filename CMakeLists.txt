@@ -655,6 +655,24 @@ if(BUILD_TESTING)
       NAME safety_fail_open_test
       COMMAND safety_fail_open_test
     )
+
+    add_executable(cache_entry_test
+      tests/cache_entry_test.cpp
+      src/cache/cache_entry.cpp
+    )
+    target_include_directories(cache_entry_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(cache_entry_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME cache_entry_test
+      COMMAND cache_entry_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
