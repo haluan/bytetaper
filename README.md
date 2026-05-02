@@ -189,6 +189,10 @@ ByteTaper provides comprehensive observability through Prometheus metrics and HT
 
 See [Observability Guide](docs/observability.md) for a complete reference on monitoring ByteTaper.
 
+## Policy Safety
+
+See [Policy Safety](docs/policy-safety.md) for a complete reference on policy safety.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our development process and how to contribute.
