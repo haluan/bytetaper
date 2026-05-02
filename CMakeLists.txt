@@ -891,6 +891,25 @@ if(BUILD_TESTING)
       COMMAND extproc_non_json_integration_test
     )
 
+    add_executable(extproc_malformed_input_integration_test
+      tests/integration/extproc/extproc_malformed_input_integration_test.cpp
+    )
+    target_include_directories(extproc_malformed_input_integration_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${BYTETAPER_GENERATED_PROTO_DIR}
+    )
+    target_link_libraries(extproc_malformed_input_integration_test
+      PRIVATE
+        bytetaper_extproc_grpc_server
+        bytetaper_extproc_grpc
+    )
+
+    add_test(
+      NAME extproc_malformed_input_integration_test
+      COMMAND extproc_malformed_input_integration_test
+    )
+
     add_executable(extproc_policy_not_found_integration_test
       tests/integration/extproc/extproc_policy_not_found_integration_test.cpp
     )
