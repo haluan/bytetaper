@@ -1,0 +1,44 @@
+// SPDX-FileCopyrightText: 2026 Haluan Irsad
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
+
+#include "safety/fail_open.h"
+
+namespace bytetaper::safety {
+
+FailOpenDecision evaluate_filter_safety(json_transform::FlatJsonFilterStatus status) {
+    switch (status) {
+    case json_transform::FlatJsonFilterStatus::Ok:
+        return { true, FailOpenReason::None };
+    case json_transform::FlatJsonFilterStatus::SkipUnsupported:
+        return { false, FailOpenReason::SkipUnsupported };
+    case json_transform::FlatJsonFilterStatus::InvalidInput:
+        return { false, FailOpenReason::InvalidInput };
+    case json_transform::FlatJsonFilterStatus::OutputTooSmall:
+        return { false, FailOpenReason::OutputTooSmall };
+    case json_transform::FlatJsonFilterStatus::InvalidJsonSafeError:
+        return { false, FailOpenReason::InvalidJsonSafeError };
+    default:
+        return { false, FailOpenReason::UnknownError };
+    }
+}
+
+const char* get_fail_open_reason_string(FailOpenReason reason) {
+    switch (reason) {
+    case FailOpenReason::None:
+        return "none";
+    case FailOpenReason::SkipUnsupported:
+        return "skip_unsupported";
+    case FailOpenReason::InvalidInput:
+        return "invalid_input";
+    case FailOpenReason::OutputTooSmall:
+        return "output_too_small";
+    case FailOpenReason::InvalidJsonSafeError:
+        return "invalid_json_safe_error";
+    case FailOpenReason::UnknownError:
+        return "unknown_error";
+    default:
+        return "unknown";
+    }
+}
+
+} // namespace bytetaper::safety

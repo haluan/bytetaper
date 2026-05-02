@@ -158,6 +158,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/json_transform/content_type.cpp
     src/json_transform/flat_json.cpp
     src/json_transform/filter_flat_json.cpp
+    src/safety/fail_open.cpp
   )
   target_include_directories(bytetaper_extproc_grpc_server
     PUBLIC
@@ -632,6 +633,24 @@ if(BUILD_TESTING)
     add_test(
       NAME metrics_prometheus_registry_test
       COMMAND metrics_prometheus_registry_test
+    )
+
+    add_executable(safety_fail_open_test
+      tests/safety_fail_open_test.cpp
+      src/safety/fail_open.cpp
+    )
+    target_include_directories(safety_fail_open_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(safety_fail_open_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME safety_fail_open_test
+      COMMAND safety_fail_open_test
     )
   endif()
 

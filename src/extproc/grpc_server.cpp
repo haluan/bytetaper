@@ -8,6 +8,7 @@
 #include "field_selection/request_target.h"
 #include "json_transform/content_type.h"
 #include "policy/route_matcher.h"
+#include "safety/fail_open.h"
 
 #include <cstddef>
 #include <grpcpp/grpcpp.h>
@@ -142,17 +143,34 @@ void apply_response_content_type(const envoy::service::ext_proc::v3::ProcessingR
 
 bool build_filtered_body_response(const envoy::service::ext_proc::v3::ProcessingRequest& request,
                                   StreamFilterState& state,
-                                  envoy::service::ext_proc::v3::ProcessingResponse* response_out) {
+                                  envoy::service::ext_proc::v3::ProcessingResponse* response_out,
+                                  safety::FailOpenReason* out_reason) {
+    if (out_reason != nullptr) {
+        *out_reason = safety::FailOpenReason::None;
+    }
+
     if (response_out == nullptr || !request.has_response_body()) {
+        if (out_reason != nullptr) {
+            *out_reason = safety::FailOpenReason::SkipUnsupported;
+        }
         return false;
     }
     if (!state.has_query_selection) {
+        if (out_reason != nullptr) {
+            *out_reason = safety::FailOpenReason::SkipUnsupported;
+        }
         return false;
     }
     if (state.response_kind != json_transform::JsonResponseKind::EligibleJson) {
+        if (out_reason != nullptr) {
+            *out_reason = safety::FailOpenReason::SkipUnsupported;
+        }
         return false;
     }
     if (!request.response_body().end_of_stream()) {
+        if (out_reason != nullptr) {
+            *out_reason = safety::FailOpenReason::SkipUnsupported;
+        }
         return false;
     }
 
@@ -168,7 +186,13 @@ bool build_filtered_body_response(const envoy::service::ext_proc::v3::Processing
         json_transform::transform_flat_json_with_filter_toggle(
             input_body.c_str(), parse_status, &parsed, state.context, true, output.data(),
             output.size(), &output_length);
-    if (status != json_transform::FlatJsonFilterStatus::Ok) {
+
+    const safety::FailOpenDecision safety_decision = safety::evaluate_filter_safety(status);
+    if (out_reason != nullptr) {
+        *out_reason = safety_decision.reason;
+    }
+
+    if (!safety_decision.should_mutate) {
         return false;
     }
 
@@ -247,7 +271,8 @@ public:
             }
             if (kind == ProcessingRequestKind::ResponseBody) {
                 envoy::service::ext_proc::v3::ProcessingResponse response{};
-                if (!build_filtered_body_response(request, filter_state, &response)) {
+                safety::FailOpenReason fail_reason = safety::FailOpenReason::None;
+                if (!build_filtered_body_response(request, filter_state, &response, &fail_reason)) {
                     auto* response_body = response.mutable_response_body();
                     auto* common_response = response_body->mutable_response();
                     common_response->set_status(
@@ -255,6 +280,10 @@ public:
                     add_bytetaper_report_headers(
                         common_response, request.response_body().body().size(),
                         request.response_body().body().size(), 0, 0, false);
+                    if (fail_reason != safety::FailOpenReason::None) {
+                        add_overwrite_header(common_response, "x-bytetaper-fail-open-reason",
+                                             safety::get_fail_open_reason_string(fail_reason));
+                    }
                 }
                 stream->Write(response);
                 continue;
