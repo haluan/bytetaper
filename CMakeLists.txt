@@ -8,6 +8,9 @@ include(CTest)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+find_package(RocksDB REQUIRED)
 option(BYTETAPER_ENABLE_GTEST_TESTS "Enable GoogleTest-based unit tests" OFF)
 option(BYTETAPER_ENABLE_INTEGRATION_TESTS "Enable integration-style extproc adapter tests" OFF)
 
@@ -22,6 +25,10 @@ add_executable(bytetaper-extproc
 target_include_directories(bytetaper-extproc
   PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(bytetaper-extproc
+  PRIVATE
+    RocksDB::RocksDB
 )
 
 add_executable(bytetaper-validate-policy
@@ -343,6 +350,7 @@ if(BUILD_TESTING)
     target_link_libraries(l1_cache_test
       PRIVATE
         gtest_main
+        RocksDB::RocksDB
     )
 
     add_test(
@@ -923,6 +931,22 @@ if(BUILD_TESTING)
     add_test(
       NAME extproc_route_policy_integration_test
       COMMAND extproc_route_policy_integration_test
+    )
+
+    add_executable(extproc_metrics_endpoint_integration_test
+      tests/integration/extproc/extproc_metrics_endpoint_integration_test.cpp
+    )
+    target_include_directories(extproc_metrics_endpoint_integration_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${BYTETAPER_GENERATED_PROTO_DIR}
+    )
+    target_link_libraries(extproc_metrics_endpoint_integration_test
+      PRIVATE
+        bytetaper_extproc_grpc_server
+        bytetaper_extproc_grpc
+        bytetaper_metrics_http_server
+        bytetaper_prometheus_registry
     )
 
     add_test(
