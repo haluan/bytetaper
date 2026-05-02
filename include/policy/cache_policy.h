@@ -32,7 +32,8 @@ struct CachePolicy {
     bool enabled = false;
     CacheL1Policy l1{};
     CacheL2Policy l2{};
-    bool private_cache = false; // opt-in: allows caching of authenticated requests
+    bool private_cache = false;      // opt-in: allows caching of authenticated requests
+    char auth_scope_header[64] = {}; // required when private_cache=true; names the source header
 };
 
 // Returns nullptr on success, or a static error string on invalid configuration.

@@ -721,6 +721,25 @@ if(BUILD_TESTING)
       NAME policy_cache_policy_test
       COMMAND policy_cache_policy_test
     )
+ 
+    add_executable(cache_policy_validator_test
+      tests/cache_policy_validator_test.cpp
+      src/policy/cache_policy_validator.cpp
+      src/policy/cache_policy.cpp
+    )
+    target_include_directories(cache_policy_validator_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(cache_policy_validator_test
+      PRIVATE
+        gtest_main
+    )
+ 
+    add_test(
+      NAME cache_policy_validator_test
+      COMMAND cache_policy_validator_test
+    )
 
     add_executable(policy_yaml_loader_cache_test
       tests/policy_yaml_loader_cache_test.cpp

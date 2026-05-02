@@ -104,7 +104,7 @@ services:
       - -lc
       - |
         set -eu
-        ./tests/integration/cache_hit_immediate_response_test.sh
+        python3 ./tests/integration/e2e/cache_hit_immediate_response_test.py
 
   bytetaper-extproc:
     depends_on:
