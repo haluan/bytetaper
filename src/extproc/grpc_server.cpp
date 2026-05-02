@@ -26,6 +26,7 @@ constexpr const char* kResponseBodyHeader = "x-bytetaper-extproc-response-body";
 constexpr const char* kOriginalResponseBytesHeader = "x-bytetaper-original-response-bytes";
 constexpr const char* kWasteRemovedFieldsHeader = "x-bytetaper-waste-removed-fields";
 constexpr const char* kWasteSavedBytesHeader = "x-bytetaper-waste-saved-bytes";
+constexpr const char* kOptimizedResponseBytesHeader = "x-bytetaper-optimized-response-bytes";
 
 constexpr const char* kTrueValue = "true";
 
@@ -166,6 +167,8 @@ bool build_filtered_body_response(const envoy::service::ext_proc::v3::Processing
     add_overwrite_header(common, kContentLengthHeader, std::to_string(filtered_body.size()));
     add_waste_report_headers(common, state.context.removed_field_count, saved_bytes);
     add_overwrite_header(common, kOriginalResponseBytesHeader, std::to_string(input_body.size()));
+    state.context.output_payload_bytes = filtered_body.size();
+    add_overwrite_header(common, kOptimizedResponseBytesHeader, std::to_string(filtered_body.size()));
 
     return true;
 }
@@ -222,6 +225,10 @@ public:
                     filter_state.context.input_payload_bytes =
                         request.response_body().body().size();
                     add_overwrite_header(common_response, kOriginalResponseBytesHeader,
+                                         std::to_string(request.response_body().body().size()));
+                    filter_state.context.output_payload_bytes =
+                        request.response_body().body().size();
+                    add_overwrite_header(common_response, kOptimizedResponseBytesHeader,
                                          std::to_string(request.response_body().body().size()));
                 }
                 stream->Write(response);
