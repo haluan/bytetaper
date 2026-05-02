@@ -23,6 +23,8 @@ constexpr const char* kPathHeader = ":path";
 constexpr const char* kContentTypeHeader = "content-type";
 constexpr const char* kContentLengthHeader = "content-length";
 constexpr const char* kTrueValue = "true";
+constexpr const char* kWasteRemovedFieldsHeader = "x-bytetaper-waste-removed-fields";
+constexpr const char* kWasteSavedBytesHeader = "x-bytetaper-waste-saved-bytes";
 
 struct StreamFilterState {
     apg::ApgTransformContext context{};
@@ -31,15 +33,22 @@ struct StreamFilterState {
     bool has_query_selection = false;
 };
 
-void add_response_body_signal_header(envoy::service::ext_proc::v3::CommonResponse* common) {
-    if (common == nullptr) {
+void add_overwrite_header(envoy::service::ext_proc::v3::CommonResponse* common, const char* key,
+                          const std::string& value) {
+    if (common == nullptr || key == nullptr) {
         return;
     }
     auto* mutation = common->mutable_header_mutation()->add_set_headers();
-    mutation->mutable_header()->set_key(kResponseBodyHeader);
-    mutation->mutable_header()->set_raw_value(kTrueValue);
+    mutation->mutable_header()->set_key(key);
+    mutation->mutable_header()->set_raw_value(value);
     mutation->set_append_action(
         envoy::config::core::v3::HeaderValueOption::OVERWRITE_IF_EXISTS_OR_ADD);
+}
+
+void add_waste_report_headers(envoy::service::ext_proc::v3::CommonResponse* common,
+                              std::size_t removed_fields, std::size_t saved_bytes) {
+    add_overwrite_header(common, kWasteRemovedFieldsHeader, std::to_string(removed_fields));
+    add_overwrite_header(common, kWasteSavedBytesHeader, std::to_string(saved_bytes));
 }
 
 bool read_header_value(const envoy::config::core::v3::HeaderMap& headers, const char* key,
@@ -141,18 +150,18 @@ bool build_filtered_body_response(const envoy::service::ext_proc::v3::Processing
     }
 
     std::string filtered_body(output.data(), output_length);
+    const std::size_t saved_bytes = (input_body.size() >= filtered_body.size())
+                                        ? (input_body.size() - filtered_body.size())
+                                        : 0;
     auto* body_response = response_out->mutable_response_body();
     auto* common = body_response->mutable_response();
     common->set_status(envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
     common->mutable_body_mutation()->set_body(filtered_body);
 
-    auto* content_length_mutation = common->mutable_header_mutation()->add_set_headers();
-    content_length_mutation->mutable_header()->set_key(kContentLengthHeader);
-    content_length_mutation->mutable_header()->set_value(std::to_string(filtered_body.size()));
-    content_length_mutation->set_append_action(
-        envoy::config::core::v3::HeaderValueOption::OVERWRITE_IF_EXISTS_OR_ADD);
+    add_overwrite_header(common, kResponseBodyHeader, kTrueValue);
+    add_overwrite_header(common, kContentLengthHeader, std::to_string(filtered_body.size()));
+    add_waste_report_headers(common, state.context.removed_field_count, saved_bytes);
 
-    add_response_body_signal_header(common);
     return true;
 }
 
@@ -191,7 +200,8 @@ public:
                 auto* response_headers = response.mutable_response_headers();
                 auto* common_response = response_headers->mutable_response();
                 common_response->set_status(envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
-                add_response_body_signal_header(common_response);
+                add_overwrite_header(common_response, kResponseBodyHeader, kTrueValue);
+                add_waste_report_headers(common_response, 0, 0);
                 stream->Write(response);
                 continue;
             }
@@ -202,7 +212,8 @@ public:
                     auto* common_response = response_body->mutable_response();
                     common_response->set_status(
                         envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
-                    add_response_body_signal_header(common_response);
+                    add_overwrite_header(common_response, kResponseBodyHeader, kTrueValue);
+                    add_waste_report_headers(common_response, 0, 0);
                 }
                 stream->Write(response);
                 continue;

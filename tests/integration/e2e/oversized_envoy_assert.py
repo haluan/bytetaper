@@ -32,6 +32,16 @@ def get_header_case_insensitive(headers, key: str) -> str:
     return ""
 
 
+def parse_non_negative_int(value: str, header_name: str) -> int:
+    try:
+        parsed = int(value)
+    except ValueError:
+        raise RuntimeError(f"{header_name} is not a valid integer: {value}") from None
+    if parsed < 0:
+        raise RuntimeError(f"{header_name} must be non-negative, got {parsed}")
+    return parsed
+
+
 def read_counter(name: str) -> int:
     query = urllib.parse.urlencode({"filter": f"^{name}$"})
     with urllib.request.urlopen(f"{ENVOY_ADMIN_URL}?{query}", timeout=3) as response:
@@ -96,6 +106,34 @@ def main() -> int:
                 return fail(
                     "missing or incorrect x-bytetaper-extproc-response-body header in response", 10
                 )
+            
+            filtered_removed_fields_raw = get_header_case_insensitive(
+                filtered_response.headers, "x-bytetaper-waste-removed-fields"
+            )
+            filtered_saved_bytes_raw = get_header_case_insensitive(
+                filtered_response.headers, "x-bytetaper-waste-saved-bytes"
+            )
+            if filtered_removed_fields_raw == "":
+                return fail("missing x-bytetaper-waste-removed-fields header in response", 19)
+            if filtered_saved_bytes_raw == "":
+                return fail("missing x-bytetaper-waste-saved-bytes header in response", 20)
+
+            try:
+                filtered_removed_fields = parse_non_negative_int(
+                    filtered_removed_fields_raw, "x-bytetaper-waste-removed-fields"
+                )
+                filtered_saved_bytes = parse_non_negative_int(
+                    filtered_saved_bytes_raw, "x-bytetaper-waste-saved-bytes"
+                )
+            except RuntimeError as exc:
+                return fail(str(exc), 21)
+
+            if filtered_removed_fields <= 0:
+                return fail(
+                    "expected filtered x-bytetaper-waste-removed-fields to be > 0", 23
+                )
+            if filtered_saved_bytes <= 0:
+                return fail("expected filtered x-bytetaper-waste-saved-bytes to be > 0", 24)
 
             if "application/json" not in filtered_content_type.lower():
                 return fail(
@@ -136,6 +174,38 @@ def main() -> int:
                     "missing or incorrect x-bytetaper-extproc-response-body header in unfiltered response",
                     17,
                 )
+            
+            unfiltered_removed_fields_raw = get_header_case_insensitive(
+                unfiltered_response.headers, "x-bytetaper-waste-removed-fields"
+            )
+            unfiltered_saved_bytes_raw = get_header_case_insensitive(
+                unfiltered_response.headers, "x-bytetaper-waste-saved-bytes"
+            )
+            if unfiltered_removed_fields_raw == "":
+                return fail(
+                    "missing x-bytetaper-waste-removed-fields header in unfiltered response", 25
+                )
+            if unfiltered_saved_bytes_raw == "":
+                return fail(
+                    "missing x-bytetaper-waste-saved-bytes header in unfiltered response", 26
+                )
+
+            try:
+                unfiltered_removed_fields = parse_non_negative_int(
+                    unfiltered_removed_fields_raw, "x-bytetaper-waste-removed-fields"
+                )
+                unfiltered_saved_bytes = parse_non_negative_int(
+                    unfiltered_saved_bytes_raw, "x-bytetaper-waste-saved-bytes"
+                )
+            except RuntimeError as exc:
+                return fail(str(exc), 27)
+
+            if unfiltered_removed_fields != 0:
+                return fail(
+                    "expected unfiltered x-bytetaper-waste-removed-fields to be 0", 29
+                )
+            if unfiltered_saved_bytes != 0:
+                return fail("expected unfiltered x-bytetaper-waste-saved-bytes to be 0", 30)
 
             if "application/json" not in unfiltered_content_type.lower():
                 return fail(
