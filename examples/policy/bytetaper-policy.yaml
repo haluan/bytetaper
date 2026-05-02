@@ -50,3 +50,17 @@ routes:
         l2:
           enabled: true
           path: /var/cache/bytetaper/api-v1-durable
+
+  - id: "api-v1-private-cached"
+    match:
+      kind: prefix
+      prefix: /api/v1/private/
+    cache:
+      behavior: store
+      enabled: true
+      ttl_seconds: 60
+      private_cache: true
+      layers:
+        l1:
+          enabled: true
+          capacity_entries: 8

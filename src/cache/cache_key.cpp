@@ -3,6 +3,7 @@
 
 #include "cache/cache_key.h"
 
+#include <cstdio>
 #include <cstring>
 
 namespace bytetaper::cache {
@@ -113,6 +114,19 @@ bool build_cache_key(const CacheKeyInput& input, char* out_buf, std::size_t out_
         if (!key_append(&pos, &remaining, input.policy_version, ver_len)) {
             return false;
         }
+    }
+
+    if (input.private_cache) {
+        if (input.auth_scope == nullptr || input.auth_scope[0] == '\0') {
+            return false; // missing scope rejects private cache
+        }
+        // append |scope:{auth_scope}
+        int n = std::snprintf(pos, remaining, "|scope:%s", input.auth_scope);
+        if (n < 0 || static_cast<std::size_t>(n) >= remaining) {
+            return false;
+        }
+        pos += n;
+        remaining -= static_cast<std::size_t>(n);
     }
 
     *pos = '\0';

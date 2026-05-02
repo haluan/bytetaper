@@ -840,6 +840,24 @@ if(BUILD_TESTING)
       COMMAND cache_key_test
     )
 
+    add_executable(cache_key_auth_scope_test
+      tests/cache_key_auth_scope_test.cpp
+      src/cache/cache_key.cpp
+    )
+    target_include_directories(cache_key_auth_scope_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(cache_key_auth_scope_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME cache_key_auth_scope_test
+      COMMAND cache_key_auth_scope_test
+    )
+
     add_executable(l2_rocksdb_cache_test
       tests/l2_rocksdb_cache_test.cpp
       src/cache/l2_rocksdb_cache.cpp
