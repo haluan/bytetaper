@@ -22,9 +22,12 @@ namespace {
 constexpr const char* kPathHeader = ":path";
 constexpr const char* kContentTypeHeader = "content-type";
 constexpr const char* kContentLengthHeader = "content-length";
-constexpr const char* kTrueValue = "true";
+constexpr const char* kResponseBodyHeader = "x-bytetaper-extproc-response-body";
+constexpr const char* kOriginalResponseBytesHeader = "x-bytetaper-original-response-bytes";
 constexpr const char* kWasteRemovedFieldsHeader = "x-bytetaper-waste-removed-fields";
 constexpr const char* kWasteSavedBytesHeader = "x-bytetaper-waste-saved-bytes";
+
+constexpr const char* kTrueValue = "true";
 
 struct StreamFilterState {
     apg::ApgTransformContext context{};
@@ -119,7 +122,7 @@ void apply_response_content_type(const envoy::service::ext_proc::v3::ProcessingR
 }
 
 bool build_filtered_body_response(const envoy::service::ext_proc::v3::ProcessingRequest& request,
-                                  const StreamFilterState& state,
+                                  StreamFilterState& state,
                                   envoy::service::ext_proc::v3::ProcessingResponse* response_out) {
     if (response_out == nullptr || !request.has_response_body()) {
         return false;
@@ -135,6 +138,7 @@ bool build_filtered_body_response(const envoy::service::ext_proc::v3::Processing
     }
 
     const std::string input_body = request.response_body().body();
+    state.context.input_payload_bytes = input_body.size();
     json_transform::ParsedFlatJsonObject parsed{};
     const json_transform::FlatJsonParseStatus parse_status =
         json_transform::parse_flat_json_object(input_body.c_str(), state.response_kind, &parsed);
@@ -161,6 +165,7 @@ bool build_filtered_body_response(const envoy::service::ext_proc::v3::Processing
     add_overwrite_header(common, kResponseBodyHeader, kTrueValue);
     add_overwrite_header(common, kContentLengthHeader, std::to_string(filtered_body.size()));
     add_waste_report_headers(common, state.context.removed_field_count, saved_bytes);
+    add_overwrite_header(common, kOriginalResponseBytesHeader, std::to_string(input_body.size()));
 
     return true;
 }
@@ -214,6 +219,10 @@ public:
                         envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
                     add_overwrite_header(common_response, kResponseBodyHeader, kTrueValue);
                     add_waste_report_headers(common_response, 0, 0);
+                    filter_state.context.input_payload_bytes =
+                        request.response_body().body().size();
+                    add_overwrite_header(common_response, kOriginalResponseBytesHeader,
+                                         std::to_string(request.response_body().body().size()));
                 }
                 stream->Write(response);
                 continue;

@@ -11,6 +11,9 @@
 
 #include "envoy/service/ext_proc/v3/external_processor.grpc.pb.h"
 
+static constexpr const char* kExpectedBody = "{\"id\":1}";
+static constexpr std::size_t kExpectedBodySize = 8;
+
 int main() {
     bytetaper::extproc::GrpcServerConfig config{};
     bytetaper::extproc::GrpcServerHandle handle{};
@@ -50,66 +53,80 @@ int main() {
         return 6;
     }
 
+    // request_headers: path without fields= query → no query selection → pass-through path
     envoy::service::ext_proc::v3::ProcessingRequest request_headers{};
-    request_headers.mutable_request_headers();
+    auto* req_hdrs = request_headers.mutable_request_headers()->mutable_headers();
+    auto* path_hdr = req_hdrs->add_headers();
+    path_hdr->set_key(":path");
+    path_hdr->set_raw_value("/api/items");
     if (!stream->Write(request_headers)) {
         bytetaper::extproc::stop_grpc_server(&handle);
         return 7;
     }
 
+    // response_headers: application/json content type
     envoy::service::ext_proc::v3::ProcessingRequest response_headers{};
-    response_headers.mutable_response_headers();
+    auto* resp_hdrs = response_headers.mutable_response_headers()->mutable_headers();
+    auto* ct_hdr = resp_hdrs->add_headers();
+    ct_hdr->set_key("content-type");
+    ct_hdr->set_raw_value("application/json");
     if (!stream->Write(response_headers)) {
         bytetaper::extproc::stop_grpc_server(&handle);
         return 8;
     }
 
+    // response_body: known 8-byte JSON body with end_of_stream=true
     envoy::service::ext_proc::v3::ProcessingRequest response_body{};
-    response_body.mutable_response_body();
+    response_body.mutable_response_body()->set_body(kExpectedBody);
+    response_body.mutable_response_body()->set_end_of_stream(true);
     if (!stream->Write(response_body)) {
         bytetaper::extproc::stop_grpc_server(&handle);
         return 9;
     }
 
-    envoy::service::ext_proc::v3::ProcessingRequest unsupported{};
-    unsupported.mutable_request_body();
-    if (!stream->Write(unsupported)) {
-        bytetaper::extproc::stop_grpc_server(&handle);
-        return 10;
-    }
-
     if (!stream->WritesDone()) {
         bytetaper::extproc::stop_grpc_server(&handle);
-        return 11;
+        return 10;
     }
 
     // Response 1: request_headers continue
     envoy::service::ext_proc::v3::ProcessingResponse r1{};
     if (!stream->Read(&r1)) {
         bytetaper::extproc::stop_grpc_server(&handle);
-        return 12;
+        return 11;
     }
     if (!r1.has_request_headers()) {
         bytetaper::extproc::stop_grpc_server(&handle);
-        return 13;
+        return 12;
     }
 
     // Response 2: response_headers continue
     envoy::service::ext_proc::v3::ProcessingResponse r2{};
     if (!stream->Read(&r2)) {
         bytetaper::extproc::stop_grpc_server(&handle);
-        return 14;
+        return 13;
     }
     if (!r2.has_response_headers()) {
         bytetaper::extproc::stop_grpc_server(&handle);
+        return 14;
+    }
+
+    // Response 3: response_body — must contain kOriginalResponseBytesHeader == "8"
+    envoy::service::ext_proc::v3::ProcessingResponse r3{};
+    if (!stream->Read(&r3)) {
+        bytetaper::extproc::stop_grpc_server(&handle);
         return 15;
     }
+    if (!r3.has_response_body()) {
+        bytetaper::extproc::stop_grpc_server(&handle);
+        return 16;
+    }
     {
+        const std::string expected_value = std::to_string(kExpectedBodySize);
         bool found = false;
-        for (const auto& mutation :
-             r2.response_headers().response().header_mutation().set_headers()) {
-            if (mutation.header().key() == "x-bytetaper-extproc-response-body" &&
-                mutation.header().raw_value() == "true") {
+        for (const auto& mutation : r3.response_body().response().header_mutation().set_headers()) {
+            if (mutation.header().key() == "x-bytetaper-original-response-bytes" &&
+                mutation.header().raw_value() == expected_value) {
                 found = true;
                 break;
             }
@@ -120,44 +137,12 @@ int main() {
         }
     }
 
-    // Response 3: response_body continue
-    envoy::service::ext_proc::v3::ProcessingResponse r3{};
-    if (!stream->Read(&r3)) {
-        bytetaper::extproc::stop_grpc_server(&handle);
-        return 16;
-    }
-    if (!r3.has_response_body()) {
-        bytetaper::extproc::stop_grpc_server(&handle);
-        return 17;
-    }
-    {
-        bool found = false;
-        for (const auto& mutation : r3.response_body().response().header_mutation().set_headers()) {
-            if (mutation.header().key() == "x-bytetaper-extproc-response-body" &&
-                mutation.header().raw_value() == "true") {
-                found = true;
-                break;
-            }
-        }
-        if (!found) {
-            bytetaper::extproc::stop_grpc_server(&handle);
-            return 101;
-        }
-    }
-
-    // No response 4: unsupported variant must not produce a response
-    envoy::service::ext_proc::v3::ProcessingResponse r4{};
-    if (stream->Read(&r4)) {
-        bytetaper::extproc::stop_grpc_server(&handle);
-        return 18;
-    }
-
     const grpc::Status status = stream->Finish();
 
     bytetaper::extproc::stop_grpc_server(&handle);
 
     if (!status.ok()) {
-        return 19;
+        return 17;
     }
 
     return 0;

@@ -12,8 +12,6 @@ struct GrpcServerConfig {
     const char* listen_address = "127.0.0.1:0";
 };
 
-constexpr const char* kResponseBodyHeader = "x-bytetaper-extproc-response-body";
-
 struct GrpcServerHandle {
     void* impl = nullptr;
     std::uint16_t bound_port = 0;
