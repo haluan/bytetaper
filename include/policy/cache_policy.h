@@ -14,10 +14,28 @@ enum class CacheBehavior : std::uint8_t {
     Store = 2,   // store response in cache
 };
 
+static constexpr std::size_t kMaxCachePathLen = 256;
+
+struct CacheL1Policy {
+    bool enabled = false;
+    std::uint32_t capacity_entries = 0; // 0 = use kL1SlotCount default
+};
+
+struct CacheL2Policy {
+    bool enabled = false;
+    char path[kMaxCachePathLen] = {}; // required when enabled
+};
+
 struct CachePolicy {
     CacheBehavior behavior = CacheBehavior::Default;
-    std::uint32_t ttl_seconds = 0; // 0 = use upstream headers / server default
+    std::uint32_t ttl_seconds = 0;
+    bool enabled = false;
+    CacheL1Policy l1{};
+    CacheL2Policy l2{};
 };
+
+// Returns nullptr on success, or a static error string on invalid configuration.
+const char* validate_cache_policy(const CachePolicy& policy);
 
 } // namespace bytetaper::policy
 

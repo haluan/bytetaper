@@ -693,6 +693,7 @@ if(BUILD_TESTING)
 
     add_executable(policy_cache_policy_test
       tests/policy_cache_policy_test.cpp
+      src/policy/cache_policy.cpp
     )
     target_include_directories(policy_cache_policy_test
       PRIVATE
