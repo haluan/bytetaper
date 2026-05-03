@@ -9,6 +9,9 @@ const char* validate_pagination_policy(const PaginationPolicy& policy) {
     if (!policy.enabled) {
         return nullptr;
     }
+    if (policy.mode == PaginationMode::Cursor) {
+        return "cursor_mode_not_implemented";
+    }
     if (policy.mode == PaginationMode::None) {
         return "pagination.mode required when pagination is enabled";
     }

@@ -10,6 +10,7 @@ namespace bytetaper::policy {
 enum class PaginationMode : std::uint8_t {
     None = 0,
     LimitOffset, // ?limit=N&offset=M query params
+    Cursor,      // cursor-based pagination — placeholder, mutation not yet implemented
 };
 
 struct PaginationPolicy {

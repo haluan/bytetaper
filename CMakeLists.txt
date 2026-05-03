@@ -1105,6 +1105,24 @@ if(BUILD_TESTING)
       NAME offset_query_test
       COMMAND offset_query_test
     )
+
+    add_executable(pagination_cursor_placeholder_test
+      tests/pagination_cursor_placeholder_test.cpp
+      src/policy/pagination_policy.cpp
+    )
+    target_include_directories(pagination_cursor_placeholder_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(pagination_cursor_placeholder_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME pagination_cursor_placeholder_test
+      COMMAND pagination_cursor_placeholder_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
