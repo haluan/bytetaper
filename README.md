@@ -197,6 +197,10 @@ See [Policy Safety](docs/policy-safety.md) for a complete reference on policy sa
 
 See [Cache Policy](docs/cache-policy.md) for a complete reference on tiered caching.
 
+## Pagination Policy
+
+See [Pagination Policy](docs/pagination-policy.md) for a complete reference on pagination handling.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our development process and how to contribute.
