@@ -7,6 +7,8 @@
 #include "cache/cache_entry.h"
 #include "cache/l1_cache.h"
 #include "cache/l2_disk_cache.h"
+#include "compression/accept_encoding.h"
+#include "compression/content_encoding.h"
 #include "policy/field_filter_policy.h"
 #include "policy/route_policy.h"
 
@@ -21,6 +23,13 @@ struct RequestMutationOutput {
     bool applied = false;
     const char* reason = nullptr;     // static string: "missing_limit", "limit_exceeds_max"
     std::uint32_t limit_to_apply = 0; // value written to path; used for header
+};
+
+struct CompressionDecisionOutput {
+    bool evaluated = false;
+    bool candidate = false;
+    const char* reason = nullptr;
+    policy::CompressionAlgorithm algorithm_hint = policy::CompressionAlgorithm::None;
 };
 
 struct ApgTransformContext {
@@ -78,6 +87,12 @@ struct ApgTransformContext {
     // --- Pagination oversized-response warning (written by response-body phase caller) ---
     bool pagination_warning = false;
     const char* pagination_warning_reason = nullptr; // static string: "response_still_oversized"
+
+    // --- Compression inputs (populated across request/response phases) ---
+    compression::AcceptEncoding client_accept_encoding{};
+    compression::ContentEncodingResult response_content_encoding{};
+    // --- Compression decision output (written by compression_decision_stage) ---
+    CompressionDecisionOutput compression_decision{};
 };
 
 } // namespace bytetaper::apg

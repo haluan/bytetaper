@@ -15,6 +15,10 @@ static constexpr const char* kPaginationAppliedHeader = "x-bytetaper-pagination-
 static constexpr const char* kPaginationReasonHeader = "x-bytetaper-pagination-reason";
 static constexpr const char* kPaginationLimitHeader = "x-bytetaper-pagination-limit";
 
+constexpr const char* kCompressionCandidateHeader = "x-bytetaper-compression-candidate";
+constexpr const char* kCompressionReasonHeader = "x-bytetaper-compression-reason";
+constexpr const char* kCompressionAlgorithmHeader = "x-bytetaper-compression-algorithm-hint";
+
 static void add_common_header(envoy::service::ext_proc::v3::CommonResponse* common, const char* key,
                               const std::string& value) {
     auto* mutation = common->mutable_header_mutation()->add_set_headers();
@@ -82,6 +86,28 @@ void apply_pagination_request_headers(const apg::ApgTransformContext& ctx,
         return;
     }
     add_common_header(common, ":path", ctx.request_mutation.path);
+}
+
+void apply_compression_response_headers(const apg::ApgTransformContext& ctx,
+                                        envoy::service::ext_proc::v3::CommonResponse* common) {
+    if (common == nullptr || !ctx.compression_decision.evaluated) {
+        return;
+    }
+    add_common_header(common, kCompressionCandidateHeader,
+                      ctx.compression_decision.candidate ? kTrueValue : kFalseValue);
+    if (ctx.compression_decision.reason != nullptr) {
+        add_common_header(common, kCompressionReasonHeader, ctx.compression_decision.reason);
+    }
+    if (ctx.compression_decision.candidate) {
+        const auto alg = ctx.compression_decision.algorithm_hint;
+        const char* alg_str = (alg == policy::CompressionAlgorithm::Brotli) ? "br"
+                              : (alg == policy::CompressionAlgorithm::Zstd) ? "zstd"
+                              : (alg == policy::CompressionAlgorithm::Gzip) ? "gzip"
+                                                                            : nullptr;
+        if (alg_str != nullptr) {
+            add_common_header(common, kCompressionAlgorithmHeader, alg_str);
+        }
+    }
 }
 
 } // namespace bytetaper::extproc

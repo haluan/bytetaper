@@ -208,6 +208,12 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/pagination/pagination_mutation.cpp
     src/pagination/pagination_query.cpp
     src/policy/compression_policy.cpp
+    src/stages/compression_decision_stage.cpp
+    src/compression/accept_encoding.cpp
+    src/compression/content_encoding.cpp
+    src/compression/compression_eligibility.cpp
+    src/compression/compression_size.cpp
+    src/compression/compression_decision.cpp
   )
   target_include_directories(bytetaper_extproc_grpc_server
     PUBLIC
@@ -1691,6 +1697,25 @@ if(BUILD_TESTING)
     add_test(
       NAME extproc_pagination_headers_integration_test
       COMMAND extproc_pagination_headers_integration_test
+    )
+
+    add_executable(extproc_compression_candidate_header_integration_test
+      tests/integration/extproc/extproc_compression_candidate_header_integration_test.cpp
+    )
+    target_include_directories(extproc_compression_candidate_header_integration_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${BYTETAPER_GENERATED_PROTO_DIR}
+    )
+    target_link_libraries(extproc_compression_candidate_header_integration_test
+      PRIVATE
+        bytetaper_extproc_grpc_server
+        bytetaper_extproc_grpc
+    )
+
+    add_test(
+      NAME extproc_compression_candidate_header_integration_test
+      COMMAND extproc_compression_candidate_header_integration_test
     )
   endif()
 endif()

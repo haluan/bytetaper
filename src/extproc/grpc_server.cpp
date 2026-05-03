@@ -4,6 +4,8 @@
 #include "extproc/grpc_server.h"
 
 #include "apg/pipeline.h"
+#include "compression/accept_encoding.h"
+#include "compression/content_encoding.h"
 #include "envoy/service/ext_proc/v3/external_processor.grpc.pb.h"
 #include "extproc/bytetaper_to_envoy.h"
 #include "extproc/reporting_headers.h"
@@ -12,6 +14,7 @@
 #include "json_transform/content_type.h"
 #include "policy/route_matcher.h"
 #include "safety/fail_open.h"
+#include "stages/compression_decision_stage.h"
 #include "stages/l1_cache_lookup_stage.h"
 #include "stages/l1_cache_store_stage.h"
 #include "stages/l2_cache_lookup_stage.h"
@@ -133,6 +136,12 @@ void apply_request_headers_selection(const envoy::service::ext_proc::v3::Process
         }
     }
 
+    std::string accept_enc{};
+    if (read_header_value(request.request_headers().headers(), "accept-encoding", &accept_enc)) {
+        state->context.client_accept_encoding =
+            compression::parse_accept_encoding(accept_enc.c_str(), accept_enc.size());
+    }
+
     state->has_query_selection = state->context.selected_field_count > 0;
 }
 
@@ -153,6 +162,12 @@ void apply_response_content_type(const envoy::service::ext_proc::v3::ProcessingR
             state->context.response_status_code =
                 static_cast<std::uint16_t>(std::atoi(status_code.c_str()));
         }
+    }
+
+    std::string content_enc{};
+    if (read_header_value(request.response_headers().headers(), "content-encoding", &content_enc)) {
+        state->context.response_content_encoding =
+            compression::detect_content_encoding(content_enc.c_str(), content_enc.size());
     }
 
     std::string content_type{};
@@ -412,6 +427,25 @@ public:
                         apg::run_pipeline(kStoreStages, 2, filter_state.context);
                     }
                 }
+
+                // Run compression decision pipeline (always, even on failure/skip, to set headers)
+                if (filter_state.matched_policy != nullptr) {
+                    if (filter_state.context.response_body_len == 0) {
+                        filter_state.context.response_body_len =
+                            request.response_body().body().size();
+                    }
+                    static constexpr apg::ApgStage kCompressionStages[] = {
+                        stages::compression_decision_stage
+                    };
+                    apg::run_pipeline(kCompressionStages, 1, filter_state.context);
+
+                    if (response.has_response_body()) {
+                        apply_compression_response_headers(
+                            filter_state.context,
+                            response.mutable_response_body()->mutable_response());
+                    }
+                }
+
                 stream->Write(response);
                 continue;
             }
