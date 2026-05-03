@@ -15,6 +15,13 @@
 
 namespace bytetaper::apg {
 
+struct RequestMutationOutput {
+    char path[2048] = {}; // full mutated path+query (e.g., "/orders?limit=50")
+    std::size_t path_length = 0;
+    bool applied = false;
+    const char* reason = nullptr; // static string: "missing_limit", "limit_exceeds_max"
+};
+
 struct ApgTransformContext {
     static constexpr std::size_t kRawPathBufferSize = 1024;
     static constexpr std::size_t kRawQueryBufferSize = 1024;
@@ -64,6 +71,8 @@ struct ApgTransformContext {
 
     // --- L2 body buffer (owned by context; l2_cache_lookup_stage writes body here) ---
     char l2_body_buf[kL2BodyBufSize] = {};
+
+    RequestMutationOutput request_mutation = {};
 };
 
 } // namespace bytetaper::apg

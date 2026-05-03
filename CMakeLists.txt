@@ -1123,6 +1123,28 @@ if(BUILD_TESTING)
       NAME pagination_cursor_placeholder_test
       COMMAND pagination_cursor_placeholder_test
     )
+
+    add_executable(pagination_request_mutation_stage_test
+      tests/pagination_request_mutation_stage_test.cpp
+      src/stages/pagination_request_mutation_stage.cpp
+      src/pagination/pagination_decision.cpp
+      src/pagination/pagination_mutation.cpp
+      src/pagination/pagination_query.cpp
+      src/policy/pagination_policy.cpp
+    )
+    target_include_directories(pagination_request_mutation_stage_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(pagination_request_mutation_stage_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME pagination_request_mutation_stage_test
+      COMMAND pagination_request_mutation_stage_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
