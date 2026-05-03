@@ -17,14 +17,14 @@ PaginationDecision make_pagination_decision(const policy::PaginationPolicy& poli
 
     // Cap: client limit exceeds policy max_limit
     if (query.has_limit && policy.max_limit > 0 && query.limit > policy.max_limit) {
-        return { false, true, policy.max_limit, "limit_exceeds_max" };
+        return { false, true, policy.max_limit, kPaginationReasonExceedsMax };
     }
 
     if (query.has_limit) {
-        return { false, false, query.limit, "limit_valid" };
+        return { false, false, query.limit, kPaginationReasonValid };
     }
 
-    return { true, false, policy.default_limit, nullptr };
+    return { true, false, policy.default_limit, kPaginationReasonMissingLimit };
 }
 
 } // namespace bytetaper::pagination

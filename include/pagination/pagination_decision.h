@@ -8,11 +8,15 @@
 
 namespace bytetaper::pagination {
 
+static constexpr const char* kPaginationReasonExceedsMax = "limit_exceeds_max";
+static constexpr const char* kPaginationReasonMissingLimit = "missing_limit";
+static constexpr const char* kPaginationReasonValid = "limit_valid";
+
 struct PaginationDecision {
     bool should_apply_default_limit = false;
     bool should_cap_limit = false; // client limit exceeds max_limit
     std::uint32_t limit_to_apply = 0;
-    const char* reason = nullptr; // static string; "limit_exceeds_max" or nullptr
+    const char* reason = nullptr; // static string
 };
 
 // Returns a decision on whether to inject the policy default_limit.

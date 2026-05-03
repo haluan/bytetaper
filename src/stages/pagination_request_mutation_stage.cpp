@@ -41,12 +41,13 @@ apg::StageOutput pagination_request_mutation_stage(apg::ApgTransformContext& con
         sizeof(context.request_mutation.path));
 
     if (!mr.mutated) {
-        return { apg::StageResult::Continue, "pagination-mutation-overflow" };
+        return { apg::StageResult::Continue, "pagination-mutation-failed" };
     }
 
     context.request_mutation.path_length = mr.written;
     context.request_mutation.applied = true;
     context.request_mutation.reason = decision.reason;
+    context.request_mutation.limit_to_apply = decision.limit_to_apply;
 
     return { apg::StageResult::Continue, decision.reason };
 }

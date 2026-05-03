@@ -7,8 +7,22 @@
 
 #include <envoy/config/core/v3/base.pb.h>
 #include <envoy/type/v3/http_status.pb.h>
+#include <string>
 
 namespace bytetaper::extproc {
+
+static constexpr const char* kPaginationAppliedHeader = "x-bytetaper-pagination-applied";
+static constexpr const char* kPaginationReasonHeader = "x-bytetaper-pagination-reason";
+static constexpr const char* kPaginationLimitHeader = "x-bytetaper-pagination-limit";
+
+static void add_common_header(envoy::service::ext_proc::v3::CommonResponse* common, const char* key,
+                              const std::string& value) {
+    auto* mutation = common->mutable_header_mutation()->add_set_headers();
+    mutation->mutable_header()->set_key(key);
+    mutation->mutable_header()->set_raw_value(value);
+    mutation->set_append_action(
+        envoy::config::core::v3::HeaderValueOption::OVERWRITE_IF_EXISTS_OR_ADD);
+}
 
 static void add_header(envoy::service::ext_proc::v3::ImmediateResponse* imm, const char* key,
                        const std::string& value) {
@@ -47,6 +61,27 @@ bool map_cache_hit_to_immediate_response(
     }
 
     return true;
+}
+
+void apply_pagination_response_headers(const apg::ApgTransformContext& ctx,
+                                       envoy::service::ext_proc::v3::CommonResponse* common) {
+    if (common == nullptr || !ctx.request_mutation.applied) {
+        return;
+    }
+    add_common_header(common, kPaginationAppliedHeader, kTrueValue);
+    if (ctx.request_mutation.reason != nullptr) {
+        add_common_header(common, kPaginationReasonHeader, ctx.request_mutation.reason);
+    }
+    add_common_header(common, kPaginationLimitHeader,
+                      std::to_string(ctx.request_mutation.limit_to_apply));
+}
+
+void apply_pagination_request_headers(const apg::ApgTransformContext& ctx,
+                                      envoy::service::ext_proc::v3::CommonResponse* common) {
+    if (common == nullptr || !ctx.request_mutation.applied) {
+        return;
+    }
+    add_common_header(common, ":path", ctx.request_mutation.path);
 }
 
 } // namespace bytetaper::extproc

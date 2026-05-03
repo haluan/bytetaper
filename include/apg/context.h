@@ -19,7 +19,8 @@ struct RequestMutationOutput {
     char path[2048] = {}; // full mutated path+query (e.g., "/orders?limit=50")
     std::size_t path_length = 0;
     bool applied = false;
-    const char* reason = nullptr; // static string: "missing_limit", "limit_exceeds_max"
+    const char* reason = nullptr;     // static string: "missing_limit", "limit_exceeds_max"
+    std::uint32_t limit_to_apply = 0; // value written to path; used for header
 };
 
 struct ApgTransformContext {

@@ -16,6 +16,7 @@
 #include "stages/l1_cache_store_stage.h"
 #include "stages/l2_cache_lookup_stage.h"
 #include "stages/l2_cache_store_stage.h"
+#include "stages/pagination_request_mutation_stage.h"
 
 #include <chrono>
 #include <cstddef>
@@ -57,7 +58,7 @@ void add_overwrite_header(envoy::service::ext_proc::v3::CommonResponse* common, 
     }
     auto* mutation = common->mutable_header_mutation()->add_set_headers();
     mutation->mutable_header()->set_key(key);
-    mutation->mutable_header()->set_raw_value(value);
+    mutation->mutable_header()->set_raw_value(value.data(), value.size());
     mutation->set_append_action(
         envoy::config::core::v3::HeaderValueOption::OVERWRITE_IF_EXISTS_OR_ADD);
 }
@@ -321,9 +322,10 @@ public:
                             .count();
 
                     static constexpr apg::ApgStage kLookupStages[] = {
-                        stages::l1_cache_lookup_stage, stages::l2_cache_lookup_stage
+                        stages::l1_cache_lookup_stage, stages::l2_cache_lookup_stage,
+                        stages::pagination_request_mutation_stage
                     };
-                    apg::run_pipeline(kLookupStages, 2, filter_state.context);
+                    apg::run_pipeline(kLookupStages, 3, filter_state.context);
                 }
 
                 if (bytetaper::extproc::map_cache_hit_to_immediate_response(filter_state.context,
@@ -333,8 +335,9 @@ public:
                 }
 
                 auto* request_headers_response = response.mutable_request_headers();
-                request_headers_response->mutable_response()->set_status(
-                    envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
+                auto* common = request_headers_response->mutable_response();
+                common->set_status(envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
+                apply_pagination_request_headers(filter_state.context, common);
                 stream->Write(response);
                 continue;
             }
@@ -352,6 +355,7 @@ public:
                                                : kNoneValue;
                     add_overwrite_header(common_response, kRoutePolicyHeader, route_id);
                 }
+                apply_pagination_response_headers(filter_state.context, common_response);
                 stream->Write(response);
                 continue;
             }

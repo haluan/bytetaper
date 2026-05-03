@@ -202,6 +202,10 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/cache/cache_ttl.cpp
     src/safety/fail_open.cpp
     src/policy/pagination_policy.cpp
+    src/stages/pagination_request_mutation_stage.cpp
+    src/pagination/pagination_decision.cpp
+    src/pagination/pagination_mutation.cpp
+    src/pagination/pagination_query.cpp
   )
   target_include_directories(bytetaper_extproc_grpc_server
     PUBLIC
@@ -1471,6 +1475,25 @@ if(BUILD_TESTING)
     add_test(
       NAME extproc_policy_not_found_integration_test
       COMMAND extproc_policy_not_found_integration_test
+    )
+
+    add_executable(extproc_pagination_headers_integration_test
+      tests/integration/extproc/extproc_pagination_headers_integration_test.cpp
+    )
+    target_include_directories(extproc_pagination_headers_integration_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${BYTETAPER_GENERATED_PROTO_DIR}
+    )
+    target_link_libraries(extproc_pagination_headers_integration_test
+      PRIVATE
+        bytetaper_extproc_grpc_server
+        bytetaper_extproc_grpc
+    )
+
+    add_test(
+      NAME extproc_pagination_headers_integration_test
+      COMMAND extproc_pagination_headers_integration_test
     )
   endif()
 endif()
