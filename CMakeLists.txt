@@ -1045,6 +1045,27 @@ if(BUILD_TESTING)
       NAME default_limit_mutation_test
       COMMAND default_limit_mutation_test
     )
+
+    add_executable(max_limit_enforcement_test
+      tests/max_limit_enforcement_test.cpp
+      src/pagination/pagination_decision.cpp
+      src/pagination/pagination_mutation.cpp
+      src/pagination/pagination_query.cpp
+      src/policy/pagination_policy.cpp
+    )
+    target_include_directories(max_limit_enforcement_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(max_limit_enforcement_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME max_limit_enforcement_test
+      COMMAND max_limit_enforcement_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)

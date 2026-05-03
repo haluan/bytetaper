@@ -11,7 +11,7 @@ namespace bytetaper::pagination {
 static PaginationMutationResult mutate(const char* path, const char* query, bool apply,
                                        std::uint32_t limit, const char* param, char* buf,
                                        std::size_t sz) {
-    PaginationDecision d{ apply, limit };
+    PaginationDecision d{ apply, false, limit, nullptr };
     return apply_pagination_mutation(path, std::strlen(path), query, std::strlen(query), d, param,
                                      buf, sz);
 }
@@ -46,7 +46,7 @@ TEST(DefaultLimitMutationTest, CustomLimitParam) {
 
 TEST(DefaultLimitMutationTest, OutputDeterministic) {
     char buf1[256]{}, buf2[256]{};
-    PaginationDecision d{ true, 10 };
+    PaginationDecision d{ true, false, 10, nullptr };
     apply_pagination_mutation("/x", 2, "a=1", 3, d, "limit", buf1, sizeof(buf1));
     apply_pagination_mutation("/x", 2, "a=1", 3, d, "limit", buf2, sizeof(buf2));
     EXPECT_STREQ(buf1, buf2);

@@ -10,7 +10,9 @@ namespace bytetaper::pagination {
 
 struct PaginationDecision {
     bool should_apply_default_limit = false;
+    bool should_cap_limit = false; // client limit exceeds max_limit
     std::uint32_t limit_to_apply = 0;
+    const char* reason = nullptr; // static string; "limit_exceeds_max" or nullptr
 };
 
 // Returns a decision on whether to inject the policy default_limit.
