@@ -898,6 +898,24 @@ if(BUILD_TESTING)
       COMMAND pagination_metrics_test
     )
 
+    add_executable(pagination_signal_test
+      tests/pagination_signal_test.cpp
+      src/api_intelligence/pagination_signal.cpp
+    )
+    target_include_directories(pagination_signal_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(pagination_signal_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME pagination_signal_test
+      COMMAND pagination_signal_test
+    )
+
     add_executable(safety_fail_open_test
       tests/safety_fail_open_test.cpp
       src/safety/fail_open.cpp
