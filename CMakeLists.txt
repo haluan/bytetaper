@@ -746,6 +746,25 @@ if(BUILD_TESTING)
       NAME pagination_policy_test
       COMMAND pagination_policy_test
     )
+
+    add_executable(pagination_policy_validator_test
+      tests/pagination_policy_validator_test.cpp
+      src/policy/pagination_policy_validator.cpp
+      src/policy/pagination_policy.cpp
+    )
+    target_include_directories(pagination_policy_validator_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(pagination_policy_validator_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME pagination_policy_validator_test
+      COMMAND pagination_policy_validator_test
+    )
  
     add_executable(cache_policy_validator_test
       tests/cache_policy_validator_test.cpp

@@ -27,4 +27,10 @@ struct PaginationPolicy {
 // Returns nullptr on success, or a static error string on invalid configuration.
 const char* validate_pagination_policy(const PaginationPolicy& policy);
 
+// Stricter validator for production policy loading.
+// Delegates to validate_pagination_policy(), then enforces:
+//   - max_limit must be > 0 (cannot be left unset)
+// Returns nullptr on success, static error string on failure.
+const char* validate_pagination_policy_safe(const PaginationPolicy& policy);
+
 } // namespace bytetaper::policy
