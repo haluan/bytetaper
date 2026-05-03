@@ -1,26 +1,26 @@
 routes:
   - id: "api-v1-proxy"
     match:
-      kind: "prefix"
-      prefix: "/api/v1/"
-    method: "get"
-    mutation: "full"
+      kind: prefix
+      prefix: /api/v1/
+    method: get
+    mutation: full
     max_response_bytes: 2097152
     cache:
-      behavior: "store"
+      behavior: store
       ttl_seconds: 300
     field_filter:
-      mode: "allowlist"
+      mode: allowlist
       fields:
-        - "id"
-        - "name"
-        - "status"
+        - id
+        - name
+        - status
 
   - id: "admin-exact"
     match:
-      kind: "exact"
-      prefix: "/admin"
-    mutation: "headers_only"
+      kind: exact
+      prefix: /admin
+    mutation: headers_only
 
   - id: "api-v1-l1-cached"
     match:
@@ -110,9 +110,9 @@ routes:
       max_response_bytes_warning: 524288
   - id: "orders-paginated"
     match:
-      kind: "prefix"
-      prefix: "/orders"
-    mutation: "full"
+      kind: prefix
+      prefix: /orders
+    mutation: full
     pagination:
       enabled: true
       mode: limit_offset
@@ -121,3 +121,19 @@ routes:
       limit_param: limit
       offset_param: offset
       upstream_supports_pagination: true
+
+  - id: "api-v1-compressed"
+    match:
+      kind: prefix
+      prefix: /api/v1/large
+    mutation: full
+    compression:
+      enabled: true
+      min_size_bytes: 1024
+      eligible_content_types:
+        - application/json
+        - text/plain
+      preferred_algorithms:
+        - brotli
+        - gzip
+      already_encoded_behavior: skip

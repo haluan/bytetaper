@@ -5,6 +5,7 @@
 #define BYTETAPER_POLICY_ROUTE_POLICY_H
 
 #include "policy/cache_policy.h"
+#include "policy/compression_policy.h"
 #include "policy/field_filter_policy.h"
 #include "policy/pagination_policy.h"
 
@@ -49,6 +50,7 @@ struct RoutePolicy {
     CachePolicy cache = {};
     FailureMode failure_mode = FailureMode::FailOpen;
     PaginationPolicy pagination = {};
+    CompressionPolicy compression = {};
 };
 
 // Validates a RoutePolicy. Returns true if usable.
@@ -72,6 +74,13 @@ inline bool validate_route_policy(const RoutePolicy& policy, const char** reason
     if (pagination_err != nullptr) {
         if (reason_out != nullptr) {
             *reason_out = pagination_err;
+        }
+        return false;
+    }
+    const char* compression_err = validate_compression_policy(policy.compression);
+    if (compression_err != nullptr) {
+        if (reason_out != nullptr) {
+            *reason_out = compression_err;
         }
         return false;
     }
