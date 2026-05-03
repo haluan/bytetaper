@@ -1087,6 +1087,24 @@ if(BUILD_TESTING)
       NAME preserve_valid_limit_test
       COMMAND preserve_valid_limit_test
     )
+
+    add_executable(offset_query_test
+      tests/offset_query_test.cpp
+      src/pagination/pagination_query.cpp
+    )
+    target_include_directories(offset_query_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(offset_query_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME offset_query_test
+      COMMAND offset_query_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)

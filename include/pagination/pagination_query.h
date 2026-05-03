@@ -3,8 +3,9 @@
 
 #pragma once
 
+#include "policy/pagination_policy.h"
+
 #include <cstddef>
-#include <cstdint>
 
 namespace bytetaper::pagination {
 
@@ -19,9 +20,11 @@ struct PaginationQueryResult {
 
 // Parses limit and offset from a raw query string (e.g., "limit=100&offset=20&fields=id").
 // limit_param and offset_param must be non-null; raw_query may be null (treated as empty).
+// Offset is only parsed when mode == PaginationMode::LimitOffset.
 // Returns parse_error=true if a matched param has a non-numeric or negative value.
 // Missing parameters are safe: has_limit/has_offset remain false.
 PaginationQueryResult parse_pagination_query(const char* raw_query, std::size_t raw_query_len,
-                                             const char* limit_param, const char* offset_param);
+                                             const char* limit_param, const char* offset_param,
+                                             policy::PaginationMode mode);
 
 } // namespace bytetaper::pagination

@@ -43,7 +43,8 @@ static bool parse_uint32(const char* value_start, const char* value_end, std::ui
 }
 
 PaginationQueryResult parse_pagination_query(const char* raw_query, std::size_t raw_query_len,
-                                             const char* limit_param, const char* offset_param) {
+                                             const char* limit_param, const char* offset_param,
+                                             policy::PaginationMode mode) {
 
     PaginationQueryResult result{};
     if (raw_query == nullptr || raw_query_len == 0) {
@@ -78,7 +79,8 @@ PaginationQueryResult parse_pagination_query(const char* raw_query, std::size_t 
                 }
                 result.has_limit = true;
                 result.limit = v;
-            } else if (key_len == offset_len && std::memcmp(seg, offset_param, key_len) == 0) {
+            } else if (mode == policy::PaginationMode::LimitOffset && key_len == offset_len &&
+                       std::memcmp(seg, offset_param, key_len) == 0) {
                 std::uint32_t v = 0;
                 if (!parse_uint32(val_start, val_end, &v)) {
                     result.parse_error = true;

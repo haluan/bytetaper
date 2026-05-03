@@ -9,7 +9,8 @@
 namespace bytetaper::pagination {
 
 static PaginationQueryResult parse(const char* qs) {
-    return parse_pagination_query(qs, std::strlen(qs), "limit", "offset");
+    return parse_pagination_query(qs, std::strlen(qs), "limit", "offset",
+                                  policy::PaginationMode::LimitOffset);
 }
 
 TEST(PaginationQueryTest, ValidLimitOffset_Parsed) {
@@ -51,7 +52,8 @@ TEST(PaginationQueryTest, ZeroLimit_Valid) {
 }
 
 TEST(PaginationQueryTest, EmptyQuery_Safe) {
-    auto r = parse_pagination_query(nullptr, 0, "limit", "offset");
+    auto r =
+        parse_pagination_query(nullptr, 0, "limit", "offset", policy::PaginationMode::LimitOffset);
     EXPECT_FALSE(r.parse_error);
     EXPECT_FALSE(r.has_limit);
     EXPECT_FALSE(r.has_offset);
