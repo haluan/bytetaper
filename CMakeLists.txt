@@ -769,6 +769,24 @@ if(BUILD_TESTING)
       COMMAND compression_policy_test
     )
 
+    add_executable(accept_encoding_test
+      tests/accept_encoding_test.cpp
+      src/compression/accept_encoding.cpp
+    )
+    target_include_directories(accept_encoding_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(accept_encoding_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME accept_encoding_test
+      COMMAND accept_encoding_test
+    )
+
     add_executable(pagination_policy_validator_test
       tests/pagination_policy_validator_test.cpp
       src/policy/pagination_policy_validator.cpp
