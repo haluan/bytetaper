@@ -806,6 +806,25 @@ if(BUILD_TESTING)
       COMMAND content_encoding_test
     )
 
+    add_executable(content_type_eligibility_test
+      tests/content_type_eligibility_test.cpp
+      src/compression/compression_eligibility.cpp
+      src/policy/compression_policy.cpp
+    )
+    target_include_directories(content_type_eligibility_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(content_type_eligibility_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME content_type_eligibility_test
+      COMMAND content_type_eligibility_test
+    )
+
     add_executable(pagination_policy_validator_test
       tests/pagination_policy_validator_test.cpp
       src/policy/pagination_policy_validator.cpp
