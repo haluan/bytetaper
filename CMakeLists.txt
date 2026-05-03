@@ -986,6 +986,24 @@ if(BUILD_TESTING)
       NAME cache_auth_safety_test
       COMMAND cache_auth_safety_test
     )
+
+    add_executable(pagination_query_test
+      tests/pagination_query_test.cpp
+      src/pagination/pagination_query.cpp
+    )
+    target_include_directories(pagination_query_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(pagination_query_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME pagination_query_test
+      COMMAND pagination_query_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
