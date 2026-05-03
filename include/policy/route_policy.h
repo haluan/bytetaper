@@ -6,6 +6,7 @@
 
 #include "policy/cache_policy.h"
 #include "policy/field_filter_policy.h"
+#include "policy/pagination_policy.h"
 
 #include <cstdint>
 #include <cstring>
@@ -47,6 +48,7 @@ struct RoutePolicy {
     std::uint32_t max_response_bytes = 0;
     CachePolicy cache = {};
     FailureMode failure_mode = FailureMode::FailOpen;
+    PaginationPolicy pagination = {};
 };
 
 // Validates a RoutePolicy. Returns true if usable.
@@ -65,6 +67,13 @@ inline bool validate_route_policy(const RoutePolicy& policy, const char** reason
             }
             return false;
         }
+    }
+    const char* pagination_err = validate_pagination_policy(policy.pagination);
+    if (pagination_err != nullptr) {
+        if (reason_out != nullptr) {
+            *reason_out = pagination_err;
+        }
+        return false;
     }
     return true;
 }

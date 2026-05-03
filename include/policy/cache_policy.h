@@ -4,6 +4,7 @@
 #ifndef BYTETAPER_POLICY_CACHE_POLICY_H
 #define BYTETAPER_POLICY_CACHE_POLICY_H
 
+#include <cstddef>
 #include <cstdint>
 
 namespace bytetaper::policy {

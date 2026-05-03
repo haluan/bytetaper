@@ -14,6 +14,29 @@ find_package(RocksDB REQUIRED)
 option(BYTETAPER_ENABLE_GTEST_TESTS "Enable GoogleTest-based unit tests" OFF)
 option(BYTETAPER_ENABLE_INTEGRATION_TESTS "Enable integration-style extproc adapter tests" OFF)
 
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(YAML_CPP REQUIRED yaml-cpp)
+
+add_library(policy_yaml_loader STATIC
+  src/policy/yaml_loader.cpp
+  src/policy/pagination_policy.cpp
+)
+set_source_files_properties(src/policy/yaml_loader.cpp
+  PROPERTIES COMPILE_OPTIONS "-fexceptions"
+)
+set_source_files_properties(src/cache/l2_rocksdb_cache.cpp
+  PROPERTIES COMPILE_OPTIONS "-fexceptions"
+)
+target_include_directories(policy_yaml_loader
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${YAML_CPP_INCLUDE_DIRS}
+)
+target_link_libraries(policy_yaml_loader
+  PUBLIC
+    ${YAML_CPP_LIBRARIES}
+)
+
 add_compile_options(
   -fno-exceptions
   -fno-rtti
@@ -178,6 +201,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/cache/cache_key.cpp
     src/cache/cache_ttl.cpp
     src/safety/fail_open.cpp
+    src/policy/pagination_policy.cpp
   )
   target_include_directories(bytetaper_extproc_grpc_server
     PUBLIC
@@ -189,28 +213,6 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     PRIVATE
       bytetaper_extproc_grpc
       RocksDB::RocksDB
-  )
-
-  find_package(PkgConfig REQUIRED)
-  pkg_check_modules(YAML_CPP REQUIRED yaml-cpp)
-
-  add_library(policy_yaml_loader STATIC
-    src/policy/yaml_loader.cpp
-  )
-  set_source_files_properties(src/policy/yaml_loader.cpp
-    PROPERTIES COMPILE_OPTIONS "-fexceptions"
-  )
-  set_source_files_properties(src/cache/l2_rocksdb_cache.cpp
-    PROPERTIES COMPILE_OPTIONS "-fexceptions"
-  )
-  target_include_directories(policy_yaml_loader
-    PUBLIC
-      ${CMAKE_CURRENT_SOURCE_DIR}/include
-      ${YAML_CPP_INCLUDE_DIRS}
-  )
-  target_link_libraries(policy_yaml_loader
-    PUBLIC
-      ${YAML_CPP_LIBRARIES}
   )
 
   find_package(Threads REQUIRED)
@@ -548,6 +550,7 @@ if(BUILD_TESTING)
 
     add_executable(policy_route_policy_test
       tests/policy_route_policy_test.cpp
+      src/policy/pagination_policy.cpp
     )
     target_include_directories(policy_route_policy_test
       PRIVATE
@@ -720,6 +723,24 @@ if(BUILD_TESTING)
     add_test(
       NAME policy_cache_policy_test
       COMMAND policy_cache_policy_test
+    )
+
+    add_executable(pagination_policy_test
+      tests/pagination_policy_test.cpp
+      src/policy/pagination_policy.cpp
+    )
+    target_include_directories(pagination_policy_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(pagination_policy_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME pagination_policy_test
+      COMMAND pagination_policy_test
     )
  
     add_executable(cache_policy_validator_test
