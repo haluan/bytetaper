@@ -163,6 +163,8 @@ services:
         condition: service_healthy
       bytetaper-extproc:
         condition: service_healthy
+    volumes:
+      - ./examples/envoy:/etc/envoy:ro
     healthcheck:
       test:
         - CMD
