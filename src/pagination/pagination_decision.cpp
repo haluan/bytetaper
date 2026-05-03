@@ -20,12 +20,11 @@ PaginationDecision make_pagination_decision(const policy::PaginationPolicy& poli
         return { false, true, policy.max_limit, "limit_exceeds_max" };
     }
 
-    // Default injection: client supplied no limit
-    if (!query.has_limit) {
-        return { true, false, policy.default_limit, nullptr };
+    if (query.has_limit) {
+        return { false, false, query.limit, "limit_valid" };
     }
 
-    return {};
+    return { true, false, policy.default_limit, nullptr };
 }
 
 } // namespace bytetaper::pagination
