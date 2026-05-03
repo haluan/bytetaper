@@ -1024,6 +1024,27 @@ if(BUILD_TESTING)
       NAME missing_limit_decision_test
       COMMAND missing_limit_decision_test
     )
+
+    add_executable(default_limit_mutation_test
+      tests/default_limit_mutation_test.cpp
+      src/pagination/pagination_mutation.cpp
+      src/pagination/pagination_decision.cpp
+      src/pagination/pagination_query.cpp
+      src/policy/pagination_policy.cpp
+    )
+    target_include_directories(default_limit_mutation_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(default_limit_mutation_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME default_limit_mutation_test
+      COMMAND default_limit_mutation_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
