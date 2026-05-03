@@ -14,7 +14,9 @@ format:
 	fi
 
 test:
+	@rm -rf build
 	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-unit-test
 
 smoke-test:
+	@rm -rf build
 	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-smoke-test

@@ -74,6 +74,10 @@ struct ApgTransformContext {
     char l2_body_buf[kL2BodyBufSize] = {};
 
     RequestMutationOutput request_mutation = {};
+
+    // --- Pagination oversized-response warning (written by response-body phase caller) ---
+    bool pagination_warning = false;
+    const char* pagination_warning_reason = nullptr; // static string: "response_still_oversized"
 };
 
 } // namespace bytetaper::apg

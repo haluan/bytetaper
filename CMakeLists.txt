@@ -1149,6 +1149,24 @@ if(BUILD_TESTING)
       NAME pagination_request_mutation_stage_test
       COMMAND pagination_request_mutation_stage_test
     )
+
+    add_executable(oversized_response_guard_test
+      tests/oversized_response_guard_test.cpp
+      src/pagination/oversized_response_guard.cpp
+    )
+    target_include_directories(oversized_response_guard_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(oversized_response_guard_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME oversized_response_guard_test
+      COMMAND oversized_response_guard_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
