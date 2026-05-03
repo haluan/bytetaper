@@ -1004,6 +1004,26 @@ if(BUILD_TESTING)
       NAME pagination_query_test
       COMMAND pagination_query_test
     )
+
+    add_executable(missing_limit_decision_test
+      tests/missing_limit_decision_test.cpp
+      src/pagination/pagination_decision.cpp
+      src/pagination/pagination_query.cpp
+      src/policy/pagination_policy.cpp
+    )
+    target_include_directories(missing_limit_decision_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(missing_limit_decision_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME missing_limit_decision_test
+      COMMAND missing_limit_decision_test
+    )
   endif()
 
   if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
