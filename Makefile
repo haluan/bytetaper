@@ -28,8 +28,10 @@ all-tests:
 	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) build bytetaper-cache-e2e-test
 	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) build bytetaper-smoke-test
 	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) build bytetaper-integration-test
+	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) build bytetaper-pagination-test
 	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-unit-test
 	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-cache-hit-test
 	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-cache-e2e-test
 	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-smoke-test
 	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-integration-test
+	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-pagination-test

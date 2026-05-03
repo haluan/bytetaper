@@ -106,6 +106,30 @@ services:
         set -eu
         python3 ./tests/integration/e2e/cache_hit_immediate_response_test.py
 
+  bytetaper-pagination-test:
+    build:
+      context: .
+      dockerfile: docker/dev.Dockerfile
+      args:
+        LOCAL_UID: ${LOCAL_UID:-1000}
+        LOCAL_GID: ${LOCAL_GID:-1000}
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    depends_on:
+      mock-api:
+        condition: service_healthy
+      bytetaper-extproc:
+        condition: service_healthy
+      envoy:
+        condition: service_healthy
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        set -eu
+        sh ./tests/integration/pagination_default_limit_test.sh
+
   bytetaper-extproc:
     depends_on:
       mock-api:

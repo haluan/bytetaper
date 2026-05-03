@@ -45,6 +45,22 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(b"ok")
             return
 
+        if path == "/orders":
+            g_call_count += 1
+            query = urlsplit(self.path).query
+            params = {k: v[0] for k, v in [q.split("=") for q in query.split("&") if "=" in q]}
+            limit = params.get("limit", None)
+            response_body = json.dumps({
+                "data": [],
+                "received_limit": limit,
+            }, separators=(",", ":")).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(response_body)))
+            self.end_headers()
+            self.wfile.write(response_body)
+            return
+
         # Increment counter for any other GET request
         g_call_count += 1
 

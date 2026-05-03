@@ -23,6 +23,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     make \
     ninja-build \
     python3 \
+    curl \
     protobuf-compiler-grpc \
     pkg-config \
     protobuf-compiler \
