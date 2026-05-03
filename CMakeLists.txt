@@ -861,6 +861,24 @@ if(BUILD_TESTING)
       COMMAND cache_metrics_test
     )
 
+    add_executable(pagination_metrics_test
+      tests/pagination_metrics_test.cpp
+      src/metrics/pagination_metrics.cpp
+    )
+    target_include_directories(pagination_metrics_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(pagination_metrics_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME pagination_metrics_test
+      COMMAND pagination_metrics_test
+    )
+
     add_executable(safety_fail_open_test
       tests/safety_fail_open_test.cpp
       src/safety/fail_open.cpp

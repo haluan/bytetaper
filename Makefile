@@ -20,3 +20,11 @@ test:
 smoke-test:
 	@rm -rf build
 	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-smoke-test
+
+all-tests:
+	@rm -rf build
+	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-unit-test
+	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-cache-hit-test
+	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-cache-e2e-test
+	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-smoke-test
+	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-integration-test
