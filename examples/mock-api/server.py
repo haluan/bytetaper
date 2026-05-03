@@ -48,7 +48,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/orders":
             g_call_count += 1
             query = urlsplit(self.path).query
-            params = {k: v[0] for k, v in [q.split("=") for q in query.split("&") if "=" in q]}
+            params = {k: v for k, v in [q.split("=") for q in query.split("&") if "=" in q]}
             limit = params.get("limit", None)
             response_body = json.dumps({
                 "data": [],

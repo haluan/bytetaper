@@ -200,6 +200,55 @@ bool parse_one_route(const YAML::Node& node, PolicyFileResult* result, std::size
             return false;
         }
     }
+    if (node["pagination"]) {
+        const YAML::Node& pag_node = node["pagination"];
+        policy.pagination.enabled = pag_node["enabled"] ? pag_node["enabled"].as<bool>() : false;
+        if (policy.pagination.enabled) {
+            if (pag_node["mode"]) {
+                const std::string mode_str = pag_node["mode"].as<std::string>();
+                if (mode_str == "limit_offset") {
+                    policy.pagination.mode = PaginationMode::LimitOffset;
+                } else if (mode_str == "cursor") {
+                    policy.pagination.mode = PaginationMode::Cursor;
+                } else {
+                    result->error = "unknown pagination.mode (expected 'limit_offset' or 'cursor')";
+                    return false;
+                }
+            }
+            if (pag_node["limit_param"]) {
+                const std::string p = pag_node["limit_param"].as<std::string>();
+                if (p.size() >= 32) {
+                    result->error = "pagination.limit_param too long";
+                    return false;
+                }
+                std::strncpy(policy.pagination.limit_param, p.c_str(), 31);
+                policy.pagination.limit_param[31] = '\0';
+            }
+            if (pag_node["offset_param"]) {
+                const std::string p = pag_node["offset_param"].as<std::string>();
+                if (p.size() >= 32) {
+                    result->error = "pagination.offset_param too long";
+                    return false;
+                }
+                std::strncpy(policy.pagination.offset_param, p.c_str(), 31);
+                policy.pagination.offset_param[31] = '\0';
+            }
+            if (pag_node["default_limit"]) {
+                policy.pagination.default_limit = pag_node["default_limit"].as<std::uint32_t>();
+            }
+            if (pag_node["max_limit"]) {
+                policy.pagination.max_limit = pag_node["max_limit"].as<std::uint32_t>();
+            }
+            if (pag_node["upstream_supports_pagination"]) {
+                policy.pagination.upstream_supports_pagination =
+                    pag_node["upstream_supports_pagination"].as<bool>();
+            }
+            if (pag_node["max_response_bytes_warning"]) {
+                policy.pagination.max_response_bytes_warning =
+                    pag_node["max_response_bytes_warning"].as<std::uint32_t>();
+            }
+        }
+    }
 
     return true;
 }

@@ -1,30 +1,17 @@
 services:
-  bytetaper-build:
+  bytetaper-dev:
     build:
       context: .
       dockerfile: docker/dev.Dockerfile
       args:
         LOCAL_UID: ${LOCAL_UID:-1000}
         LOCAL_GID: ${LOCAL_GID:-1000}
+    image: bytetaper-dev:latest
     working_dir: /workspace
     volumes:
       - ./:/workspace
-    command:
-      - /bin/bash
-      - -lc
-      - |
-        set -eu
-        cmake -S . -B build -G Ninja -DBYTETAPER_ENABLE_GTEST_TESTS=OFF -DBYTETAPER_ENABLE_INTEGRATION_TESTS=OFF
-        cmake --build build --target bytetaper-extproc
-        ctest --test-dir build --output-on-failure
-        ./build/bytetaper-extproc
   bytetaper-unit-test:
-    build:
-      context: .
-      dockerfile: docker/dev.Dockerfile
-      args:
-        LOCAL_UID: ${LOCAL_UID:-1000}
-        LOCAL_GID: ${LOCAL_GID:-1000}
+    image: bytetaper-dev:latest
     working_dir: /workspace
     volumes:
       - ./:/workspace
@@ -37,12 +24,7 @@ services:
         cmake --build build
         ctest --test-dir build --output-on-failure
   bytetaper-smoke-test:
-    build:
-      context: .
-      dockerfile: docker/dev.Dockerfile
-      args:
-        LOCAL_UID: ${LOCAL_UID:-1000}
-        LOCAL_GID: ${LOCAL_GID:-1000}
+    image: bytetaper-dev:latest
     working_dir: /workspace
     volumes:
       - ./:/workspace
@@ -56,12 +38,7 @@ services:
         ./build/bytetaper-extproc
         ctest --test-dir build -R extproc_server_smoke_test --output-on-failure
   bytetaper-integration-test:
-    build:
-      context: .
-      dockerfile: docker/dev.Dockerfile
-      args:
-        LOCAL_UID: ${LOCAL_UID:-1000}
-        LOCAL_GID: ${LOCAL_GID:-1000}
+    image: bytetaper-dev:latest
     working_dir: /workspace
     volumes:
       - ./:/workspace
@@ -80,12 +57,7 @@ services:
         python3 tests/integration/e2e/oversized_envoy_assert.py
 
   bytetaper-cache-hit-test:
-    build:
-      context: .
-      dockerfile: docker/dev.Dockerfile
-      args:
-        LOCAL_UID: ${LOCAL_UID:-1000}
-        LOCAL_GID: ${LOCAL_GID:-1000}
+    image: bytetaper-dev:latest
     working_dir: /workspace
     volumes:
       - ./:/workspace
@@ -107,12 +79,7 @@ services:
         python3 ./tests/integration/e2e/cache_hit_immediate_response_test.py
 
   bytetaper-pagination-test:
-    build:
-      context: .
-      dockerfile: docker/dev.Dockerfile
-      args:
-        LOCAL_UID: ${LOCAL_UID:-1000}
-        LOCAL_GID: ${LOCAL_GID:-1000}
+    image: bytetaper-dev:latest
     working_dir: /workspace
     volumes:
       - ./:/workspace
@@ -130,16 +97,30 @@ services:
         set -eu
         sh ./tests/integration/pagination_default_limit_test.sh
 
-  bytetaper-extproc:
+  bytetaper-max-limit-test:
+    image: bytetaper-dev:latest
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
     depends_on:
       mock-api:
         condition: service_healthy
-    build:
-      context: .
-      dockerfile: docker/dev.Dockerfile
-      args:
-        LOCAL_UID: ${LOCAL_UID:-1000}
-        LOCAL_GID: ${LOCAL_GID:-1000}
+      bytetaper-extproc:
+        condition: service_healthy
+      envoy:
+        condition: service_healthy
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        set -eu
+        sh ./tests/integration/pagination_max_limit_test.sh
+
+  bytetaper-extproc:
+    image: bytetaper-dev:latest
+    depends_on:
+      mock-api:
+        condition: service_healthy
     working_dir: /workspace
     volumes:
       - ./:/workspace
@@ -149,6 +130,7 @@ services:
       - -lc
       - |
         set -eu
+        mkdir -p /var/cache/bytetaper/global
         cmake -S . -B build -G Ninja -DBYTETAPER_ENABLE_INTEGRATION_TESTS=ON -DBYTETAPER_ENABLE_GTEST_TESTS=OFF
         cmake --build build --target bytetaper-extproc-server
         exec ./build/bytetaper-extproc-server --listen-address 0.0.0.0:18080 --policy-file examples/policy/bytetaper-policy.yaml --l2-cache-path /var/cache/bytetaper/global
@@ -195,12 +177,7 @@ services:
       start_period: 2s
 
   bytetaper-cache-e2e-test:
-    build:
-      context: .
-      dockerfile: docker/dev.Dockerfile
-      args:
-        LOCAL_UID: ${LOCAL_UID:-1000}
-        LOCAL_GID: ${LOCAL_GID:-1000}
+    image: bytetaper-dev:latest
     working_dir: /workspace
     volumes:
       - ./:/workspace
