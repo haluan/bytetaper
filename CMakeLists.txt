@@ -252,6 +252,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/coalescing/coalescing_key.cpp
     src/coalescing/coalescing_eligibility.cpp
     src/coalescing/coalescing_safety.cpp
+    src/coalescing/inflight_registry.cpp
   )
   target_include_directories(bytetaper_extproc_grpc_server
     PUBLIC
@@ -851,6 +852,24 @@ if(BUILD_TESTING)
     add_test(
       NAME coalescing_auth_safety_test
       COMMAND coalescing_auth_safety_test
+    )
+
+    add_executable(inflight_registry_test
+      tests/inflight_registry_test.cpp
+      src/coalescing/inflight_registry.cpp
+    )
+    target_include_directories(inflight_registry_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(inflight_registry_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME inflight_registry_test
+      COMMAND inflight_registry_test
     )
 
     add_executable(accept_encoding_test
