@@ -249,6 +249,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/policy/pagination_policy_validator.cpp
     src/policy/compression_policy_validator.cpp
     src/policy/cache_policy_validator.cpp
+    src/coalescing/coalescing_key.cpp
   )
   target_include_directories(bytetaper_extproc_grpc_server
     PUBLIC
@@ -793,6 +794,24 @@ if(BUILD_TESTING)
     add_test(
       NAME compression_policy_test
       COMMAND compression_policy_test
+    )
+
+    add_executable(coalescing_key_test
+      tests/coalescing_key_test.cpp
+      src/coalescing/coalescing_key.cpp
+    )
+    target_include_directories(coalescing_key_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(coalescing_key_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME coalescing_key_test
+      COMMAND coalescing_key_test
     )
 
     add_executable(accept_encoding_test
