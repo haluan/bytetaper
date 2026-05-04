@@ -68,3 +68,13 @@ Thumbs.db
 .internalx/
 tmp/
 bin/
+
+# AGENTS folders
+.agents/
+.claude/
+.codex/
+.gemini/
+graphify-out/
+AGENTS.md
+CLAUDE.md
+GEMINI.md
