@@ -201,6 +201,10 @@ See [Cache Policy](docs/cache-policy.md) for a complete reference on tiered cach
 
 See [Pagination Policy](docs/pagination-policy.md) for a complete reference on pagination handling.
 
+## Compression Policy
+
+See [Compression Policy](docs/compression-policy.md) for a complete reference on response compression handling.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our development process and how to contribute.
