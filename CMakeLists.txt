@@ -234,10 +234,12 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/cache/cache_entry.cpp
     src/cache/cache_key.cpp
     src/runtime/worker_queue.cpp
+    src/runtime/pending_lookup_registry.cpp
     src/cache/cache_ttl.cpp
     src/safety/fail_open.cpp
     src/policy/pagination_policy.cpp
     src/stages/pagination_request_mutation_stage.cpp
+    src/stages/l2_cache_async_lookup_enqueue_stage.cpp
     src/stages/coalescing_follower_wait_stage.cpp
     src/stages/coalescing_leader_completion_stage.cpp
     src/stages/coalescing_decision_stage.cpp
@@ -443,6 +445,11 @@ if(BUILD_TESTING)
       tests/runtime_worker_queue_test.cpp
       src/runtime/worker_queue.cpp
       src/cache/cache_entry.cpp
+      src/cache/l1_cache.cpp
+      src/cache/l2_rocksdb_cache.cpp
+      src/runtime/pending_lookup_registry.cpp
+      src/cache/cache_entry_codec.cpp
+      src/cache/cache_ttl.cpp
     )
     target_include_directories(runtime_worker_queue_test
       PRIVATE
@@ -452,10 +459,28 @@ if(BUILD_TESTING)
       PRIVATE
         gtest_main
         Threads::Threads
+        RocksDB::RocksDB
     )
     add_test(
       NAME runtime_worker_queue_test
       COMMAND runtime_worker_queue_test
+    )
+
+    add_executable(pending_lookup_registry_test
+      tests/pending_lookup_registry_test.cpp
+      src/runtime/pending_lookup_registry.cpp
+    )
+    target_include_directories(pending_lookup_registry_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(pending_lookup_registry_test
+      PRIVATE
+        gtest_main
+    )
+    add_test(
+      NAME pending_lookup_registry_test
+      COMMAND pending_lookup_registry_test
     )
 
     add_executable(l1_cache_lookup_stage_test
@@ -523,6 +548,25 @@ if(BUILD_TESTING)
     add_test(
       NAME l1_cache_store_stage_test
       COMMAND l1_cache_store_stage_test
+    )
+
+    add_executable(l1_put_if_newer_test
+      tests/l1_put_if_newer_test.cpp
+      src/cache/l1_cache.cpp
+      src/cache/cache_entry.cpp
+    )
+    target_include_directories(l1_put_if_newer_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(l1_put_if_newer_test
+      PRIVATE
+        gtest_main
+        RocksDB::RocksDB
+    )
+    add_test(
+      NAME l1_put_if_newer_test
+      COMMAND l1_put_if_newer_test
     )
 
     add_executable(l2_cache_store_stage_test
@@ -1006,6 +1050,33 @@ if(BUILD_TESTING)
     add_test(
       NAME coalescing_follower_wait_test
       COMMAND coalescing_follower_wait_test
+    )
+
+    add_executable(l2_cache_async_lookup_enqueue_stage_test
+      tests/l2_cache_async_lookup_enqueue_stage_test.cpp
+      src/stages/l2_cache_async_lookup_enqueue_stage.cpp
+      src/runtime/worker_queue.cpp
+      src/runtime/pending_lookup_registry.cpp
+      src/cache/cache_key.cpp
+      src/cache/cache_entry.cpp
+      src/cache/l1_cache.cpp
+      src/cache/l2_rocksdb_cache.cpp
+      src/cache/cache_entry_codec.cpp
+      src/cache/cache_ttl.cpp
+    )
+    target_include_directories(l2_cache_async_lookup_enqueue_stage_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(l2_cache_async_lookup_enqueue_stage_test
+      PRIVATE
+        gtest_main
+        RocksDB::RocksDB
+        Threads::Threads
+    )
+    add_test(
+      NAME l2_cache_async_lookup_enqueue_stage_test
+      COMMAND l2_cache_async_lookup_enqueue_stage_test
     )
 
     add_executable(coalescing_leader_completion_test

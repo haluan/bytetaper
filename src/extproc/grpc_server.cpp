@@ -13,6 +13,8 @@
 #include "field_selection/request_target.h"
 #include "json_transform/content_type.h"
 #include "policy/route_matcher.h"
+#include "runtime/pending_lookup_registry.h"
+#include "runtime/worker_queue.h"
 #include "safety/fail_open.h"
 #include "stages/coalescing_decision_stage.h"
 #include "stages/coalescing_follower_wait_stage.h"
@@ -20,6 +22,7 @@
 #include "stages/compression_decision_stage.h"
 #include "stages/l1_cache_lookup_stage.h"
 #include "stages/l1_cache_store_stage.h"
+#include "stages/l2_cache_async_lookup_enqueue_stage.h"
 #include "stages/l2_cache_lookup_stage.h"
 #include "stages/l2_cache_store_stage.h"
 #include "stages/pagination_request_mutation_stage.h"
@@ -322,6 +325,8 @@ public:
     cache::L2DiskCache* l2_cache = nullptr;
     metrics::MetricsRegistry* metrics_registry = nullptr;
     coalescing::InFlightRegistry* coalescing_registry = nullptr;
+    runtime::WorkerQueue worker_queue{};
+    runtime::PendingLookupRegistry pending_lookup_registry{};
 
     grpc::Status Process(grpc::ServerContext*,
                          grpc::ServerReaderWriter<envoy::service::ext_proc::v3::ProcessingResponse,
@@ -366,7 +371,8 @@ public:
 
                     static constexpr apg::ApgStage kLookupStages[] = {
                         stages::coalescing_decision_stage, stages::coalescing_follower_wait_stage,
-                        stages::l1_cache_lookup_stage, stages::pagination_request_mutation_stage
+                        stages::l1_cache_lookup_stage, stages::l2_cache_async_lookup_enqueue_stage,
+                        stages::pagination_request_mutation_stage
                     };
                     if (metrics_registry != nullptr) {
                         filter_state.context.pagination_metrics =
@@ -377,6 +383,8 @@ public:
                         filter_state.context.coalescing_metrics =
                             &metrics_registry->coalescing_metrics;
                     }
+                    filter_state.context.worker_queue = &worker_queue;
+                    filter_state.context.pending_lookup_registry = &pending_lookup_registry;
                     apg::run_pipeline(kLookupStages, std::size(kLookupStages),
                                       filter_state.context);
                 }
@@ -541,6 +549,26 @@ bool start_grpc_server(const GrpcServerConfig& config, GrpcServerHandle* handle)
     impl->service.l2_cache = config.l2_cache;
     impl->service.metrics_registry = config.metrics_registry;
     impl->service.coalescing_registry = config.coalescing_registry;
+
+    // Initialize background worker resources
+    runtime::pending_lookup_init(&impl->service.pending_lookup_registry);
+    runtime::WorkerQueueConfig wq_config{};
+    wq_config.capacity = runtime::kWorkerQueueMaxCapacity;
+    wq_config.worker_count = 2;
+    const char* wq_err = runtime::worker_queue_init(&impl->service.worker_queue, wq_config);
+    if (wq_err != nullptr) {
+        return false;
+    }
+
+    runtime::WorkerQueueResources wq_res{};
+    wq_res.l1_cache = config.l1_cache;
+    wq_res.l2_cache = config.l2_cache;
+    wq_res.pending = &impl->service.pending_lookup_registry;
+    wq_err = runtime::worker_queue_start(&impl->service.worker_queue, wq_res);
+    if (wq_err != nullptr) {
+        return false;
+    }
+
     impl->server = builder.BuildAndStart();
     if (!impl->server) {
         return false;
@@ -570,6 +598,8 @@ void stop_grpc_server(GrpcServerHandle* handle) {
         impl->server->Shutdown();
         impl->server->Wait();
     }
+
+    runtime::worker_queue_shutdown(&impl->service.worker_queue);
 
     delete impl;
     handle->impl = nullptr;

@@ -27,7 +27,8 @@ TEST_F(WorkerQueueTest, InitAndStartStop) {
 
     const char* err = worker_queue_init(q_.get(), cfg);
     ASSERT_EQ(err, nullptr) << "Init failed: " << (err ? err : "");
-    EXPECT_EQ(worker_queue_start(q_.get()), nullptr);
+    WorkerQueueResources res{};
+    EXPECT_EQ(worker_queue_start(q_.get(), res), nullptr);
 
     worker_queue_shutdown(q_.get());
 }
@@ -37,7 +38,8 @@ TEST_F(WorkerQueueTest, EnqueueSucceeds) {
     cfg.capacity = 10;
     cfg.worker_count = 1;
     ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
-    EXPECT_EQ(worker_queue_start(q_.get()), nullptr);
+    WorkerQueueResources res{};
+    EXPECT_EQ(worker_queue_start(q_.get(), res), nullptr);
 
     RuntimeCacheJob job;
     job.kind = RuntimeJobKind::L2Store;
@@ -94,7 +96,8 @@ TEST_F(WorkerQueueTest, EnqueueAfterShutdownReturnsFalse) {
     cfg.capacity = 10;
     cfg.worker_count = 1;
     ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
-    EXPECT_EQ(worker_queue_start(q_.get()), nullptr);
+    WorkerQueueResources res{};
+    EXPECT_EQ(worker_queue_start(q_.get(), res), nullptr);
     worker_queue_shutdown(q_.get());
 
     RuntimeCacheJob job;

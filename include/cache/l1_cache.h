@@ -33,6 +33,11 @@ void l1_init(L1Cache* cache);
 // Stores a copy of entry in the appropriate shard.
 void l1_put(L1Cache* cache, const CacheEntry& entry);
 
+// Promotes entry into L1 only if no newer entry for the same key already exists.
+// "Newer" means existing.created_at_epoch_ms > entry.created_at_epoch_ms.
+// If the key is not present in L1, promotes unconditionally.
+void l1_put_if_newer(L1Cache* cache, const CacheEntry& entry);
+
 // Retrieves an entry by key from the appropriate shard.
 // Copies the matching entry into *out and returns true. Returns false on miss.
 // now_ms == 0 skips expiry check (useful in tests with no real clock).

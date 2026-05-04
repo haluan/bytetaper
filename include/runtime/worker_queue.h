@@ -5,6 +5,7 @@
 #define BYTETAPER_RUNTIME_WORKER_QUEUE_H
 
 #include "cache/cache_entry.h"
+#include "cache/l2_disk_cache.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -13,7 +14,13 @@
 #include <mutex>
 #include <thread>
 
+namespace bytetaper::cache {
+struct L1Cache;
+}
+
 namespace bytetaper::runtime {
+
+struct PendingLookupRegistry;
 
 // Maximum body size for an async cache job.
 static constexpr std::size_t kAsyncL2MaxBodySize = 65536; // 64 KB
@@ -42,6 +49,12 @@ struct WorkerQueueConfig {
     std::size_t worker_count = 2; // >= 1, <= kWorkerQueueMaxWorkers
 };
 
+struct WorkerQueueResources {
+    cache::L2DiskCache* l2_cache = nullptr;
+    cache::L1Cache* l1_cache = nullptr;
+    PendingLookupRegistry* pending = nullptr;
+};
+
 // Fixed-capacity worker queue. Must not be copied or moved after init.
 struct WorkerQueue {
     std::mutex mu;
@@ -55,15 +68,16 @@ struct WorkerQueue {
     std::thread workers[kWorkerQueueMaxWorkers];
     std::size_t worker_count = 0;
     std::atomic<std::uint64_t> dropped_count{ 0 }; // promoted to RuntimeMetrics in BT-035-007
+    WorkerQueueResources resources;
 };
 
 // Validates config and initialises queue fields. Does not start threads.
 // Returns nullptr on success, error string on failure.
 const char* worker_queue_init(WorkerQueue* q, const WorkerQueueConfig& config);
 
-// Starts worker_count threads. Returns nullptr on success.
+// Starts the background worker threads. Returns nullptr on success, or error string.
 // Must be called after worker_queue_init.
-const char* worker_queue_start(WorkerQueue* q);
+const char* worker_queue_start(WorkerQueue* q, const WorkerQueueResources& res);
 
 // Non-blocking enqueue. Returns true if accepted, false if queue is full or not running.
 // Copies all job data into the ring slot; fixes entry.body -> slot.body.

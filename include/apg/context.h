@@ -20,6 +20,11 @@
 #include <cstddef>
 #include <cstdint>
 
+namespace bytetaper::runtime {
+struct WorkerQueue;
+struct PendingLookupRegistry;
+} // namespace bytetaper::runtime
+
 namespace bytetaper::apg {
 
 struct RequestMutationOutput {
@@ -103,6 +108,10 @@ struct ApgTransformContext {
     // --- Coalescing decision output (written by coalescing_decision_stage) ---
     coalescing::CoalescingDecision coalescing_decision{};
     coalescing::InFlightRegistry* coalescing_registry = nullptr;
+
+    // --- Background runtime inputs (set by caller for async stages) ---
+    runtime::WorkerQueue* worker_queue = nullptr;
+    runtime::PendingLookupRegistry* pending_lookup_registry = nullptr;
 
     // --- Metrics (optional pointers to central registry counters) ---
     metrics::PaginationMetrics* pagination_metrics = nullptr;

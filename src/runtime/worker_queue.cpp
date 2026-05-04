@@ -3,6 +3,11 @@
 
 #include "runtime/worker_queue.h"
 
+#include "cache/l1_cache.h"
+#include "cache/l2_disk_cache.h"
+#include "runtime/pending_lookup_registry.h"
+
+#include <chrono>
 #include <cstring>
 
 namespace bytetaper::runtime {
@@ -27,8 +32,31 @@ static void worker_loop(WorkerQueue* q) {
             q->count--;
         }
 
-        // Stub: BT-035-005 and BT-035-006 will add L2Lookup/L2Store dispatch here.
-        (void) job;
+        // Dispatch based on job kind
+        if (job.kind == RuntimeJobKind::L2Lookup) {
+            auto* l1 = q->resources.l1_cache;
+            auto* l2 = q->resources.l2_cache;
+            auto* pend = q->resources.pending;
+
+            if (l2 != nullptr) {
+                cache::CacheEntry hit{};
+                const std::int64_t now_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                                std::chrono::system_clock::now().time_since_epoch())
+                                                .count();
+
+                // Note: job.body in the slot is where we read the L2 body into.
+                bool found =
+                    cache::l2_get(l2, job.entry.key, now_ms, &hit, job.body, kAsyncL2MaxBodySize);
+                if (found && l1 != nullptr) {
+                    cache::l1_put_if_newer(l1, hit);
+                }
+            }
+
+            if (pend != nullptr) {
+                pending_lookup_clear(pend, job.entry.key);
+            }
+        }
+        // RuntimeJobKind::L2Store dispatch added in BT-035-006.
     }
 }
 
@@ -58,7 +86,7 @@ const char* worker_queue_init(WorkerQueue* q, const WorkerQueueConfig& config) {
     return nullptr;
 }
 
-const char* worker_queue_start(WorkerQueue* q) {
+const char* worker_queue_start(WorkerQueue* q, const WorkerQueueResources& res) {
     if (q == nullptr) {
         return "queue pointer is null";
     }
@@ -69,6 +97,7 @@ const char* worker_queue_start(WorkerQueue* q) {
     }
 
     q->running = true;
+    q->resources = res;
     for (std::size_t i = 0; i < q->worker_count; ++i) {
         q->workers[i] = std::thread(worker_loop, q);
     }
