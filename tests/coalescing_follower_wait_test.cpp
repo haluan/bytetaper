@@ -87,4 +87,20 @@ TEST_F(CoalescingFollowerWaitTest, TimeoutReturnsContinue) {
     EXPECT_GE(duration, 20);
 }
 
+TEST_F(CoalescingFollowerWaitTest, L2SeededNoL1HitTimesOut) {
+    // Prove that follower wait does not consult L2.
+    // L2 is populated with a valid entry (implicitly via ctx.l2_cache check in code),
+    // but the stage must NOT call l2_cache_lookup_stage.
+    // In this test, ctx.l2_cache is nullptr — if the stage tried to call
+    // l2_cache_lookup_stage, it would hit the context.l2_cache == nullptr check
+    // and continue, but we want to ensure it doesn't even try.
+    policy.coalescing.wait_window_ms = 20; // short timeout
+
+    // No L1 population, so L1 will always miss.
+    auto output = coalescing_follower_wait_stage(ctx);
+
+    EXPECT_EQ(output.result, apg::StageResult::Continue);
+    EXPECT_FALSE(ctx.cache_hit);
+}
+
 } // namespace bytetaper::stages

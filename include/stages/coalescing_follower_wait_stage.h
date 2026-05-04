@@ -9,15 +9,11 @@
 
 namespace bytetaper::stages {
 
-/**
- * @brief APG pipeline stage: Follower wait and cache check.
- *
- * If the request is a Coalescing Follower, this stage will poll the caches
- * (L1 and L2) until a hit is found or the wait window expires.
- *
- * On cache hit: sets context cache fields and returns StageResult::SkipRemaining.
- * On miss/timeout: returns StageResult::Continue.
- */
+// APG pipeline stage: follower wait — polls L1 cache until hit or timeout.
+// L2/RocksDB is never consulted; async L2-to-L1 promotion (BT-035-005) lets
+// followers observe L2 results via L1 poll.
+// On L1 hit: returns StageResult::SkipRemaining.
+// On timeout: falls back upstream, returns StageResult::Continue.
 apg::StageOutput coalescing_follower_wait_stage(apg::ApgTransformContext& context);
 
 } // namespace bytetaper::stages
