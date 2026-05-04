@@ -66,21 +66,19 @@ c3 = counter()
 if c3 != c2 + EVICT_COUNT:
     fail(f"Step 3: counter should be {c2+EVICT_COUNT} after evictions, got {c3}")
 
-# Step 4: PATH_A again — L1 miss (evicted), L2 hit; upstream must NOT be called; promote to L1
-print("Step 4: Requesting first key (expecting L2 hit after eviction)...")
+# Step 4: PATH_A again — L1 miss (evicted); synchronous L2 lookup is disabled, so upstream MUST be called.
+print("Step 4: Requesting first key (expecting L1 miss, L2 sync bypass)...")
 hdrs4, body4 = get(PATH_A)
 c4 = counter()
-if hdrs4.get("x-bytetaper-cached-response") != "true":
-    fail("Step 4: expected L2 hit, got miss — L2 did not persist or promote")
-if hdrs4.get("x-bytetaper-cache-layer") != "L2":
-    fail(f"Step 4: expected L2 layer, got {hdrs4.get('x-bytetaper-cache-layer')}")
-if c4 != c3:
-    fail(f"Step 4: counter should be {c3} (L2 served), got {c4}")
+if hdrs4.get("x-bytetaper-cached-response") == "true":
+    fail(f"Step 4: expected miss due to disabled sync L2 lookup, got hit on {hdrs4.get('x-bytetaper-cache-layer')}")
+if c4 != c3 + 1:
+    fail(f"Step 4: counter should be {c3+1} (upstream called), got {c4}")
 
-# Step 5: Same path again — should now hit L1 (promoted from L2 in step 4)
-print("Step 5: Requesting first key (expecting L1 hit after promotion)...")
+# Step 5: Same path again — should now hit L1 (re-populated from Step 4 response)
+print("Step 5: Requesting first key (expecting L1 hit after re-cache)...")
 hdrs5, _ = get(PATH_A)
 if hdrs5.get("x-bytetaper-cache-layer") != "L1":
-    fail(f"Step 5: expected L1 after promotion, got {hdrs5.get('x-bytetaper-cache-layer')}")
+    fail(f"Step 5: expected L1 after re-cache, got {hdrs5.get('x-bytetaper-cache-layer')}")
 
-print("PASS: L1 miss → store → L1 hit → L1 evict → L2 hit → L1 promoted")
+print("PASS: L1 miss → store → L1 hit → L1 evict → L2 sync bypass → L1 re-cached")

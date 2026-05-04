@@ -8,7 +8,6 @@
 #include "coalescing/wait_window.h"
 #include "metrics/coalescing_metrics.h"
 #include "stages/l1_cache_lookup_stage.h"
-#include "stages/l2_cache_lookup_stage.h"
 
 #include <chrono>
 #include <thread>
@@ -53,17 +52,7 @@ apg::StageOutput coalescing_follower_wait_stage(apg::ApgTransformContext& contex
             return l1_res;
         }
 
-        // 2. Check L2 Cache (if enabled)
-        if (context.l2_cache != nullptr) {
-            apg::StageOutput l2_res = l2_cache_lookup_stage(context);
-            if (l2_res.result == apg::StageResult::SkipRemaining) {
-                record_coalescing_event(context.coalescing_metrics,
-                                        metrics::CoalescingMetricEvent::FollowerCacheHit);
-                return l2_res;
-            }
-        }
-
-        // 3. Check for timeout
+        // 2. Check for timeout
         // We use a high-resolution steady clock for current time relative to start,
         // but the context request_epoch_ms is our base.
         // For simplicity and alignment with Orthodox C++ patterns in this project,
@@ -77,7 +66,7 @@ apg::StageOutput coalescing_follower_wait_stage(apg::ApgTransformContext& contex
             break;
         }
 
-        // 4. Wait a bit before polling again
+        // 3. Wait a bit before polling again
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 

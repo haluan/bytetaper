@@ -366,8 +366,7 @@ public:
 
                     static constexpr apg::ApgStage kLookupStages[] = {
                         stages::coalescing_decision_stage, stages::coalescing_follower_wait_stage,
-                        stages::l1_cache_lookup_stage, stages::l2_cache_lookup_stage,
-                        stages::pagination_request_mutation_stage
+                        stages::l1_cache_lookup_stage, stages::pagination_request_mutation_stage
                     };
                     if (metrics_registry != nullptr) {
                         filter_state.context.pagination_metrics =
@@ -378,7 +377,8 @@ public:
                         filter_state.context.coalescing_metrics =
                             &metrics_registry->coalescing_metrics;
                     }
-                    apg::run_pipeline(kLookupStages, 5, filter_state.context);
+                    apg::run_pipeline(kLookupStages, std::size(kLookupStages),
+                                      filter_state.context);
                 }
 
                 if (bytetaper::extproc::map_cache_hit_to_immediate_response(filter_state.context,
