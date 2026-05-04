@@ -194,6 +194,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/metrics/cache_metrics.cpp
     src/metrics/pagination_metrics.cpp
     src/metrics/compression_metrics.cpp
+    src/metrics/coalescing_metrics.cpp
   )
   target_include_directories(bytetaper_prometheus_registry
     PUBLIC
@@ -258,6 +259,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/coalescing/coalescing_decision.cpp
     src/coalescing/wait_window.cpp
     src/coalescing/coalescing_timeout.cpp
+    src/metrics/coalescing_metrics.cpp
   )
   target_include_directories(bytetaper_extproc_grpc_server
     PUBLIC
@@ -884,6 +886,7 @@ if(BUILD_TESTING)
       src/coalescing/coalescing_eligibility.cpp
       src/coalescing/coalescing_safety.cpp
       src/coalescing/coalescing_key.cpp
+      src/metrics/coalescing_metrics.cpp
     )
     target_include_directories(coalescing_decision_test
       PRIVATE
@@ -907,6 +910,7 @@ if(BUILD_TESTING)
       src/coalescing/coalescing_eligibility.cpp
       src/coalescing/coalescing_safety.cpp
       src/coalescing/coalescing_key.cpp
+      src/metrics/coalescing_metrics.cpp
     )
     target_include_directories(coalescing_timeout_test
       PRIVATE
@@ -963,6 +967,7 @@ if(BUILD_TESTING)
       tests/coalescing_leader_completion_test.cpp
       src/stages/coalescing_leader_completion_stage.cpp
       src/coalescing/inflight_registry.cpp
+      src/metrics/coalescing_metrics.cpp
     )
     target_include_directories(coalescing_leader_completion_test
       PRIVATE
@@ -994,6 +999,24 @@ if(BUILD_TESTING)
     add_test(
       NAME coalescing_cache_integration_test
       COMMAND coalescing_cache_integration_test
+    )
+
+    add_executable(coalescing_metrics_test
+      tests/coalescing_metrics_test.cpp
+      src/metrics/coalescing_metrics.cpp
+    )
+    target_include_directories(coalescing_metrics_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(coalescing_metrics_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME coalescing_metrics_test
+      COMMAND coalescing_metrics_test
     )
 
     add_executable(accept_encoding_test

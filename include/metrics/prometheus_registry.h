@@ -5,6 +5,7 @@
 #define BYTETAPER_METRICS_PROMETHEUS_REGISTRY_H
 
 #include "metrics/cache_metrics.h"
+#include "metrics/coalescing_metrics.h"
 #include "metrics/compression_metrics.h"
 #include "metrics/pagination_metrics.h"
 
@@ -39,6 +40,7 @@ struct MetricsRegistry {
     PaginationMetrics pagination_metrics;
     CacheMetrics cache_metrics;
     CompressionMetrics compression_metrics;
+    CoalescingMetrics coalescing_metrics;
 
     mutable std::mutex routes_mutex;
     std::vector<std::unique_ptr<RouteWasteMetric>> route_metrics;

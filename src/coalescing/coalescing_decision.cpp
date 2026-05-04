@@ -3,6 +3,8 @@
 
 #include "coalescing/coalescing_decision.h"
 
+#include "metrics/coalescing_metrics.h"
+
 namespace bytetaper::coalescing {
 
 std::string_view get_decision_reason_string(CoalescingDecisionReason reason) {
@@ -35,6 +37,7 @@ CoalescingDecision evaluate_coalescing_decision(InFlightRegistry* registry,
     if (context.policy == nullptr || !context.policy->enabled) {
         decision.action = CoalescingAction::Bypass;
         decision.reason = CoalescingDecisionReason::PolicyDisabled;
+        record_coalescing_event(context.metrics, metrics::CoalescingMetricEvent::Bypass);
         return decision;
     }
 
@@ -43,6 +46,7 @@ CoalescingDecision evaluate_coalescing_decision(InFlightRegistry* registry,
     if (!eligibility.is_eligible) {
         decision.action = CoalescingAction::Bypass;
         decision.reason = CoalescingDecisionReason::MethodNotGet;
+        record_coalescing_event(context.metrics, metrics::CoalescingMetricEvent::Bypass);
         return decision;
     }
 
@@ -51,6 +55,7 @@ CoalescingDecision evaluate_coalescing_decision(InFlightRegistry* registry,
     if (!safety.is_eligible) {
         decision.action = CoalescingAction::Bypass;
         decision.reason = CoalescingDecisionReason::AuthenticatedRequest;
+        record_coalescing_event(context.metrics, metrics::CoalescingMetricEvent::Bypass);
         return decision;
     }
 
@@ -58,6 +63,7 @@ CoalescingDecision evaluate_coalescing_decision(InFlightRegistry* registry,
     if (!build_coalescing_key(context.key_input, decision.key, sizeof(decision.key))) {
         decision.action = CoalescingAction::Bypass;
         decision.reason = CoalescingDecisionReason::MissingKey;
+        record_coalescing_event(context.metrics, metrics::CoalescingMetricEvent::Bypass);
         return decision;
     }
 
@@ -71,14 +77,17 @@ CoalescingDecision evaluate_coalescing_decision(InFlightRegistry* registry,
     case InFlightRole::Leader:
         decision.action = CoalescingAction::Leader;
         decision.reason = CoalescingDecisionReason::LeaderCreated;
+        record_coalescing_event(context.metrics, metrics::CoalescingMetricEvent::Leader);
         break;
     case InFlightRole::Follower:
         decision.action = CoalescingAction::Follower;
         decision.reason = CoalescingDecisionReason::FollowerJoined;
+        record_coalescing_event(context.metrics, metrics::CoalescingMetricEvent::Follower);
         break;
     case InFlightRole::Reject:
         decision.action = CoalescingAction::Reject;
         decision.reason = CoalescingDecisionReason::TooManyWaiters;
+        record_coalescing_event(context.metrics, metrics::CoalescingMetricEvent::TooManyWaiters);
         break;
     }
 

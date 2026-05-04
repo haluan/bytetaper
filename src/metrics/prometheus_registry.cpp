@@ -119,6 +119,10 @@ std::string render_prometheus_text(const MetricsRegistry& registry) {
                                               sizeof(component_buf)) > 0) {
         out += component_buf;
     }
+    if (render_coalescing_metrics_prometheus(registry.coalescing_metrics, component_buf,
+                                             sizeof(component_buf)) > 0) {
+        out += component_buf;
+    }
 
     return out;
 }

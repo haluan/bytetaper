@@ -6,6 +6,7 @@
 #include "coalescing/coalescing_timeout.h"
 #include "coalescing/inflight_registry.h"
 #include "coalescing/wait_window.h"
+#include "metrics/coalescing_metrics.h"
 #include "stages/l1_cache_lookup_stage.h"
 #include "stages/l2_cache_lookup_stage.h"
 
@@ -35,6 +36,7 @@ apg::StageOutput coalescing_follower_wait_stage(apg::ApgTransformContext& contex
                                                context.coalescing_decision.key);
         }
         context.coalescing_decision.action = coalescing::CoalescingAction::Bypass;
+        record_coalescing_event(context.coalescing_metrics, metrics::CoalescingMetricEvent::Bypass);
         return { apg::StageResult::Continue, "cache-disabled-bypassed" };
     }
 
@@ -46,6 +48,8 @@ apg::StageOutput coalescing_follower_wait_stage(apg::ApgTransformContext& contex
         // 1. Check L1 Cache
         apg::StageOutput l1_res = l1_cache_lookup_stage(context);
         if (l1_res.result == apg::StageResult::SkipRemaining) {
+            record_coalescing_event(context.coalescing_metrics,
+                                    metrics::CoalescingMetricEvent::FollowerCacheHit);
             return l1_res;
         }
 
@@ -53,6 +57,8 @@ apg::StageOutput coalescing_follower_wait_stage(apg::ApgTransformContext& contex
         if (context.l2_cache != nullptr) {
             apg::StageOutput l2_res = l2_cache_lookup_stage(context);
             if (l2_res.result == apg::StageResult::SkipRemaining) {
+                record_coalescing_event(context.coalescing_metrics,
+                                        metrics::CoalescingMetricEvent::FollowerCacheHit);
                 return l2_res;
             }
         }
@@ -79,8 +85,11 @@ apg::StageOutput coalescing_follower_wait_stage(apg::ApgTransformContext& contex
     if (context.coalescing_registry != nullptr) {
         coalescing::handle_timeout_fallback(context.coalescing_registry,
                                             context.coalescing_decision);
+        record_coalescing_event(context.coalescing_metrics,
+                                metrics::CoalescingMetricEvent::Fallback);
     } else {
         context.coalescing_decision.action = coalescing::CoalescingAction::Bypass;
+        record_coalescing_event(context.coalescing_metrics, metrics::CoalescingMetricEvent::Bypass);
     }
     return { apg::StageResult::Continue, "timeout-fallback" };
 }

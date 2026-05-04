@@ -12,6 +12,10 @@
 
 #include <string_view>
 
+namespace bytetaper::metrics {
+struct CoalescingMetrics;
+}
+
 namespace bytetaper::coalescing {
 
 /**
@@ -56,6 +60,7 @@ struct CoalescingDecisionContext {
     CoalescingSafetyInput safety_input;
     CoalescingKeyInput key_input;
     std::uint64_t now_ms = 0;
+    metrics::CoalescingMetrics* metrics = nullptr;
 };
 
 /**
