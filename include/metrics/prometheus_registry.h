@@ -4,6 +4,10 @@
 #ifndef BYTETAPER_METRICS_PROMETHEUS_REGISTRY_H
 #define BYTETAPER_METRICS_PROMETHEUS_REGISTRY_H
 
+#include "metrics/cache_metrics.h"
+#include "metrics/compression_metrics.h"
+#include "metrics/pagination_metrics.h"
+
 #include <atomic>
 #include <cstdint>
 #include <memory>
@@ -31,6 +35,10 @@ struct MetricsRegistry {
     std::atomic<std::uint64_t> transform_applied_total{ 0 };
     std::atomic<std::uint64_t> transform_errors_total{ 0 };
     std::atomic<std::uint64_t> bytes_saved_total{ 0 };
+
+    PaginationMetrics pagination_metrics;
+    CacheMetrics cache_metrics;
+    CompressionMetrics compression_metrics;
 
     mutable std::mutex routes_mutex;
     std::vector<std::unique_ptr<RouteWasteMetric>> route_metrics;

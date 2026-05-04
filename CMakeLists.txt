@@ -182,6 +182,32 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
       bytetaper_extproc_proto
   )
 
+  find_package(Threads REQUIRED)
+
+  add_library(bytetaper_prometheus_registry STATIC
+    src/metrics/prometheus_registry.cpp
+    src/metrics/cache_metrics.cpp
+    src/metrics/pagination_metrics.cpp
+    src/metrics/compression_metrics.cpp
+  )
+  target_include_directories(bytetaper_prometheus_registry
+    PUBLIC
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+  )
+
+  add_library(bytetaper_metrics_http_server STATIC
+    src/metrics/metrics_http_server.cpp
+  )
+  target_include_directories(bytetaper_metrics_http_server
+    PUBLIC
+      ${CMAKE_CURRENT_SOURCE_DIR}/include
+  )
+  target_link_libraries(bytetaper_metrics_http_server
+    PRIVATE
+      bytetaper_prometheus_registry
+      Threads::Threads
+  )
+
   add_library(bytetaper_extproc_grpc_server STATIC
     src/extproc/grpc_server.cpp
     src/extproc/request_runtime.cpp
@@ -222,32 +248,11 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
       ${BYTETAPER_GENERATED_PROTO_DIR}
   )
   target_link_libraries(bytetaper_extproc_grpc_server
+    PUBLIC
+      bytetaper_prometheus_registry
     PRIVATE
       bytetaper_extproc_grpc
       RocksDB::RocksDB
-  )
-
-  find_package(Threads REQUIRED)
-
-  add_library(bytetaper_prometheus_registry STATIC
-    src/metrics/prometheus_registry.cpp
-  )
-  target_include_directories(bytetaper_prometheus_registry
-    PUBLIC
-      ${CMAKE_CURRENT_SOURCE_DIR}/include
-  )
-
-  add_library(bytetaper_metrics_http_server STATIC
-    src/metrics/metrics_http_server.cpp
-  )
-  target_include_directories(bytetaper_metrics_http_server
-    PUBLIC
-      ${CMAKE_CURRENT_SOURCE_DIR}/include
-  )
-  target_link_libraries(bytetaper_metrics_http_server
-    PRIVATE
-      bytetaper_prometheus_registry
-      Threads::Threads
   )
 
   add_executable(bytetaper-extproc-server
@@ -263,6 +268,8 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
       bytetaper_extproc_grpc_server
       bytetaper_extproc_grpc
       policy_yaml_loader
+      bytetaper_metrics_http_server
+      bytetaper_prometheus_registry
       ${YAML_CPP_LIBRARIES}
   )
 endif()
@@ -970,7 +977,6 @@ if(BUILD_TESTING)
 
     add_executable(metrics_prometheus_registry_test
       tests/metrics_prometheus_registry_test.cpp
-      src/metrics/prometheus_registry.cpp
     )
     target_include_directories(metrics_prometheus_registry_test
       PRIVATE
@@ -979,6 +985,7 @@ if(BUILD_TESTING)
     target_link_libraries(metrics_prometheus_registry_test
       PRIVATE
         gtest_main
+        bytetaper_prometheus_registry
     )
 
     add_test(
@@ -988,7 +995,6 @@ if(BUILD_TESTING)
  
     add_executable(cache_metrics_test
       tests/cache_metrics_test.cpp
-      src/metrics/cache_metrics.cpp
     )
     target_include_directories(cache_metrics_test
       PRIVATE
@@ -997,6 +1003,7 @@ if(BUILD_TESTING)
     target_link_libraries(cache_metrics_test
       PRIVATE
         gtest_main
+        bytetaper_prometheus_registry
     )
  
     add_test(
@@ -1006,7 +1013,6 @@ if(BUILD_TESTING)
 
     add_executable(pagination_metrics_test
       tests/pagination_metrics_test.cpp
-      src/metrics/pagination_metrics.cpp
     )
     target_include_directories(pagination_metrics_test
       PRIVATE
@@ -1015,11 +1021,30 @@ if(BUILD_TESTING)
     target_link_libraries(pagination_metrics_test
       PRIVATE
         gtest_main
+        bytetaper_prometheus_registry
     )
 
     add_test(
       NAME pagination_metrics_test
       COMMAND pagination_metrics_test
+    )
+
+    add_executable(compression_metrics_test
+      tests/compression_metrics_test.cpp
+    )
+    target_include_directories(compression_metrics_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(compression_metrics_test
+      PRIVATE
+        gtest_main
+        bytetaper_prometheus_registry
+    )
+
+    add_test(
+      NAME compression_metrics_test
+      COMMAND compression_metrics_test
     )
 
     add_executable(pagination_signal_test

@@ -9,6 +9,9 @@
 #include "cache/l2_disk_cache.h"
 #include "compression/accept_encoding.h"
 #include "compression/content_encoding.h"
+#include "metrics/cache_metrics.h"
+#include "metrics/compression_metrics.h"
+#include "metrics/pagination_metrics.h"
 #include "policy/field_filter_policy.h"
 #include "policy/route_policy.h"
 
@@ -93,6 +96,11 @@ struct ApgTransformContext {
     compression::ContentEncodingResult response_content_encoding{};
     // --- Compression decision output (written by compression_decision_stage) ---
     CompressionDecisionOutput compression_decision{};
+
+    // --- Metrics (optional pointers to central registry counters) ---
+    metrics::PaginationMetrics* pagination_metrics = nullptr;
+    metrics::CacheMetrics* cache_metrics = nullptr;
+    metrics::CompressionMetrics* compression_metrics = nullptr;
 };
 
 } // namespace bytetaper::apg

@@ -106,6 +106,20 @@ std::string render_prometheus_text(const MetricsRegistry& registry) {
         }
     }
 
+    char component_buf[4096];
+    if (render_pagination_metrics_prometheus(registry.pagination_metrics, component_buf,
+                                             sizeof(component_buf)) > 0) {
+        out += component_buf;
+    }
+    if (render_cache_metrics_prometheus(registry.cache_metrics, component_buf,
+                                        sizeof(component_buf)) > 0) {
+        out += component_buf;
+    }
+    if (render_compression_metrics_prometheus(registry.compression_metrics, component_buf,
+                                              sizeof(component_buf)) > 0) {
+        out += component_buf;
+    }
+
     return out;
 }
 

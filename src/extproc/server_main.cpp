@@ -4,6 +4,8 @@
 #include "cache/l1_cache.h"
 #include "cache/l2_disk_cache.h"
 #include "extproc/grpc_server.h"
+#include "metrics/metrics_http_server.h"
+#include "metrics/prometheus_registry.h"
 #include "policy/yaml_loader.h"
 
 #include <atomic>
@@ -25,6 +27,8 @@ struct ServerArgs {
     const char* listen_address = "0.0.0.0:18080";
     const char* policy_file = nullptr;
     const char* l2_cache_path = nullptr;
+    const char* metrics_listen_address = "0.0.0.0";
+    std::uint16_t metrics_port = 18081;
     bool help = false;
     bool error = false;
 };
@@ -71,6 +75,28 @@ ServerArgs parse_args(int argc, char** argv) {
             continue;
         }
 
+        if (std::strcmp(arg, "--metrics-address") == 0) {
+            if (i + 1 >= argc || argv[i + 1] == nullptr || argv[i + 1][0] == '\0') {
+                std::fprintf(stderr, "missing value for --metrics-address\n");
+                args.error = true;
+                return args;
+            }
+            args.metrics_listen_address = argv[i + 1];
+            i += 1;
+            continue;
+        }
+
+        if (std::strcmp(arg, "--metrics-port") == 0) {
+            if (i + 1 >= argc || argv[i + 1] == nullptr || argv[i + 1][0] == '\0') {
+                std::fprintf(stderr, "missing value for --metrics-port\n");
+                args.error = true;
+                return args;
+            }
+            args.metrics_port = static_cast<std::uint16_t>(std::atoi(argv[i + 1]));
+            i += 1;
+            continue;
+        }
+
         if (std::strcmp(arg, "--help") == 0) {
             args.help = true;
             return args;
@@ -93,7 +119,7 @@ int main(int argc, char** argv) {
     }
     if (args.help) {
         std::puts("usage: bytetaper-extproc-server [--listen-address HOST:PORT] [--policy-file "
-                  "PATH] [--l2-cache-path PATH]");
+                  "PATH] [--l2-cache-path PATH] [--metrics-address ADDR] [--metrics-port PORT]");
         return 0;
     }
 
@@ -122,10 +148,24 @@ int main(int argc, char** argv) {
         }
     }
 
+    bytetaper::metrics::MetricsRegistry metrics_registry{};
+    bytetaper::metrics::MetricsHttpServerConfig metrics_config{};
+    metrics_config.listen_address = args.metrics_listen_address;
+    metrics_config.port = args.metrics_port;
+    metrics_config.registry = &metrics_registry;
+
+    bytetaper::metrics::MetricsHttpServerHandle metrics_handle{};
+    if (!bytetaper::metrics::start_metrics_http_server(metrics_config, &metrics_handle)) {
+        std::fprintf(stderr, "failed to start metrics http server on %s:%u\n",
+                     args.metrics_listen_address, args.metrics_port);
+        // non-fatal, but good to know
+    }
+
     bytetaper::extproc::GrpcServerConfig config{};
     config.listen_address = args.listen_address;
     config.l1_cache = &l1_cache;
     config.l2_cache = l2_cache;
+    config.metrics_registry = &metrics_registry;
     if (policy_result.ok) {
         config.policies = policy_result.policies;
         config.policy_count = policy_result.count;
@@ -142,12 +182,15 @@ int main(int argc, char** argv) {
 
     std::printf("bytetaper-extproc-server listening on %s (L1 enabled, L2 %s)\n",
                 args.listen_address, l2_cache ? "enabled" : "disabled");
+    std::printf("metrics server listening on %s:%u\n", args.metrics_listen_address,
+                metrics_handle.bound_port);
 
     while (!g_should_stop.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
 
     bytetaper::extproc::stop_grpc_server(&handle);
+    bytetaper::metrics::stop_metrics_http_server(&metrics_handle);
     if (l2_cache != nullptr) {
         bytetaper::cache::l2_close(&l2_cache);
     }

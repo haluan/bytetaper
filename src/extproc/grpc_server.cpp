@@ -299,6 +299,7 @@ public:
     std::size_t policy_count = 0;
     cache::L1Cache* l1_cache = nullptr;
     cache::L2DiskCache* l2_cache = nullptr;
+    metrics::MetricsRegistry* metrics_registry = nullptr;
 
     grpc::Status Process(grpc::ServerContext*,
                          grpc::ServerReaderWriter<envoy::service::ext_proc::v3::ProcessingResponse,
@@ -312,6 +313,9 @@ public:
         StreamFilterState filter_state{};
         envoy::service::ext_proc::v3::ProcessingRequest request{};
         while (stream->Read(&request)) {
+            if (metrics_registry != nullptr) {
+                metrics::record_stream(metrics_registry, {}); // placeholder for stream count
+            }
             const ProcessingRequestKind kind =
                 classify_request_kind(request.has_request_headers(), request.has_response_headers(),
                                       request.has_response_body());
@@ -340,6 +344,13 @@ public:
                         stages::l1_cache_lookup_stage, stages::l2_cache_lookup_stage,
                         stages::pagination_request_mutation_stage
                     };
+                    if (metrics_registry != nullptr) {
+                        filter_state.context.pagination_metrics =
+                            &metrics_registry->pagination_metrics;
+                        filter_state.context.cache_metrics = &metrics_registry->cache_metrics;
+                        filter_state.context.compression_metrics =
+                            &metrics_registry->compression_metrics;
+                    }
                     apg::run_pipeline(kLookupStages, 3, filter_state.context);
                 }
 
@@ -487,6 +498,7 @@ bool start_grpc_server(const GrpcServerConfig& config, GrpcServerHandle* handle)
     impl->service.policy_count = config.policy_count;
     impl->service.l1_cache = config.l1_cache;
     impl->service.l2_cache = config.l2_cache;
+    impl->service.metrics_registry = config.metrics_registry;
     impl->server = builder.BuildAndStart();
     if (!impl->server) {
         return false;

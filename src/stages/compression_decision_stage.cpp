@@ -16,6 +16,10 @@ apg::StageOutput compression_decision_stage(apg::ApgTransformContext& context) {
 
     const auto& comp = context.matched_policy->compression;
     if (!comp.enabled) {
+        if (context.compression_metrics != nullptr) {
+            metrics::record_compression_event(context.compression_metrics,
+                                              metrics::CompressionMetricEvent::SkipPolicyDisabled);
+        }
         return { apg::StageResult::Continue, "compression-disabled" };
     }
 
@@ -35,6 +39,33 @@ apg::StageOutput compression_decision_stage(apg::ApgTransformContext& context) {
     context.compression_decision.candidate = decision.candidate;
     context.compression_decision.reason = decision.reason;
     context.compression_decision.algorithm_hint = decision.selected_algorithm_hint;
+
+    if (context.compression_metrics != nullptr) {
+        if (decision.candidate) {
+            metrics::record_compression_event(context.compression_metrics,
+                                              metrics::CompressionMetricEvent::Candidate);
+        } else if (decision.reason != nullptr) {
+            if (std::strcmp(decision.reason, "client-unsupported") == 0) {
+                metrics::record_compression_event(
+                    context.compression_metrics,
+                    metrics::CompressionMetricEvent::SkipClientUnsupported);
+            } else if (std::strcmp(decision.reason, "already-encoded") == 0) {
+                metrics::record_compression_event(
+                    context.compression_metrics,
+                    metrics::CompressionMetricEvent::SkipAlreadyEncoded);
+            } else if (std::strcmp(decision.reason, "content-type-ineligible") == 0) {
+                metrics::record_compression_event(context.compression_metrics,
+                                                  metrics::CompressionMetricEvent::SkipContentType);
+            } else if (std::strcmp(decision.reason, "response-too-small") == 0) {
+                metrics::record_compression_event(
+                    context.compression_metrics,
+                    metrics::CompressionMetricEvent::SkipResponseTooSmall);
+            } else if (std::strcmp(decision.reason, "non-2xx-response") == 0) {
+                metrics::record_compression_event(context.compression_metrics,
+                                                  metrics::CompressionMetricEvent::SkipNon2xx);
+            }
+        }
+    }
 
     return { apg::StageResult::Continue,
              decision.candidate ? "compression-candidate" : decision.reason };

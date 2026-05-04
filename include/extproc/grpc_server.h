@@ -6,6 +6,7 @@
 
 #include "cache/l1_cache.h"
 #include "cache/l2_disk_cache.h"
+#include "metrics/prometheus_registry.h"
 #include "policy/route_policy.h"
 
 #include <cstddef>
@@ -19,6 +20,7 @@ struct GrpcServerConfig {
     std::size_t policy_count = 0;
     cache::L1Cache* l1_cache = nullptr;
     cache::L2DiskCache* l2_cache = nullptr;
+    metrics::MetricsRegistry* metrics_registry = nullptr;
 };
 
 struct GrpcServerHandle {
