@@ -253,6 +253,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/coalescing/coalescing_eligibility.cpp
     src/coalescing/coalescing_safety.cpp
     src/coalescing/inflight_registry.cpp
+    src/coalescing/coalescing_decision.cpp
   )
   target_include_directories(bytetaper_extproc_grpc_server
     PUBLIC
@@ -870,6 +871,28 @@ if(BUILD_TESTING)
     add_test(
       NAME inflight_registry_test
       COMMAND inflight_registry_test
+    )
+
+    add_executable(coalescing_decision_test
+      tests/coalescing_decision_test.cpp
+      src/coalescing/coalescing_decision.cpp
+      src/coalescing/inflight_registry.cpp
+      src/coalescing/coalescing_eligibility.cpp
+      src/coalescing/coalescing_safety.cpp
+      src/coalescing/coalescing_key.cpp
+    )
+    target_include_directories(coalescing_decision_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(coalescing_decision_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME coalescing_decision_test
+      COMMAND coalescing_decision_test
     )
 
     add_executable(accept_encoding_test
