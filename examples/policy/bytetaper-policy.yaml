@@ -46,6 +46,10 @@ routes:
         l1:
           enabled: true
           capacity_entries: 8
+    coalescing:
+      enabled: true
+      wait_window_ms: 50
+      max_waiters_per_key: 128
 
   - id: "api-v1-l1l2-cached"
     match:

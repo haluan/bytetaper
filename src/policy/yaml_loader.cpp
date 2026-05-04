@@ -183,6 +183,10 @@ bool parse_one_route(const YAML::Node& node, PolicyFileResult* result, std::size
                 return false;
             }
         }
+
+        if (cache_node["enabled"]) {
+            policy.cache.enabled = cache_node["enabled"].as<bool>();
+        }
     }
 
     if (node["failure_mode"]) {
@@ -307,6 +311,36 @@ bool parse_one_route(const YAML::Node& node, PolicyFileResult* result, std::size
                     result->error = "unknown already_encoded_behavior";
                     return false;
                 }
+            }
+        }
+    }
+
+    if (node["coalescing"]) {
+        const YAML::Node& coal_node = node["coalescing"];
+        policy.coalescing.enabled = coal_node["enabled"] ? coal_node["enabled"].as<bool>() : false;
+        if (policy.coalescing.enabled) {
+            if (coal_node["mode"]) {
+                const std::string m = coal_node["mode"].as<std::string>();
+                if (m == "cache_assisted") {
+                    policy.coalescing.mode = CoalescingMode::CacheAssisted;
+                } else {
+                    result->error = "unknown coalescing mode (expected 'cache_assisted')";
+                    return false;
+                }
+            }
+            if (coal_node["wait_window_ms"]) {
+                policy.coalescing.wait_window_ms = coal_node["wait_window_ms"].as<std::uint32_t>();
+            }
+            if (coal_node["max_waiters_per_key"]) {
+                policy.coalescing.max_waiters_per_key =
+                    coal_node["max_waiters_per_key"].as<std::uint32_t>();
+            }
+            if (coal_node["require_cache_enabled"]) {
+                policy.coalescing.require_cache_enabled =
+                    coal_node["require_cache_enabled"].as<bool>();
+            }
+            if (coal_node["allow_authenticated"]) {
+                policy.coalescing.allow_authenticated = coal_node["allow_authenticated"].as<bool>();
             }
         }
     }

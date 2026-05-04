@@ -22,6 +22,7 @@ add_library(policy_yaml_loader STATIC
   src/policy/pagination_policy.cpp
   src/policy/compression_policy.cpp
   src/policy/cache_policy.cpp
+  src/policy/coalescing_policy.cpp
   src/policy/pagination_policy_validator.cpp
   src/policy/compression_policy_validator.cpp
   src/policy/cache_policy_validator.cpp
@@ -238,6 +239,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/pagination/pagination_mutation.cpp
     src/pagination/pagination_query.cpp
     src/policy/compression_policy.cpp
+    src/policy/coalescing_policy.cpp
     src/stages/compression_decision_stage.cpp
     src/compression/accept_encoding.cpp
     src/compression/content_encoding.cpp
@@ -578,6 +580,7 @@ if(BUILD_TESTING)
       tests/policy_route_policy_test.cpp
       src/policy/pagination_policy.cpp
       src/policy/compression_policy.cpp
+      src/policy/coalescing_policy.cpp
       src/policy/pagination_policy_validator.cpp
       src/policy/compression_policy_validator.cpp
     )
@@ -758,6 +761,7 @@ if(BUILD_TESTING)
       tests/pagination_policy_test.cpp
       src/policy/pagination_policy.cpp
       src/policy/compression_policy.cpp
+      src/policy/coalescing_policy.cpp
     )
     target_include_directories(pagination_policy_test
       PRIVATE
@@ -1109,6 +1113,28 @@ if(BUILD_TESTING)
     add_test(
       NAME compression_signal_test
       COMMAND compression_signal_test
+    )
+
+    add_executable(coalescing_policy_test
+      tests/coalescing_policy_test.cpp
+      src/policy/coalescing_policy.cpp
+      src/policy/pagination_policy.cpp
+      src/policy/compression_policy.cpp
+      src/policy/pagination_policy_validator.cpp
+      src/policy/compression_policy_validator.cpp
+    )
+    target_include_directories(coalescing_policy_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(coalescing_policy_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME coalescing_policy_test
+      COMMAND coalescing_policy_test
     )
 
     add_executable(safety_fail_open_test

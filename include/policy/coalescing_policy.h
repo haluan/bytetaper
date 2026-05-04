@@ -1,0 +1,32 @@
+// SPDX-FileCopyrightText: 2026 Haluan Irsad
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
+
+#ifndef BYTETAPER_POLICY_COALESCING_POLICY_H
+#define BYTETAPER_POLICY_COALESCING_POLICY_H
+
+#include <cstdint>
+
+namespace bytetaper::policy {
+
+enum class CoalescingMode : std::uint8_t {
+    CacheAssisted = 0,
+};
+
+struct CoalescingPolicy {
+    bool enabled = false;
+    CoalescingMode mode = CoalescingMode::CacheAssisted;
+    std::uint32_t wait_window_ms = 25;
+    std::uint32_t max_waiters_per_key = 64;
+    bool require_cache_enabled = true;
+    bool allow_authenticated = false;
+};
+
+// Validates the coalescing policy. Returns nullptr on success, or a static error string.
+const char* validate_coalescing_policy(const CoalescingPolicy& policy);
+
+// Stricter validator for production use.
+const char* validate_coalescing_policy_safe(const CoalescingPolicy& policy);
+
+} // namespace bytetaper::policy
+
+#endif // BYTETAPER_POLICY_COALESCING_POLICY_H

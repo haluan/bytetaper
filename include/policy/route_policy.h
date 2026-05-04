@@ -5,6 +5,7 @@
 #define BYTETAPER_POLICY_ROUTE_POLICY_H
 
 #include "policy/cache_policy.h"
+#include "policy/coalescing_policy.h"
 #include "policy/compression_policy.h"
 #include "policy/field_filter_policy.h"
 #include "policy/pagination_policy.h"
@@ -51,6 +52,7 @@ struct RoutePolicy {
     FailureMode failure_mode = FailureMode::FailOpen;
     PaginationPolicy pagination = {};
     CompressionPolicy compression = {};
+    CoalescingPolicy coalescing = {};
 };
 
 // Validates a RoutePolicy. Returns true if usable.
@@ -77,13 +79,23 @@ inline bool validate_route_policy(const RoutePolicy& policy, const char** reason
         }
         return false;
     }
-    const char* compression_err = validate_compression_policy_safe(policy.compression);
-    if (compression_err != nullptr) {
+    const char* coalescing_err = validate_coalescing_policy_safe(policy.coalescing);
+    if (coalescing_err != nullptr) {
         if (reason_out != nullptr) {
-            *reason_out = compression_err;
+            *reason_out = coalescing_err;
         }
         return false;
     }
+
+    if (policy.coalescing.enabled && policy.coalescing.require_cache_enabled) {
+        if (!policy.cache.enabled) {
+            if (reason_out != nullptr) {
+                *reason_out = "coalescing requires cache to be enabled";
+            }
+            return false;
+        }
+    }
+
     return true;
 }
 
