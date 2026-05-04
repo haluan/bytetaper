@@ -21,6 +21,8 @@ std::string_view get_decision_reason_string(CoalescingDecisionReason reason) {
         return "follower_joined";
     case CoalescingDecisionReason::TooManyWaiters:
         return "too_many_waiters";
+    case CoalescingDecisionReason::WaitWindowExpired:
+        return "wait_window_expired";
     }
     return "unknown";
 }

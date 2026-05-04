@@ -1,4 +1,3 @@
-// SPDX-FileCopyrightText: 2026 Haluan Irsad
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
 
 #ifndef BYTETAPER_COALESCING_COALESCING_DECISION_H
@@ -36,6 +35,7 @@ enum class CoalescingDecisionReason : std::uint8_t {
     LeaderCreated = 4,
     FollowerJoined = 5,
     TooManyWaiters = 6,
+    WaitWindowExpired = 7,
 };
 
 /**

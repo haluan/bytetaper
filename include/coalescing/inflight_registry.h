@@ -92,6 +92,16 @@ RegistryRegistrationResult registry_register(InFlightRegistry* registry, const c
  */
 void registry_complete(InFlightRegistry* registry, const char* key);
 
+/**
+ * @brief Deregisters a follower/waiter from the registry.
+ *
+ * Called when a follower times out or otherwise cancels its wait.
+ *
+ * @param registry The registry instance.
+ * @param key The coalescing key.
+ */
+void registry_remove_waiter(InFlightRegistry* registry, const char* key);
+
 } // namespace bytetaper::coalescing
 
 #endif // BYTETAPER_COALESCING_INFLIGHT_REGISTRY_H

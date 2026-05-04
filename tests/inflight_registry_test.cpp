@@ -134,4 +134,29 @@ TEST_F(InFlightRegistryTest, ShardFullRejects) {
     }
 }
 
+TEST_F(InFlightRegistryTest, RemoveWaiterDecrementsCount) {
+    const char* key = "c_key:test:1:/api";
+    std::uint64_t now = 1000;
+    std::uint32_t window = 100;
+    std::uint32_t max_waiters = 1;
+
+    // 1. Leader
+    registry_register(&registry, key, now, window, max_waiters);
+
+    // 2. Follower 1
+    auto res = registry_register(&registry, key, now, window, max_waiters);
+    EXPECT_EQ(res.role, InFlightRole::Follower);
+
+    // 3. Follower 2 (Rejected)
+    auto res2 = registry_register(&registry, key, now, window, max_waiters);
+    EXPECT_EQ(res2.role, InFlightRole::Reject);
+
+    // 4. Remove Follower 1
+    registry_remove_waiter(&registry, key);
+
+    // 5. Follower 2 can now join
+    auto res3 = registry_register(&registry, key, now, window, max_waiters);
+    EXPECT_EQ(res3.role, InFlightRole::Follower);
+}
+
 } // namespace bytetaper::coalescing

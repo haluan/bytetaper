@@ -112,4 +112,25 @@ void registry_complete(InFlightRegistry* registry, const char* key) {
     }
 }
 
+void registry_remove_waiter(InFlightRegistry* registry, const char* key) {
+    if (registry == nullptr || key == nullptr) {
+        return;
+    }
+
+    std::uint64_t hash = hash_string(key);
+    InFlightShard& shard = registry->shards[hash % kInFlightShards];
+
+    std::lock_guard<std::mutex> lock(shard.mutex);
+
+    for (std::size_t j = 0; j < kSlotsPerShard; ++j) {
+        InFlightEntry& slot = shard.slots[j];
+        if (slot.active && std::strcmp(slot.key, key) == 0) {
+            if (slot.waiter_count > 0) {
+                slot.waiter_count--;
+            }
+            return;
+        }
+    }
+}
+
 } // namespace bytetaper::coalescing
