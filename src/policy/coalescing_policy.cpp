@@ -25,9 +25,4 @@ const char* validate_coalescing_policy(const CoalescingPolicy& policy) {
     return nullptr;
 }
 
-const char* validate_coalescing_policy_safe(const CoalescingPolicy& policy) {
-    // Current safe validation is identical to base validation.
-    return validate_coalescing_policy(policy);
-}
-
 } // namespace bytetaper::policy

@@ -22,7 +22,7 @@ TEST(CoalescingPolicyTest, Validation_DisabledIsAlwaysValid) {
     CoalescingPolicy p{};
     p.enabled = false;
     p.wait_window_ms = 0; // invalid if enabled
-    EXPECT_EQ(validate_coalescing_policy_safe(p), nullptr);
+    EXPECT_EQ(validate_coalescing_policy(p), nullptr);
 }
 
 TEST(CoalescingPolicyTest, Validation_ValidEnabled) {
@@ -30,6 +30,7 @@ TEST(CoalescingPolicyTest, Validation_ValidEnabled) {
     p.enabled = true;
     p.wait_window_ms = 100;
     p.max_waiters_per_key = 10;
+    p.require_cache_enabled = false;
     EXPECT_EQ(validate_coalescing_policy_safe(p), nullptr);
 }
 
@@ -37,10 +38,14 @@ TEST(CoalescingPolicyTest, Validation_InvalidWaitWindow) {
     CoalescingPolicy p{};
     p.enabled = true;
     p.wait_window_ms = 0;
-    EXPECT_STREQ(validate_coalescing_policy_safe(p), "coalescing.wait_window_ms must be > 0");
+    EXPECT_STREQ(validate_coalescing_policy(p), "coalescing.wait_window_ms must be > 0");
+
+    p.wait_window_ms = 101;
+    EXPECT_STREQ(validate_coalescing_policy_safe(p),
+                 "coalescing.wait_window_ms exceeds safe production limit (100ms)");
 
     p.wait_window_ms = 6000;
-    EXPECT_STREQ(validate_coalescing_policy_safe(p),
+    EXPECT_STREQ(validate_coalescing_policy(p),
                  "coalescing.wait_window_ms exceeds maximum allowed wait (5000ms)");
 }
 
@@ -48,7 +53,7 @@ TEST(CoalescingPolicyTest, Validation_InvalidMaxWaiters) {
     CoalescingPolicy p{};
     p.enabled = true;
     p.max_waiters_per_key = 0;
-    EXPECT_STREQ(validate_coalescing_policy_safe(p), "coalescing.max_waiters_per_key must be > 0");
+    EXPECT_STREQ(validate_coalescing_policy(p), "coalescing.max_waiters_per_key must be > 0");
 }
 
 TEST(RoutePolicyIntegrationTest, CoalescingRequiresCache) {

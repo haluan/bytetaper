@@ -79,4 +79,17 @@ TEST(RoutePolicyTest, DefaultMutationIsDisabled) {
     EXPECT_EQ(policy.mutation, MutationMode::Disabled);
 }
 
+TEST(RoutePolicyTest, InvalidPolicyCoalescingRequiresCache) {
+    RoutePolicy policy{};
+    policy.route_id = "ok";
+    policy.match_prefix = "/";
+    policy.coalescing.enabled = true;
+    policy.coalescing.require_cache_enabled = true;
+    policy.cache.enabled = false;
+
+    const char* reason = nullptr;
+    EXPECT_FALSE(validate_route_policy(policy, &reason));
+    EXPECT_STREQ(reason, "coalescing requires cache to be enabled");
+}
+
 } // namespace bytetaper::policy

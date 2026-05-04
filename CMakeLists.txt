@@ -26,6 +26,7 @@ add_library(policy_yaml_loader STATIC
   src/policy/pagination_policy_validator.cpp
   src/policy/compression_policy_validator.cpp
   src/policy/cache_policy_validator.cpp
+  src/policy/coalescing_policy_validator.cpp
 )
 set_source_files_properties(src/policy/yaml_loader.cpp
   PROPERTIES COMPILE_OPTIONS "-fexceptions"
@@ -252,6 +253,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/policy/pagination_policy_validator.cpp
     src/policy/compression_policy_validator.cpp
     src/policy/cache_policy_validator.cpp
+    src/policy/coalescing_policy_validator.cpp
     src/coalescing/coalescing_key.cpp
     src/coalescing/coalescing_eligibility.cpp
     src/coalescing/coalescing_safety.cpp
@@ -594,6 +596,7 @@ if(BUILD_TESTING)
       src/policy/coalescing_policy.cpp
       src/policy/pagination_policy_validator.cpp
       src/policy/compression_policy_validator.cpp
+      src/policy/coalescing_policy_validator.cpp
     )
     target_include_directories(policy_route_policy_test
       PRIVATE
@@ -773,6 +776,7 @@ if(BUILD_TESTING)
       src/policy/pagination_policy.cpp
       src/policy/compression_policy.cpp
       src/policy/coalescing_policy.cpp
+      src/policy/coalescing_policy_validator.cpp
     )
     target_include_directories(pagination_policy_test
       PRIVATE
@@ -1017,6 +1021,25 @@ if(BUILD_TESTING)
     add_test(
       NAME coalescing_metrics_test
       COMMAND coalescing_metrics_test
+    )
+
+    add_executable(coalescing_policy_validator_test
+      tests/coalescing_policy_validator_test.cpp
+      src/policy/coalescing_policy_validator.cpp
+      src/policy/coalescing_policy.cpp
+    )
+    target_include_directories(coalescing_policy_validator_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(coalescing_policy_validator_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME coalescing_policy_validator_test
+      COMMAND coalescing_policy_validator_test
     )
 
     add_executable(accept_encoding_test
@@ -1346,6 +1369,7 @@ if(BUILD_TESTING)
       src/policy/compression_policy.cpp
       src/policy/pagination_policy_validator.cpp
       src/policy/compression_policy_validator.cpp
+      src/policy/coalescing_policy_validator.cpp
     )
     target_include_directories(coalescing_policy_test
       PRIVATE

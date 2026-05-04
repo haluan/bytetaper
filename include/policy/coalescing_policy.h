@@ -21,11 +21,10 @@ struct CoalescingPolicy {
     bool allow_authenticated = false;
 };
 
+struct CachePolicy;
+
 // Validates the coalescing policy. Returns nullptr on success, or a static error string.
 const char* validate_coalescing_policy(const CoalescingPolicy& policy);
-
-// Stricter validator for production use.
-const char* validate_coalescing_policy_safe(const CoalescingPolicy& policy);
 
 } // namespace bytetaper::policy
 
