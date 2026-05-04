@@ -205,6 +205,10 @@ See [Pagination Policy](docs/pagination-policy.md) for a complete reference on p
 
 See [Compression Policy](docs/compression-policy.md) for a complete reference on response compression handling.
 
+## Coalescing Policy
+
+See [Request Coalescing](docs/coalescing-policy.md) for a complete reference on request coalescing.
+
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for details on our development process and how to contribute.
