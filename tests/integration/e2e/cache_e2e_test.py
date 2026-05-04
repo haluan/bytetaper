@@ -57,7 +57,7 @@ if c2 != c1:
 
 # Step 3: Different keys evict PATH_A from L1 (kL1SlotCount=16)
 print("Step 3: Evicting L1 with multiple keys...")
-EVICT_COUNT = 16
+EVICT_COUNT = 8192
 for i in range(EVICT_COUNT):
     evict_path = f"{BASE_URL}/api/v1/e2e/evict-{RUN_ID}-{i}?fields=service,version"
     get(evict_path)

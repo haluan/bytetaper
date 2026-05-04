@@ -8,16 +8,18 @@
 
 #include <cstring>
 #include <gtest/gtest.h>
+#include <memory>
 
 namespace bytetaper::stages {
 
 class L1CacheStoreStageTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        l1_init(&l1_cache_);
+        l1_cache_ptr_ = std::make_unique<cache::L1Cache>();
+        l1_init(l1_cache_ptr_.get());
     }
 
-    cache::L1Cache l1_cache_{};
+    std::unique_ptr<cache::L1Cache> l1_cache_ptr_;
     policy::RoutePolicy policy_{};
 };
 
@@ -28,7 +30,7 @@ TEST_F(L1CacheStoreStageTest, EligibleResponseStored) {
 
     apg::ApgTransformContext ctx{};
     ctx.matched_policy = &policy_;
-    ctx.l1_cache = &l1_cache_;
+    ctx.l1_cache = l1_cache_ptr_.get();
     ctx.request_method = policy::HttpMethod::Get;
     ctx.request_epoch_ms = 1000;
     std::strncpy(ctx.raw_path, "/api/items", sizeof(ctx.raw_path) - 1);
@@ -52,7 +54,7 @@ TEST_F(L1CacheStoreStageTest, EligibleResponseStored) {
     ASSERT_TRUE(cache::build_cache_key(ki, key_buf, sizeof(key_buf)));
 
     cache::CacheEntry hit{};
-    EXPECT_TRUE(cache::l1_get(&l1_cache_, key_buf, 1000, &hit));
+    EXPECT_TRUE(cache::l1_get(l1_cache_ptr_.get(), key_buf, 1000, &hit));
     EXPECT_EQ(hit.status_code, 200);
     EXPECT_EQ(hit.body_len, 5u);
     EXPECT_EQ(hit.expires_at_epoch_ms, 1000 + 60 * 1000);
@@ -65,7 +67,7 @@ TEST_F(L1CacheStoreStageTest, NonGetNotStored) {
 
     apg::ApgTransformContext ctx{};
     ctx.matched_policy = &policy_;
-    ctx.l1_cache = &l1_cache_;
+    ctx.l1_cache = l1_cache_ptr_.get();
     ctx.request_method = policy::HttpMethod::Post; // Non-GET
     ctx.response_status_code = 200;
     ctx.response_body = "body";
@@ -75,18 +77,10 @@ TEST_F(L1CacheStoreStageTest, NonGetNotStored) {
     EXPECT_EQ(out.result, apg::StageResult::Continue);
     EXPECT_STREQ(out.note, "non-get");
 
-    // Verify NOT in cache
-    char key_buf[cache::kCacheKeyMaxLen] = {};
-    cache::CacheKeyInput ki{};
-    ki.method = policy::HttpMethod::Post; // build_cache_key fails for non-GET anyway
-    ki.route_id = "rt1";
-    ki.path = "";
-    ki.policy_version = "rt1";
-    // We expect l1_get to fail because it wasn't stored.
-    // However, build_cache_key for Post would fail, so we'll check manually
-    // or just assume if it returns non-get, it didn't store.
-    for (std::size_t i = 0; i < cache::kL1SlotCount; ++i) {
-        EXPECT_EQ(l1_cache_.generations[i], 0u);
+    for (std::size_t s = 0; s < cache::kL1ShardCount; ++s) {
+        for (std::size_t i = 0; i < cache::kL1SlotsPerShard; ++i) {
+            EXPECT_EQ(l1_cache_ptr_->shards[s].generations[i], 0u);
+        }
     }
 }
 
@@ -97,7 +91,7 @@ TEST_F(L1CacheStoreStageTest, Non2xxNotStored) {
 
     apg::ApgTransformContext ctx{};
     ctx.matched_policy = &policy_;
-    ctx.l1_cache = &l1_cache_;
+    ctx.l1_cache = l1_cache_ptr_.get();
     ctx.request_method = policy::HttpMethod::Get;
     ctx.response_status_code = 404; // Non-2xx
     ctx.response_body = "body";
@@ -107,8 +101,10 @@ TEST_F(L1CacheStoreStageTest, Non2xxNotStored) {
     EXPECT_EQ(out.result, apg::StageResult::Continue);
     EXPECT_STREQ(out.note, "non-2xx");
 
-    for (std::size_t i = 0; i < cache::kL1SlotCount; ++i) {
-        EXPECT_EQ(l1_cache_.generations[i], 0u);
+    for (std::size_t s = 0; s < cache::kL1ShardCount; ++s) {
+        for (std::size_t i = 0; i < cache::kL1SlotsPerShard; ++i) {
+            EXPECT_EQ(l1_cache_ptr_->shards[s].generations[i], 0u);
+        }
     }
 }
 
@@ -119,7 +115,7 @@ TEST_F(L1CacheStoreStageTest, MissingKeyNotStored) {
 
     apg::ApgTransformContext ctx{};
     ctx.matched_policy = &policy_;
-    ctx.l1_cache = &l1_cache_;
+    ctx.l1_cache = l1_cache_ptr_.get();
     ctx.request_method = policy::HttpMethod::Get;
     ctx.response_status_code = 200;
     ctx.response_body = "body";
@@ -129,8 +125,10 @@ TEST_F(L1CacheStoreStageTest, MissingKeyNotStored) {
     EXPECT_EQ(out.result, apg::StageResult::Continue);
     EXPECT_STREQ(out.note, "key-build-failed");
 
-    for (std::size_t i = 0; i < cache::kL1SlotCount; ++i) {
-        EXPECT_EQ(l1_cache_.generations[i], 0u);
+    for (std::size_t s = 0; s < cache::kL1ShardCount; ++s) {
+        for (std::size_t i = 0; i < cache::kL1SlotsPerShard; ++i) {
+            EXPECT_EQ(l1_cache_ptr_->shards[s].generations[i], 0u);
+        }
     }
 }
 

@@ -9,6 +9,7 @@
 
 #include <cstring>
 #include <gtest/gtest.h>
+#include <memory>
 
 namespace bytetaper::stages {
 
@@ -20,7 +21,8 @@ protected:
         cache::l2_destroy(kTestDbPath);
         l2_ = cache::l2_open(kTestDbPath);
         ASSERT_NE(l2_, nullptr);
-        cache::l1_init(&l1_);
+        l1_ = std::make_unique<cache::L1Cache>();
+        cache::l1_init(l1_.get());
     }
 
     void TearDown() override {
@@ -49,13 +51,13 @@ protected:
 
         ctx->matched_policy = pol;
         ctx->l2_cache = l2_;
-        ctx->l1_cache = &l1_;
+        ctx->l1_cache = l1_.get();
         std::strncpy(ctx->raw_path, path, sizeof(ctx->raw_path) - 1);
         return l2_;
     }
 
     cache::L2DiskCache* l2_ = nullptr;
-    cache::L1Cache l1_{};
+    std::unique_ptr<cache::L1Cache> l1_;
 };
 
 TEST_F(L2PromotionTest, L2HitPromotesToL1) {
@@ -78,7 +80,7 @@ TEST_F(L2PromotionTest, L2HitPromotesToL1) {
     char key_buf[cache::kCacheKeyMaxLen] = {};
     cache::build_cache_key(ki, key_buf, sizeof(key_buf));
 
-    EXPECT_FALSE(cache::l1_get(&l1_, key_buf, 0, &check));
+    EXPECT_FALSE(cache::l1_get(l1_.get(), key_buf, 0, &check));
 
     // First request hits L2 and should promote
     auto out = l2_cache_lookup_stage(ctx);
@@ -86,7 +88,7 @@ TEST_F(L2PromotionTest, L2HitPromotesToL1) {
     EXPECT_STREQ(ctx.cache_layer, "L2");
 
     // Verify now in L1
-    EXPECT_TRUE(cache::l1_get(&l1_, key_buf, 0, &check));
+    EXPECT_TRUE(cache::l1_get(l1_.get(), key_buf, 0, &check));
     EXPECT_EQ(check.status_code, 200);
 }
 
@@ -107,7 +109,7 @@ TEST_F(L2PromotionTest, SecondRequestHitsL1AfterPromotion) {
     // Second request: same L1 cache, fresh context
     apg::ApgTransformContext ctx2{};
     ctx2.matched_policy = &pol;
-    ctx2.l1_cache = &l1_;
+    ctx2.l1_cache = l1_.get();
     ctx2.request_method = policy::HttpMethod::Get;
     ctx2.request_epoch_ms = 1000;
     std::strncpy(ctx2.raw_path, "/api/items", sizeof(ctx2.raw_path) - 1);
@@ -141,7 +143,7 @@ TEST_F(L2PromotionTest, ExpiredL2NotPromoted) {
     cache::build_cache_key(ki, key_buf, sizeof(key_buf));
 
     cache::CacheEntry check{};
-    EXPECT_FALSE(cache::l1_get(&l1_, key_buf, 1000, &check));
+    EXPECT_FALSE(cache::l1_get(l1_.get(), key_buf, 1000, &check));
 }
 
 TEST_F(L2PromotionTest, NullL1CacheSkipsPromotion) {

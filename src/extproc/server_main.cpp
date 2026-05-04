@@ -137,8 +137,8 @@ int main(int argc, char** argv) {
         std::printf("loaded %zu routes from %s\n", policy_result.count, args.policy_file);
     }
 
-    bytetaper::cache::L1Cache l1_cache{};
-    bytetaper::cache::l1_init(&l1_cache);
+    auto l1_cache = std::make_unique<bytetaper::cache::L1Cache>();
+    bytetaper::cache::l1_init(l1_cache.get());
 
     bytetaper::cache::L2DiskCache* l2_cache = nullptr;
     if (args.l2_cache_path != nullptr) {
@@ -167,7 +167,7 @@ int main(int argc, char** argv) {
 
     bytetaper::extproc::GrpcServerConfig config{};
     config.listen_address = args.listen_address;
-    config.l1_cache = &l1_cache;
+    config.l1_cache = l1_cache.get();
     config.l2_cache = l2_cache;
     config.metrics_registry = &metrics_registry;
     config.coalescing_registry = &coalescing_registry;

@@ -8,16 +8,18 @@
 
 #include <cstring>
 #include <gtest/gtest.h>
+#include <memory>
 
 namespace bytetaper::stages {
 
 class L1CacheLookupStageTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        l1_init(&l1_cache_);
+        l1_cache_ = std::make_unique<cache::L1Cache>();
+        l1_init(l1_cache_.get());
     }
 
-    cache::L1Cache l1_cache_{};
+    std::unique_ptr<cache::L1Cache> l1_cache_;
     policy::RoutePolicy policy_{};
 };
 
@@ -37,7 +39,7 @@ TEST_F(L1CacheLookupStageTest, L1MissContinues) {
     policy_.route_id = "rt1";
     apg::ApgTransformContext ctx{};
     ctx.matched_policy = &policy_;
-    ctx.l1_cache = &l1_cache_;
+    ctx.l1_cache = l1_cache_.get();
     std::strncpy(ctx.raw_path, "/api", sizeof(ctx.raw_path) - 1);
 
     auto out = l1_cache_lookup_stage(ctx);
@@ -51,7 +53,7 @@ TEST_F(L1CacheLookupStageTest, L1HitPreparesResponse) {
     policy_.route_id = "rt1";
     apg::ApgTransformContext ctx{};
     ctx.matched_policy = &policy_;
-    ctx.l1_cache = &l1_cache_;
+    ctx.l1_cache = l1_cache_.get();
     std::strncpy(ctx.raw_path, "/api", sizeof(ctx.raw_path) - 1);
 
     // Build the expected key
@@ -67,7 +69,7 @@ TEST_F(L1CacheLookupStageTest, L1HitPreparesResponse) {
     cache::CacheEntry entry{};
     std::strncpy(entry.key, key_buf, cache::kCacheKeyMaxLen - 1);
     entry.status_code = 200;
-    cache::l1_put(&l1_cache_, entry);
+    cache::l1_put(l1_cache_.get(), entry);
 
     auto out = l1_cache_lookup_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::SkipRemaining);
@@ -83,7 +85,7 @@ TEST_F(L1CacheLookupStageTest, ExpiredHitMisses) {
     policy_.route_id = "rt1";
     apg::ApgTransformContext ctx{};
     ctx.matched_policy = &policy_;
-    ctx.l1_cache = &l1_cache_;
+    ctx.l1_cache = l1_cache_.get();
     std::strncpy(ctx.raw_path, "/api", sizeof(ctx.raw_path) - 1);
     ctx.request_epoch_ms = 2000;
 
@@ -101,7 +103,7 @@ TEST_F(L1CacheLookupStageTest, ExpiredHitMisses) {
     std::strncpy(entry.key, key_buf, cache::kCacheKeyMaxLen - 1);
     entry.status_code = 200;
     entry.expires_at_epoch_ms = 1000; // Expired at 2000
-    cache::l1_put(&l1_cache_, entry);
+    cache::l1_put(l1_cache_.get(), entry);
 
     auto out = l1_cache_lookup_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::Continue);

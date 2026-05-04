@@ -9,6 +9,7 @@
 #include <chrono>
 #include <cstring>
 #include <gtest/gtest.h>
+#include <memory>
 #include <thread>
 
 namespace bytetaper::stages {
@@ -16,10 +17,11 @@ namespace bytetaper::stages {
 class CoalescingCacheIntegrationTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        l1_init(&l1_cache_);
+        l1_cache_ptr_ = std::make_unique<cache::L1Cache>();
+        l1_init(l1_cache_ptr_.get());
         coalescing::registry_init(&registry_);
 
-        ctx.l1_cache = &l1_cache_;
+        ctx.l1_cache = l1_cache_ptr_.get();
         ctx.coalescing_registry = &registry_;
         ctx.coalescing_decision.action = coalescing::CoalescingAction::Follower;
         std::strcpy(ctx.coalescing_decision.key, "c_key:test:1:/api");
@@ -33,7 +35,7 @@ protected:
         std::strncpy(ctx.raw_path, "/api", sizeof(ctx.raw_path) - 1);
     }
 
-    cache::L1Cache l1_cache_{};
+    std::unique_ptr<cache::L1Cache> l1_cache_ptr_;
     coalescing::InFlightRegistry registry_;
     apg::ApgTransformContext ctx;
     policy::RoutePolicy policy;
@@ -52,7 +54,7 @@ TEST_F(CoalescingCacheIntegrationTest, FollowerObservesCacheHit) {
     cache::CacheEntry entry{};
     std::strncpy(entry.key, key_buf, cache::kCacheKeyMaxLen - 1);
     entry.status_code = 200;
-    cache::l1_put(&l1_cache_, entry);
+    cache::l1_put(l1_cache_ptr_.get(), entry);
 
     // 2. Run follower wait stage
     auto out = coalescing_follower_wait_stage(ctx);

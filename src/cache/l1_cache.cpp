@@ -27,17 +27,17 @@ std::size_t hash_key(const char* key) {
     return h;
 }
 
-void copy_body_to_slot(L1Cache* cache, std::size_t slot_idx, const CacheEntry& entry) {
+void copy_body_to_slot(L1CacheShard* shard, std::size_t slot_idx, const CacheEntry& entry) {
     if (entry.body == nullptr || entry.body_len == 0) {
-        cache->slots[slot_idx].body = nullptr;
-        cache->slots[slot_idx].body_len = 0;
+        shard->slots[slot_idx].body = nullptr;
+        shard->slots[slot_idx].body_len = 0;
         return;
     }
 
     std::size_t copy_len = (entry.body_len > kL1MaxBodySize) ? kL1MaxBodySize : entry.body_len;
-    std::memcpy(cache->bodies[slot_idx], entry.body, copy_len);
-    cache->slots[slot_idx].body = cache->bodies[slot_idx];
-    cache->slots[slot_idx].body_len = copy_len;
+    std::memcpy(shard->bodies[slot_idx], entry.body, copy_len);
+    shard->slots[slot_idx].body = shard->bodies[slot_idx];
+    shard->slots[slot_idx].body_len = copy_len;
 }
 
 } // namespace
@@ -46,29 +46,32 @@ void l1_init(L1Cache* cache) {
     if (cache == nullptr) {
         return;
     }
-    std::memset(cache, 0, sizeof(L1Cache));
+    for (std::size_t i = 0; i < kL1ShardCount; ++i) {
+        auto& shard = cache->shards[i];
+        std::memset(shard.slots, 0, sizeof(shard.slots));
+        std::memset(shard.bodies, 0, sizeof(shard.bodies));
+        std::memset(shard.generations, 0, sizeof(shard.generations));
+        shard.write_cursor = 0;
+    }
 }
 
 void l1_put(L1Cache* cache, const CacheEntry& entry) {
-    if (cache == nullptr) {
+    if (cache == nullptr || entry.key == nullptr) {
         return;
     }
 
-    if constexpr (kL1SlotCount >= kHashLookupThreshold) {
-        // Large cache: Use Hash Index for O(1) performance.
-        const std::size_t h = hash_key(entry.key);
-        const std::size_t slot_idx = h % kL1SlotCount;
-        cache->slots[slot_idx] = entry;
-        copy_body_to_slot(cache, slot_idx, entry);
-        cache->generations[slot_idx] += 1;
-    } else {
-        // Small cache: Use Ring Buffer flow (Sequential FIFO).
-        const std::size_t slot_idx = cache->write_cursor % kL1SlotCount;
-        cache->slots[slot_idx] = entry;
-        copy_body_to_slot(cache, slot_idx, entry);
-        cache->generations[slot_idx] += 1;
-        cache->write_cursor += 1;
-    }
+    const std::size_t h = hash_key(entry.key);
+    const std::size_t shard_idx = h % kL1ShardCount;
+    auto& shard = cache->shards[shard_idx];
+
+    std::scoped_lock lock(shard.mutex);
+
+    // Sequential FIFO within the shard.
+    const std::size_t slot_idx = shard.write_cursor % kL1SlotsPerShard;
+    shard.slots[slot_idx] = entry;
+    copy_body_to_slot(&shard, slot_idx, entry);
+    shard.generations[slot_idx] += 1;
+    shard.write_cursor += 1;
 }
 
 bool l1_get(const L1Cache* cache, const char* key, std::int64_t now_ms, CacheEntry* out) {
@@ -76,49 +79,32 @@ bool l1_get(const L1Cache* cache, const char* key, std::int64_t now_ms, CacheEnt
         return false;
     }
 
-    if constexpr (kL1SlotCount >= kHashLookupThreshold) {
-        // Large cache: Use Hash Index for O(1) lookup.
-        const std::size_t h = hash_key(key);
-        const std::size_t slot_idx = h % kL1SlotCount;
+    const std::size_t h = hash_key(key);
+    const std::size_t shard_idx = h % kL1ShardCount;
+    auto& shard = cache->shards[shard_idx];
 
-        if (cache->generations[slot_idx] == 0) {
-            return false;
+    std::scoped_lock lock(shard.mutex);
+
+    // Linear Scan within the shard.
+    for (std::size_t i = 0; i < kL1SlotsPerShard; ++i) {
+        if (shard.generations[i] == 0) {
+            continue;
         }
-        if (std::strncmp(cache->slots[slot_idx].key, key, kCacheKeyMaxLen) != 0) {
-            return false;
+        if (std::strncmp(shard.slots[i].key, key, kCacheKeyMaxLen) != 0) {
+            continue;
         }
-        if (now_ms > 0 && is_expired(cache->slots[slot_idx], now_ms)) {
-            return false;
+        if (now_ms > 0 && is_expired(shard.slots[i], now_ms)) {
+            continue;
         }
 
-        *out = cache->slots[slot_idx];
+        *out = shard.slots[i];
         // Ensure out->body points to the slot's buffer, not the original source
         if (out->body_len > 0) {
-            out->body = cache->bodies[slot_idx];
+            out->body = shard.bodies[i];
         }
         return true;
-    } else {
-        // Small cache: Use Ring Buffer (Linear Scan).
-        for (std::size_t i = 0; i < kL1SlotCount; ++i) {
-            if (cache->generations[i] == 0) {
-                continue;
-            }
-            if (std::strncmp(cache->slots[i].key, key, kCacheKeyMaxLen) != 0) {
-                continue;
-            }
-            if (now_ms > 0 && is_expired(cache->slots[i], now_ms)) {
-                continue;
-            }
-
-            *out = cache->slots[i];
-            // Ensure out->body points to the slot's buffer, not the original source
-            if (out->body_len > 0) {
-                out->body = cache->bodies[i];
-            }
-            return true;
-        }
-        return false;
     }
+    return false;
 }
 
 } // namespace bytetaper::cache

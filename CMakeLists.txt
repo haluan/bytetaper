@@ -418,6 +418,26 @@ if(BUILD_TESTING)
       COMMAND l1_cache_test
     )
 
+    add_executable(l1_cache_concurrency_test
+      tests/l1_cache_concurrency_test.cpp
+      src/cache/l1_cache.cpp
+      src/cache/cache_entry.cpp
+    )
+    target_include_directories(l1_cache_concurrency_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(l1_cache_concurrency_test
+      PRIVATE
+        gtest_main
+        RocksDB::RocksDB
+    )
+
+    add_test(
+      NAME l1_cache_concurrency_test
+      COMMAND l1_cache_concurrency_test
+    )
+
     add_executable(l1_cache_lookup_stage_test
       tests/l1_cache_lookup_stage_test.cpp
       src/stages/l1_cache_lookup_stage.cpp

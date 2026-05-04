@@ -6,20 +6,23 @@
 #include "stages/coalescing_follower_wait_stage.h"
 
 #include <chrono>
+#include <cstring>
 #include <gtest/gtest.h>
+#include <memory>
 
 namespace bytetaper::stages {
 
 class CoalescingFollowerWaitTest : public ::testing::Test {
 protected:
     void SetUp() override {
-        cache::l1_init(&l1_cache);
+        l1_cache = std::make_unique<cache::L1Cache>();
+        cache::l1_init(l1_cache.get());
 
         policy.cache.behavior = policy::CacheBehavior::Store;
         policy.route_id = "12345";
 
         ctx.matched_policy = &policy;
-        ctx.l1_cache = &l1_cache;
+        ctx.l1_cache = l1_cache.get();
         std::strcpy(ctx.raw_path, "/path");
         ctx.request_method = policy::HttpMethod::Get;
 
@@ -34,7 +37,7 @@ protected:
         std::strcpy(ctx.coalescing_decision.key, "c_key:test:1:/path");
     }
 
-    cache::L1Cache l1_cache;
+    std::unique_ptr<cache::L1Cache> l1_cache;
     policy::RoutePolicy policy;
     apg::ApgTransformContext ctx;
 };
@@ -54,17 +57,6 @@ TEST_F(CoalescingFollowerWaitTest, ImmediateHitReturnsSkip) {
     entry.created_at_epoch_ms = ctx.request_epoch_ms;
     entry.expires_at_epoch_ms = ctx.request_epoch_ms + 60000;
 
-    // We need to store it with the key that l1_cache_lookup_stage will generate.
-    // Instead of predicting it, we can just ensure the fields match.
-    // In l1_cache_lookup_stage.cpp:
-    // ki.path = context.raw_path; -> "/path"
-    // ki.route_id = context.matched_policy->route_id; -> 12345
-    // ki.method = context.request_method; -> Get
-
-    // For the test, we'll manually build the key using the same logic or just use what we know.
-    // Format in cache_key.cpp is usually "c:{route}:{method}:{path}?{query}&f={fields}"
-    // But we can just use cache::build_cache_key if we include it.
-
     cache::CacheKeyInput ki{};
     ki.method = ctx.request_method;
     ki.route_id = policy.route_id;
@@ -73,7 +65,7 @@ TEST_F(CoalescingFollowerWaitTest, ImmediateHitReturnsSkip) {
 
     cache::build_cache_key(ki, entry.key, sizeof(entry.key));
 
-    cache::l1_put(&l1_cache, entry);
+    cache::l1_put(l1_cache.get(), entry);
 
     auto output = coalescing_follower_wait_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::SkipRemaining);

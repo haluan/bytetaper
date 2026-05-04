@@ -6,6 +6,7 @@
 
 #include <cstring>
 #include <gtest/gtest.h>
+#include <memory>
 #include <string>
 
 namespace bytetaper::cache {
@@ -18,76 +19,80 @@ static CacheEntry make_entry(const char* key, std::uint16_t status_code) {
 }
 
 TEST(L1CacheTest, UnknownKeyMisses) {
-    L1Cache cache;
-    l1_init(&cache);
+    auto cache = std::make_unique<L1Cache>();
+    l1_init(cache.get());
     CacheEntry out{};
-    EXPECT_FALSE(l1_get(&cache, "missing", 0, &out));
+    EXPECT_FALSE(l1_get(cache.get(), "missing", 0, &out));
 }
 
 TEST(L1CacheTest, PutThenGetHits) {
-    L1Cache cache;
-    l1_init(&cache);
-    l1_put(&cache, make_entry("k1", 200));
+    auto cache = std::make_unique<L1Cache>();
+    l1_init(cache.get());
+    l1_put(cache.get(), make_entry("k1", 200));
 
     CacheEntry out{};
-    EXPECT_TRUE(l1_get(&cache, "k1", 0, &out));
+    EXPECT_TRUE(l1_get(cache.get(), "k1", 0, &out));
     EXPECT_EQ(out.status_code, 200u);
 }
 
 TEST(L1CacheTest, CapacityOverflowEvictsOldest) {
-    L1Cache cache;
-    l1_init(&cache);
+    auto cache = std::make_unique<L1Cache>();
+    l1_init(cache.get());
 
-    // Fill capacity
-    for (std::size_t i = 0; i < kL1SlotCount; ++i) {
+    l1_put(cache.get(), make_entry("k0", 200));
+    CacheEntry out{};
+    EXPECT_TRUE(l1_get(cache.get(), "k0", 0, &out));
+
+    // Keep putting new keys until k0 is evicted from its shard
+    for (std::size_t i = 1; i < 100000; ++i) {
         std::string key = "k" + std::to_string(i);
-        l1_put(&cache, make_entry(key.c_str(), 200 + static_cast<std::uint16_t>(i)));
+        l1_put(cache.get(), make_entry(key.c_str(), 200));
+        if (!l1_get(cache.get(), "k0", 0, &out)) {
+            break;
+        }
     }
 
-    // k0 should still be there
-    CacheEntry out{};
-    EXPECT_TRUE(l1_get(&cache, "k0", 0, &out));
-
-    // One more put should evict k0 (the oldest)
-    l1_put(&cache, make_entry("overflow", 299));
-    EXPECT_FALSE(l1_get(&cache, "k0", 0, &out));
-    EXPECT_TRUE(l1_get(&cache, "overflow", 0, &out));
+    EXPECT_FALSE(l1_get(cache.get(), "k0", 0, &out));
 }
 
 TEST(L1CacheTest, StaleSlotMissAfterEviction) {
-    L1Cache cache;
-    l1_init(&cache);
+    auto cache = std::make_unique<L1Cache>();
+    l1_init(cache.get());
 
-    l1_put(&cache, make_entry("target", 200));
+    l1_put(cache.get(), make_entry("target", 200));
 
-    // Overflow ring with kL1SlotCount distinct puts to evict "target"
-    for (std::size_t i = 0; i < kL1SlotCount; ++i) {
+    // Overflow until "target" is evicted from its shard
+    for (std::size_t i = 0; i < 100000; ++i) {
         std::string key = "fill" + std::to_string(i);
-        l1_put(&cache, make_entry(key.c_str(), 300));
+        l1_put(cache.get(), make_entry(key.c_str(), 300));
+        CacheEntry out{};
+        if (!l1_get(cache.get(), "target", 0, &out)) {
+            break;
+        }
     }
 
     CacheEntry out{};
-    EXPECT_FALSE(l1_get(&cache, "target", 0, &out));
+    EXPECT_FALSE(l1_get(cache.get(), "target", 0, &out));
 
     // Re-put "target" with new status
-    l1_put(&cache, make_entry("target", 201));
-    EXPECT_TRUE(l1_get(&cache, "target", 0, &out));
+    l1_put(cache.get(), make_entry("target", 201));
+    EXPECT_TRUE(l1_get(cache.get(), "target", 0, &out));
     EXPECT_EQ(out.status_code, 201u);
 }
 
 TEST(L1CacheTest, ExpiredEntryMisses) {
-    L1Cache cache;
-    l1_init(&cache);
+    auto cache = std::make_unique<L1Cache>();
+    l1_init(cache.get());
 
     CacheEntry e = make_entry("expired_key", 200);
     e.expires_at_epoch_ms = 1000;
-    l1_put(&cache, e);
+    l1_put(cache.get(), e);
 
     CacheEntry out{};
     // now_ms = 2000 > 1000 => expired
-    EXPECT_FALSE(l1_get(&cache, "expired_key", 2000, &out));
+    EXPECT_FALSE(l1_get(cache.get(), "expired_key", 2000, &out));
     // now_ms = 500 < 1000 => not expired
-    EXPECT_TRUE(l1_get(&cache, "expired_key", 500, &out));
+    EXPECT_TRUE(l1_get(cache.get(), "expired_key", 500, &out));
     EXPECT_EQ(out.status_code, 200u);
 }
 
