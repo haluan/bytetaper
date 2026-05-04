@@ -23,6 +23,7 @@
 #include "stages/l1_cache_lookup_stage.h"
 #include "stages/l1_cache_store_stage.h"
 #include "stages/l2_cache_async_lookup_enqueue_stage.h"
+#include "stages/l2_cache_async_store_enqueue_stage.h"
 #include "stages/l2_cache_lookup_stage.h"
 #include "stages/l2_cache_store_stage.h"
 #include "stages/pagination_request_mutation_stage.h"
@@ -479,7 +480,8 @@ public:
                         filter_state.context.response_body_len = filtered_body.size();
 
                         static constexpr apg::ApgStage kStoreStages[] = {
-                            stages::l1_cache_store_stage, stages::l2_cache_store_stage,
+                            stages::l1_cache_store_stage,
+                            stages::l2_cache_async_store_enqueue_stage,
                             stages::coalescing_leader_completion_stage
                         };
                         apg::run_pipeline(kStoreStages, 3, filter_state.context);

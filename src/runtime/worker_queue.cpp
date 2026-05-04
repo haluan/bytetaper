@@ -55,8 +55,14 @@ static void worker_loop(WorkerQueue* q) {
             if (pend != nullptr) {
                 pending_lookup_clear(pend, job.entry.key);
             }
+        } else if (job.kind == RuntimeJobKind::L2Store) {
+            auto* l2 = q->resources.l2_cache;
+            if (l2 != nullptr) {
+                // entry.body already points to job.body (fixed in worker_loop dequeue or enqueue)
+                cache::l2_put(l2, job.entry);
+            }
         }
-        // RuntimeJobKind::L2Store dispatch added in BT-035-006.
+        // Additional job kinds dispatch added here if needed.
     }
 }
 
