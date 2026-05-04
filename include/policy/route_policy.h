@@ -70,14 +70,14 @@ inline bool validate_route_policy(const RoutePolicy& policy, const char** reason
             return false;
         }
     }
-    const char* pagination_err = validate_pagination_policy(policy.pagination);
+    const char* pagination_err = validate_pagination_policy_safe(policy.pagination);
     if (pagination_err != nullptr) {
         if (reason_out != nullptr) {
             *reason_out = pagination_err;
         }
         return false;
     }
-    const char* compression_err = validate_compression_policy(policy.compression);
+    const char* compression_err = validate_compression_policy_safe(policy.compression);
     if (compression_err != nullptr) {
         if (reason_out != nullptr) {
             *reason_out = compression_err;

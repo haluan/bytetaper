@@ -40,4 +40,9 @@ struct CompressionPolicy {
 // Returns nullptr on success, or a static error string on invalid configuration.
 const char* validate_compression_policy(const CompressionPolicy& policy);
 
+// Stricter validator for production policy loading.
+// Delegates to validate_compression_policy(), then enforces safety rules.
+// Returns nullptr on success, static error string on failure.
+const char* validate_compression_policy_safe(const CompressionPolicy& policy);
+
 } // namespace bytetaper::policy
