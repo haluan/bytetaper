@@ -2,6 +2,12 @@
 # ByteTaper (ExtProc) evaluates eligibility and emits diagnostic headers.
 # Envoy's compressor filter performs actual gzip/brotli compression.
 
+admin:
+  address:
+    socket_address:
+      address: 0.0.0.0
+      port_value: 9901
+
 static_resources:
   listeners:
   - name: listener_0
@@ -27,20 +33,7 @@ static_resources:
                 route:
                   cluster: mock_api_cluster
           http_filters:
-          # 1. ByteTaper ExtProc: evaluates eligibility, emits x-bytetaper-compression-candidate.
-          - name: envoy.filters.http.ext_proc
-            typed_config:
-              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor
-              grpc_service:
-                envoy_grpc:
-                  cluster_name: extproc_cluster
-              processing_mode:
-                request_header_mode: SEND
-                response_header_mode: SEND
-                response_body_mode: BUFFERED
-          # 2. Envoy compressor: performs actual gzip compression.
-          #    Operates independently of ByteTaper — uses standard Accept-Encoding.
-          #    ByteTaper's x-bytetaper-compression-candidate is diagnostic only.
+          # 1. Envoy compressor: performs actual gzip compression.
           - name: envoy.filters.http.compressor
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.compressor.v3.Compressor
@@ -57,6 +50,18 @@ static_resources:
                 typed_config:
                   "@type": type.googleapis.com/envoy.extensions.compression.gzip.compressor.v3.Gzip
                   compression_level: DEFAULT_COMPRESSION
+
+          # 2. ByteTaper ExtProc: evaluates eligibility, emits x-bytetaper-compression-candidate.
+          - name: envoy.filters.http.ext_proc
+            typed_config:
+              "@type": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExternalProcessor
+              grpc_service:
+                envoy_grpc:
+                  cluster_name: extproc_cluster
+              processing_mode:
+                request_header_mode: SEND
+                response_header_mode: SEND
+                response_body_mode: BUFFERED
           - name: envoy.filters.http.router
             typed_config:
               "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
@@ -93,4 +98,4 @@ static_resources:
             address:
               socket_address:
                 address: bytetaper-extproc
-                port_value: 50051
+                port_value: 18080

@@ -75,6 +75,7 @@ struct ApgTransformContext {
     std::uint16_t response_status_code = 0;
     const char* response_body = nullptr; // non-owning
     std::size_t response_body_len = 0;
+    bool response_body_size_known = false;
     char response_content_type[cache::kCacheContentTypeMaxLen] = {};
 
     static constexpr std::size_t kL2BodyBufSize = 65536; // 64 KiB

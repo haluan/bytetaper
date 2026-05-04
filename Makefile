@@ -31,3 +31,4 @@ all-tests:
 	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-integration-test
 	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-pagination-test
 	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-max-limit-test
+	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-compression-test

@@ -26,6 +26,9 @@ def build_payload(size=1024, scenario="default", sentinel="bt-001", version=1):
 DEFAULT_PAYLOAD = build_payload(1024)
 
 class Handler(BaseHTTPRequestHandler):
+    def do_HEAD(self) -> None:
+        self.do_GET()
+
     def do_GET(self) -> None:
         global g_call_count
         path = urlsplit(self.path).path
@@ -80,6 +83,34 @@ class Handler(BaseHTTPRequestHandler):
             
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+
+        if path == "/api/v1/large":
+            payload = build_payload(2048, scenario="large-json")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+
+        if path == "/api/v1/small":
+            payload = build_payload(512, scenario="small-json")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+
+        if path == "/api/v1/already-encoded":
+            payload = b"fake-gzip-data"
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Encoding", "gzip")
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)

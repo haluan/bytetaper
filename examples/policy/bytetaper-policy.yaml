@@ -6,6 +6,13 @@ routes:
     method: get
     mutation: full
     max_response_bytes: 2097152
+    compression:
+      enabled: true
+      min_size_bytes: 1024
+      eligible_content_types:
+        - application/json
+      preferred_algorithms:
+        - gzip
     cache:
       behavior: store
       ttl_seconds: 300
@@ -15,6 +22,10 @@ routes:
         - id
         - name
         - status
+        - service
+        - scenario
+        - version
+        - payload
 
   - id: "admin-exact"
     match:
@@ -122,18 +133,4 @@ routes:
       offset_param: offset
       upstream_supports_pagination: true
 
-  - id: "api-v1-compressed"
-    match:
-      kind: prefix
-      prefix: /api/v1/large
-    mutation: full
-    compression:
-      enabled: true
-      min_size_bytes: 1024
-      eligible_content_types:
-        - application/json
-        - text/plain
-      preferred_algorithms:
-        - brotli
-        - gzip
-      already_encoded_behavior: skip
+

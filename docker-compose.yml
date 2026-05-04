@@ -204,5 +204,52 @@ services:
         set -eu
         python3 tests/integration/e2e/cache_e2e_test.py
 
+  envoy-compression:
+    build:
+      context: .
+      dockerfile: docker/envoy.Dockerfile
+    depends_on:
+      mock-api:
+        condition: service_healthy
+      bytetaper-extproc:
+        condition: service_healthy
+    volumes:
+      - ./examples/envoy:/etc/envoy:ro
+    command:
+      - /usr/local/bin/envoy
+      - -c
+      - /etc/envoy/envoy-compression.yaml
+    healthcheck:
+      test:
+        - CMD
+        - /usr/local/bin/envoy
+        - --mode
+        - validate
+        - -c
+        - /etc/envoy/envoy-compression.yaml
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 2s
+
+  bytetaper-compression-test:
+    image: bytetaper-dev:latest
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    depends_on:
+      mock-api:
+        condition: service_healthy
+      envoy-compression:
+        condition: service_healthy
+    environment:
+      - ENVOY_URL=http://envoy-compression:10000
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        set -eu
+        sh ./tests/integration/compression_e2e_test.sh
+
 volumes:
   bt-l2-cache: {}

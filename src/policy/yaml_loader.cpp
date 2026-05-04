@@ -250,6 +250,67 @@ bool parse_one_route(const YAML::Node& node, PolicyFileResult* result, std::size
         }
     }
 
+    if (node["compression"]) {
+        const YAML::Node& comp_node = node["compression"];
+        policy.compression.enabled = comp_node["enabled"] ? comp_node["enabled"].as<bool>() : false;
+        if (policy.compression.enabled) {
+            if (comp_node["min_size_bytes"]) {
+                policy.compression.min_size_bytes = comp_node["min_size_bytes"].as<std::uint32_t>();
+            }
+            if (comp_node["eligible_content_types"]) {
+                const YAML::Node& types_node = comp_node["eligible_content_types"];
+                if (types_node.size() > kMaxEligibleContentTypes) {
+                    result->error = "too many compression.eligible_content_types";
+                    return false;
+                }
+                for (std::size_t i = 0; i < types_node.size(); ++i) {
+                    const std::string t = types_node[i].as<std::string>();
+                    if (t.size() >= kMaxContentTypeLen) {
+                        result->error = "compression.eligible_content_types entry too long";
+                        return false;
+                    }
+                    std::strncpy(policy.compression.eligible_content_types[i], t.c_str(),
+                                 kMaxContentTypeLen - 1);
+                    policy.compression.eligible_content_types[i][kMaxContentTypeLen - 1] = '\0';
+                }
+                policy.compression.eligible_content_type_count = types_node.size();
+            }
+            if (comp_node["preferred_algorithms"]) {
+                const YAML::Node& algs_node = comp_node["preferred_algorithms"];
+                if (algs_node.size() > kMaxCompressionAlgorithms) {
+                    result->error = "too many compression.preferred_algorithms";
+                    return false;
+                }
+                for (std::size_t i = 0; i < algs_node.size(); ++i) {
+                    const std::string a = algs_node[i].as<std::string>();
+                    if (a == "gzip") {
+                        policy.compression.preferred_algorithms[i] = CompressionAlgorithm::Gzip;
+                    } else if (a == "brotli") {
+                        policy.compression.preferred_algorithms[i] = CompressionAlgorithm::Brotli;
+                    } else if (a == "zstd") {
+                        policy.compression.preferred_algorithms[i] = CompressionAlgorithm::Zstd;
+                    } else {
+                        result->error = "unknown compression algorithm";
+                        return false;
+                    }
+                }
+                policy.compression.preferred_algorithm_count = algs_node.size();
+            }
+            if (comp_node["already_encoded_behavior"]) {
+                const std::string b = comp_node["already_encoded_behavior"].as<std::string>();
+                if (b == "skip") {
+                    policy.compression.already_encoded_behavior = AlreadyEncodedBehavior::Skip;
+                } else if (b == "passthrough") {
+                    policy.compression.already_encoded_behavior =
+                        AlreadyEncodedBehavior::Passthrough;
+                } else {
+                    result->error = "unknown already_encoded_behavior";
+                    return false;
+                }
+            }
+        }
+    }
+
     return true;
 }
 

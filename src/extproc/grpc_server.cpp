@@ -152,15 +152,15 @@ void apply_response_content_type(const envoy::service::ext_proc::v3::ProcessingR
     }
 
     for (const auto& header : request.response_headers().headers().headers()) {
-        if (header.key() == ":status") {
-            const std::string status_code =
-                header.raw_value().empty() ? header.value() : header.raw_value();
-            if (!status_code.empty() && status_code[0] != '2') {
+        const std::string& key = header.key();
+        const std::string& val = header.raw_value().empty() ? header.value() : header.raw_value();
+        if (key == ":status") {
+            state->context.response_status_code =
+                static_cast<std::uint16_t>(std::atoi(val.c_str()));
+            if (!val.empty() && val[0] != '2') {
                 state->is_non_2xx_response = true;
                 state->response_kind = json_transform::JsonResponseKind::SkipUnsupported;
             }
-            state->context.response_status_code =
-                static_cast<std::uint16_t>(std::atoi(status_code.c_str()));
         }
     }
 
@@ -171,20 +171,24 @@ void apply_response_content_type(const envoy::service::ext_proc::v3::ProcessingR
     }
 
     std::string content_type{};
-    if (!read_header_value(request.response_headers().headers(), kContentTypeHeader,
-                           &content_type)) {
+    if (read_header_value(request.response_headers().headers(), kContentTypeHeader,
+                          &content_type)) {
+        std::strncpy(state->context.response_content_type, content_type.c_str(),
+                     sizeof(state->context.response_content_type) - 1);
+        state->context.response_content_type[sizeof(state->context.response_content_type) - 1] =
+            '\0';
+        json_transform::detect_application_json_response(state->context.response_content_type,
+                                                         &state->response_kind);
+    } else {
         state->response_kind = json_transform::JsonResponseKind::SkipUnsupported;
-        return;
     }
-    std::strncpy(state->context.response_content_type, content_type.c_str(),
-                 sizeof(state->context.response_content_type) - 1);
 
-    json_transform::JsonResponseKind detected = json_transform::JsonResponseKind::SkipUnsupported;
-    if (!json_transform::detect_application_json_response(content_type.c_str(), &detected)) {
-        state->response_kind = json_transform::JsonResponseKind::SkipUnsupported;
-        return;
+    std::string content_len{};
+    if (read_header_value(request.response_headers().headers(), "content-length", &content_len)) {
+        state->context.response_body_len =
+            static_cast<std::size_t>(std::atoll(content_len.c_str()));
+        state->context.response_body_size_known = true;
     }
-    state->response_kind = detected;
 }
 
 bool build_filtered_body_response(const envoy::service::ext_proc::v3::ProcessingRequest& request,
@@ -381,6 +385,17 @@ public:
                                                : kNoneValue;
                     add_overwrite_header(common_response, kRoutePolicyHeader, route_id);
                 }
+
+                // Run compression decision pipeline during headers for early signaling (handles
+                // HEAD etc)
+                if (filter_state.matched_policy != nullptr) {
+                    static constexpr apg::ApgStage kCompressionStages[] = {
+                        stages::compression_decision_stage
+                    };
+                    apg::run_pipeline(kCompressionStages, 1, filter_state.context);
+                    apply_compression_response_headers(filter_state.context, common_response);
+                }
+
                 apply_pagination_response_headers(filter_state.context, common_response);
                 stream->Write(response);
                 continue;
@@ -439,11 +454,13 @@ public:
                     }
                 }
 
-                // Run compression decision pipeline (always, even on failure/skip, to set headers)
+                // Run compression decision pipeline again during body if needed (refines decision
+                // with actual body size)
                 if (filter_state.matched_policy != nullptr) {
-                    if (filter_state.context.response_body_len == 0) {
+                    if (!filter_state.context.response_body_size_known) {
                         filter_state.context.response_body_len =
                             request.response_body().body().size();
+                        filter_state.context.response_body_size_known = true;
                     }
                     static constexpr apg::ApgStage kCompressionStages[] = {
                         stages::compression_decision_stage

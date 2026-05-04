@@ -45,22 +45,22 @@ apg::StageOutput compression_decision_stage(apg::ApgTransformContext& context) {
             metrics::record_compression_event(context.compression_metrics,
                                               metrics::CompressionMetricEvent::Candidate);
         } else if (decision.reason != nullptr) {
-            if (std::strcmp(decision.reason, "client-unsupported") == 0) {
+            if (std::strcmp(decision.reason, "no_client_support") == 0) {
                 metrics::record_compression_event(
                     context.compression_metrics,
                     metrics::CompressionMetricEvent::SkipClientUnsupported);
-            } else if (std::strcmp(decision.reason, "already-encoded") == 0) {
+            } else if (std::strcmp(decision.reason, "already_encoded") == 0) {
                 metrics::record_compression_event(
                     context.compression_metrics,
                     metrics::CompressionMetricEvent::SkipAlreadyEncoded);
-            } else if (std::strcmp(decision.reason, "content-type-ineligible") == 0) {
+            } else if (std::strcmp(decision.reason, "content_type_not_eligible") == 0) {
                 metrics::record_compression_event(context.compression_metrics,
                                                   metrics::CompressionMetricEvent::SkipContentType);
-            } else if (std::strcmp(decision.reason, "response-too-small") == 0) {
+            } else if (std::strcmp(decision.reason, "response_too_small") == 0) {
                 metrics::record_compression_event(
                     context.compression_metrics,
                     metrics::CompressionMetricEvent::SkipResponseTooSmall);
-            } else if (std::strcmp(decision.reason, "non-2xx-response") == 0) {
+            } else if (std::strcmp(decision.reason, "non_2xx_status") == 0) {
                 metrics::record_compression_event(context.compression_metrics,
                                                   metrics::CompressionMetricEvent::SkipNon2xx);
             }
