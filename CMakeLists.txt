@@ -235,6 +235,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/safety/fail_open.cpp
     src/policy/pagination_policy.cpp
     src/stages/pagination_request_mutation_stage.cpp
+    src/stages/coalescing_follower_wait_stage.cpp
     src/pagination/pagination_decision.cpp
     src/pagination/pagination_mutation.cpp
     src/pagination/pagination_query.cpp
@@ -912,6 +913,25 @@ if(BUILD_TESTING)
     add_test(
       NAME wait_window_test
       COMMAND wait_window_test
+    )
+
+    add_executable(coalescing_follower_wait_test
+      tests/coalescing_follower_wait_test.cpp
+    )
+    target_include_directories(coalescing_follower_wait_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(coalescing_follower_wait_test
+      PRIVATE
+        bytetaper_extproc_grpc_server
+        RocksDB::RocksDB
+        gtest_main
+    )
+
+    add_test(
+      NAME coalescing_follower_wait_test
+      COMMAND coalescing_follower_wait_test
     )
 
     add_executable(accept_encoding_test

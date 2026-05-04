@@ -7,6 +7,7 @@
 #include "cache/cache_entry.h"
 #include "cache/l1_cache.h"
 #include "cache/l2_disk_cache.h"
+#include "coalescing/coalescing_decision.h"
 #include "compression/accept_encoding.h"
 #include "compression/content_encoding.h"
 #include "metrics/cache_metrics.h"
@@ -97,6 +98,9 @@ struct ApgTransformContext {
     compression::ContentEncodingResult response_content_encoding{};
     // --- Compression decision output (written by compression_decision_stage) ---
     CompressionDecisionOutput compression_decision{};
+
+    // --- Coalescing decision output (written by coalescing_decision_stage) ---
+    coalescing::CoalescingDecision coalescing_decision{};
 
     // --- Metrics (optional pointers to central registry counters) ---
     metrics::PaginationMetrics* pagination_metrics = nullptr;
