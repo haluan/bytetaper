@@ -124,16 +124,15 @@ services:
     working_dir: /workspace
     volumes:
       - ./:/workspace
-      - bt-l2-cache:/var/cache/bytetaper
     command:
       - /bin/bash
       - -lc
       - |
         set -eu
-        mkdir -p /var/cache/bytetaper/global
+        mkdir -p /tmp/bytetaper-cache
         cmake -S . -B build -G Ninja -DBYTETAPER_ENABLE_INTEGRATION_TESTS=ON -DBYTETAPER_ENABLE_GTEST_TESTS=OFF
         cmake --build build --target bytetaper-extproc-server
-        exec ./build/bytetaper-extproc-server --listen-address 0.0.0.0:18080 --policy-file examples/policy/bytetaper-policy.yaml --l2-cache-path /var/cache/bytetaper/global --metrics-address 0.0.0.0 --metrics-port 18081
+        exec ./build/bytetaper-extproc-server --listen-address 0.0.0.0:18080 --policy-file examples/policy/bytetaper-policy.yaml --l2-cache-path /tmp/bytetaper-cache --metrics-address 0.0.0.0 --metrics-port 18081
     ports:
       - "18080:18080"
       - "18081:18081"
@@ -250,6 +249,29 @@ services:
       - |
         set -eu
         sh ./tests/integration/compression_e2e_test.sh
+
+  bytetaper-coalescing-burst-test:
+    image: bytetaper-dev:latest
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    environment:
+      - BYTETAPER_TEST_BASE_URL=http://envoy:10000
+      - BYTETAPER_MOCK_COUNTER_URL=http://mock-api:8080/call-count
+      - BYTETAPER_MOCK_RESET_URL=http://mock-api:8080/reset-count
+    depends_on:
+      mock-api:
+        condition: service_healthy
+      bytetaper-extproc:
+        condition: service_healthy
+      envoy:
+        condition: service_healthy
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        set -eu
+        sh ./tests/load/coalescing_burst_test.sh
 
 volumes:
   bt-l2-cache: {}

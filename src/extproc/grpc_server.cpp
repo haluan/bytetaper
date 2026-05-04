@@ -14,6 +14,9 @@
 #include "json_transform/content_type.h"
 #include "policy/route_matcher.h"
 #include "safety/fail_open.h"
+#include "stages/coalescing_decision_stage.h"
+#include "stages/coalescing_follower_wait_stage.h"
+#include "stages/coalescing_leader_completion_stage.h"
 #include "stages/compression_decision_stage.h"
 #include "stages/l1_cache_lookup_stage.h"
 #include "stages/l1_cache_store_stage.h"
@@ -229,18 +232,25 @@ bool build_filtered_body_response(const envoy::service::ext_proc::v3::Processing
         }
         return false;
     }
-    if (!state.has_query_selection) {
-        if (out_reason != nullptr) {
-            *out_reason = safety::FailOpenReason::SkipUnsupported;
+
+    const bool filtering_active = state.has_query_selection;
+
+    if (filtering_active) {
+        if (state.response_kind != json_transform::JsonResponseKind::EligibleJson) {
+            if (out_reason != nullptr) {
+                *out_reason = safety::FailOpenReason::NonJsonResponse;
+            }
+            return false;
         }
-        return false;
-    }
-    if (state.response_kind != json_transform::JsonResponseKind::EligibleJson) {
-        if (out_reason != nullptr) {
-            *out_reason = safety::FailOpenReason::NonJsonResponse;
+    } else {
+        if (state.matched_policy->cache.behavior != policy::CacheBehavior::Store) {
+            if (out_reason != nullptr) {
+                *out_reason = safety::FailOpenReason::SkipUnsupported;
+            }
+            return false;
         }
-        return false;
     }
+
     if (!request.response_body().end_of_stream()) {
         if (out_reason != nullptr) {
             *out_reason = safety::FailOpenReason::SkipUnsupported;
@@ -257,31 +267,38 @@ bool build_filtered_body_response(const envoy::service::ext_proc::v3::Processing
         return false;
     }
 
-    state.context.input_payload_bytes = input_body.size();
-    json_transform::ParsedFlatJsonObject parsed{};
-    const json_transform::FlatJsonParseStatus parse_status =
-        json_transform::parse_flat_json_object(input_body.c_str(), state.response_kind, &parsed);
+    std::string filtered_body;
+    std::size_t saved_bytes = 0;
 
-    std::vector<char> output(input_body.size() + 1, '\0');
-    std::size_t output_length = 0;
-    const json_transform::FlatJsonFilterStatus status =
-        json_transform::transform_flat_json_with_filter_toggle(
-            input_body.c_str(), parse_status, &parsed, state.context, true, output.data(),
-            output.size(), &output_length);
+    if (!filtering_active) {
+        filtered_body = input_body;
+    } else {
+        state.context.input_payload_bytes = input_body.size();
+        json_transform::ParsedFlatJsonObject parsed{};
+        const json_transform::FlatJsonParseStatus parse_status =
+            json_transform::parse_flat_json_object(input_body.c_str(), state.response_kind,
+                                                   &parsed);
 
-    const safety::FailOpenDecision safety_decision = safety::evaluate_filter_safety(status);
-    if (out_reason != nullptr) {
-        *out_reason = safety_decision.reason;
+        std::vector<char> output(input_body.size() + 1, '\0');
+        std::size_t output_length = 0;
+        const json_transform::FlatJsonFilterStatus status =
+            json_transform::transform_flat_json_with_filter_toggle(
+                input_body.c_str(), parse_status, &parsed, state.context, true, output.data(),
+                output.size(), &output_length);
+
+        const safety::FailOpenDecision safety_decision = safety::evaluate_filter_safety(status);
+        if (out_reason != nullptr) {
+            *out_reason = safety_decision.reason;
+        }
+
+        if (!safety_decision.should_mutate) {
+            return false;
+        }
+        filtered_body.assign(output.data(), output_length);
+        saved_bytes = (input_body.size() >= filtered_body.size())
+                          ? (input_body.size() - filtered_body.size())
+                          : 0;
     }
-
-    if (!safety_decision.should_mutate) {
-        return false;
-    }
-
-    std::string filtered_body(output.data(), output_length);
-    const std::size_t saved_bytes = (input_body.size() >= filtered_body.size())
-                                        ? (input_body.size() - filtered_body.size())
-                                        : 0;
     auto* body_response = response_out->mutable_response_body();
     auto* common = body_response->mutable_response();
     common->set_status(envoy::service::ext_proc::v3::CommonResponse::CONTINUE);
@@ -304,6 +321,7 @@ public:
     cache::L1Cache* l1_cache = nullptr;
     cache::L2DiskCache* l2_cache = nullptr;
     metrics::MetricsRegistry* metrics_registry = nullptr;
+    coalescing::InFlightRegistry* coalescing_registry = nullptr;
 
     grpc::Status Process(grpc::ServerContext*,
                          grpc::ServerReaderWriter<envoy::service::ext_proc::v3::ProcessingResponse,
@@ -332,6 +350,7 @@ public:
                     filter_state.matched_policy = policy::match_route_by_path(
                         policies, policy_count, filter_state.context.raw_path);
                 }
+
                 envoy::service::ext_proc::v3::ProcessingResponse response{};
 
                 // Run lookup pipeline
@@ -339,12 +358,14 @@ public:
                     filter_state.context.matched_policy = filter_state.matched_policy;
                     filter_state.context.l1_cache = l1_cache;
                     filter_state.context.l2_cache = l2_cache;
+                    filter_state.context.coalescing_registry = coalescing_registry;
                     filter_state.context.request_epoch_ms =
                         std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::system_clock::now().time_since_epoch())
                             .count();
 
                     static constexpr apg::ApgStage kLookupStages[] = {
+                        stages::coalescing_decision_stage, stages::coalescing_follower_wait_stage,
                         stages::l1_cache_lookup_stage, stages::l2_cache_lookup_stage,
                         stages::pagination_request_mutation_stage
                     };
@@ -354,8 +375,10 @@ public:
                         filter_state.context.cache_metrics = &metrics_registry->cache_metrics;
                         filter_state.context.compression_metrics =
                             &metrics_registry->compression_metrics;
+                        filter_state.context.coalescing_metrics =
+                            &metrics_registry->coalescing_metrics;
                     }
-                    apg::run_pipeline(kLookupStages, 3, filter_state.context);
+                    apg::run_pipeline(kLookupStages, 5, filter_state.context);
                 }
 
                 if (bytetaper::extproc::map_cache_hit_to_immediate_response(filter_state.context,
@@ -448,9 +471,10 @@ public:
                         filter_state.context.response_body_len = filtered_body.size();
 
                         static constexpr apg::ApgStage kStoreStages[] = {
-                            stages::l1_cache_store_stage, stages::l2_cache_store_stage
+                            stages::l1_cache_store_stage, stages::l2_cache_store_stage,
+                            stages::coalescing_leader_completion_stage
                         };
-                        apg::run_pipeline(kStoreStages, 2, filter_state.context);
+                        apg::run_pipeline(kStoreStages, 3, filter_state.context);
                     }
                 }
 
@@ -516,6 +540,7 @@ bool start_grpc_server(const GrpcServerConfig& config, GrpcServerHandle* handle)
     impl->service.l1_cache = config.l1_cache;
     impl->service.l2_cache = config.l2_cache;
     impl->service.metrics_registry = config.metrics_registry;
+    impl->service.coalescing_registry = config.coalescing_registry;
     impl->server = builder.BuildAndStart();
     if (!impl->server) {
         return false;

@@ -66,9 +66,11 @@ COPY --from=rocksdb-builder /usr/local/include/rocksdb /usr/local/include/rocksd
 # Ensure the dynamic linker can find RocksDB
 RUN ldconfig
 
-# Setup development user
+# Setup development user and cache directory
 RUN groupadd -f -o -g "${LOCAL_GID}" bytetaper \
-    && useradd -m -o -u "${LOCAL_UID}" -g "${LOCAL_GID}" -s /bin/bash bytetaper
+    && useradd -m -o -u "${LOCAL_UID}" -g "${LOCAL_GID}" -s /bin/bash bytetaper \
+    && mkdir -p /var/cache/bytetaper \
+    && chown bytetaper:bytetaper /var/cache/bytetaper
 
 WORKDIR /workspace
 USER bytetaper

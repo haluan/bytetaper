@@ -239,6 +239,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/stages/pagination_request_mutation_stage.cpp
     src/stages/coalescing_follower_wait_stage.cpp
     src/stages/coalescing_leader_completion_stage.cpp
+    src/stages/coalescing_decision_stage.cpp
     src/pagination/pagination_decision.cpp
     src/pagination/pagination_mutation.cpp
     src/pagination/pagination_query.cpp

@@ -12,6 +12,10 @@
 #include <cstddef>
 #include <cstdint>
 
+namespace bytetaper::coalescing {
+struct InFlightRegistry;
+}
+
 namespace bytetaper::extproc {
 
 struct GrpcServerConfig {
@@ -21,6 +25,7 @@ struct GrpcServerConfig {
     cache::L1Cache* l1_cache = nullptr;
     cache::L2DiskCache* l2_cache = nullptr;
     metrics::MetricsRegistry* metrics_registry = nullptr;
+    coalescing::InFlightRegistry* coalescing_registry = nullptr;
 };
 
 struct GrpcServerHandle {

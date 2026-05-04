@@ -8,6 +8,7 @@
 #include "cache/l1_cache.h"
 #include "policy/cache_policy.h"
 
+#include <cstdio>
 #include <cstring>
 
 namespace bytetaper::stages {

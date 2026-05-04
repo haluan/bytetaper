@@ -2,6 +2,7 @@
 # SPDX-FileCopyrightText: 2026 Haluan Irsad
 # SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
 
+import time
 import json
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlsplit
@@ -47,6 +48,12 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(b"ok")
             return
+
+        # Artificial delay for load testing coalescing
+        if "/slow/" in path:
+            time.sleep(0.1) # 100ms delay to trigger wait window timeout (50ms)
+        elif "/fast/" in path:
+            time.sleep(0.02) # 20ms delay to ensure concurrent requests overlap in ext-proc
 
         if path == "/orders":
             g_call_count += 1

@@ -3,6 +3,7 @@
 
 #include "cache/l1_cache.h"
 #include "cache/l2_disk_cache.h"
+#include "coalescing/inflight_registry.h"
 #include "extproc/grpc_server.h"
 #include "metrics/metrics_http_server.h"
 #include "metrics/prometheus_registry.h"
@@ -148,6 +149,9 @@ int main(int argc, char** argv) {
         }
     }
 
+    bytetaper::coalescing::InFlightRegistry coalescing_registry{};
+    bytetaper::coalescing::registry_init(&coalescing_registry);
+
     bytetaper::metrics::MetricsRegistry metrics_registry{};
     bytetaper::metrics::MetricsHttpServerConfig metrics_config{};
     metrics_config.listen_address = args.metrics_listen_address;
@@ -166,6 +170,7 @@ int main(int argc, char** argv) {
     config.l1_cache = &l1_cache;
     config.l2_cache = l2_cache;
     config.metrics_registry = &metrics_registry;
+    config.coalescing_registry = &coalescing_registry;
     if (policy_result.ok) {
         config.policies = policy_result.policies;
         config.policy_count = policy_result.count;
