@@ -233,6 +233,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/cache/cache_entry_codec.cpp
     src/cache/cache_entry.cpp
     src/cache/cache_key.cpp
+    src/runtime/worker_queue.cpp
     src/cache/cache_ttl.cpp
     src/safety/fail_open.cpp
     src/policy/pagination_policy.cpp
@@ -436,6 +437,25 @@ if(BUILD_TESTING)
     add_test(
       NAME l1_cache_concurrency_test
       COMMAND l1_cache_concurrency_test
+    )
+
+    add_executable(runtime_worker_queue_test
+      tests/runtime_worker_queue_test.cpp
+      src/runtime/worker_queue.cpp
+      src/cache/cache_entry.cpp
+    )
+    target_include_directories(runtime_worker_queue_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(runtime_worker_queue_test
+      PRIVATE
+        gtest_main
+        Threads::Threads
+    )
+    add_test(
+      NAME runtime_worker_queue_test
+      COMMAND runtime_worker_queue_test
     )
 
     add_executable(l1_cache_lookup_stage_test
