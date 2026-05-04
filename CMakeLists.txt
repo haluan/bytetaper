@@ -978,6 +978,24 @@ if(BUILD_TESTING)
       COMMAND coalescing_leader_completion_test
     )
 
+    add_executable(coalescing_cache_integration_test
+      tests/coalescing_cache_integration_test.cpp
+    )
+    target_include_directories(coalescing_cache_integration_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(coalescing_cache_integration_test
+      PRIVATE
+        bytetaper_extproc_grpc_server
+        gtest_main
+    )
+
+    add_test(
+      NAME coalescing_cache_integration_test
+      COMMAND coalescing_cache_integration_test
+    )
+
     add_executable(accept_encoding_test
       tests/accept_encoding_test.cpp
       src/compression/accept_encoding.cpp
