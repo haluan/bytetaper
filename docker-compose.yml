@@ -296,5 +296,22 @@ services:
         set -eu
         sh ./tests/integration/coalescing_e2e_test.sh
 
+  bytetaper-benchmark:
+    build:
+      context: .
+      dockerfile: Dockerfile.benchmark
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    environment:
+      - ENVOY_URL=http://envoy:10000
+    depends_on:
+      mock-api:
+        condition: service_healthy
+      bytetaper-extproc:
+        condition: service_healthy
+      envoy:
+        condition: service_healthy
+
 volumes:
   bt-l2-cache: {}
