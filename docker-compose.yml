@@ -273,5 +273,28 @@ services:
         set -eu
         sh ./tests/load/coalescing_burst_test.sh
 
+  bytetaper-coalescing-e2e-test:
+    image: bytetaper-dev:latest
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    environment:
+      - BYTETAPER_TEST_BASE_URL=http://envoy:10000
+      - BYTETAPER_MOCK_COUNTER_URL=http://mock-api:8080/call-count
+      - BYTETAPER_MOCK_RESET_URL=http://mock-api:8080/reset-count
+    depends_on:
+      mock-api:
+        condition: service_healthy
+      bytetaper-extproc:
+        condition: service_healthy
+      envoy:
+        condition: service_healthy
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        set -eu
+        sh ./tests/integration/coalescing_e2e_test.sh
+
 volumes:
   bt-l2-cache: {}

@@ -99,9 +99,9 @@ echo "Phase 1 reduction: $COUNT1 / $N1"
 echo "Phase 2 results: $COUNT2 / $N2"
 
 if [ "$COUNT1" -lt "$N1" ]; then
-  echo "PASS: Load test successful"
+  echo "PASS: Coalescing load test successful"
   exit 0
 else
-  echo "FAIL: Reduction goals not met"
+  echo "FAIL: Coalescing reduction goals not met"
   exit 1
 fi

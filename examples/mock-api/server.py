@@ -30,6 +30,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_HEAD(self) -> None:
         self.do_GET()
 
+    def do_POST(self) -> None:
+        self.do_GET()
+
     def do_GET(self) -> None:
         global g_call_count
         path = urlsplit(self.path).path
