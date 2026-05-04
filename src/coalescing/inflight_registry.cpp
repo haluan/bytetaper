@@ -56,22 +56,41 @@ RegistryRegistrationResult registry_register(InFlightRegistry* registry, const c
         // Check for existing active entry
         if (slot.active && std::strcmp(slot.key, key) == 0) {
             // Check if expired
-            if (now_ms >= slot.created_at_epoch_ms + wait_window_ms) {
-                // Treat as new leader
-                std::strncpy(slot.key, key, sizeof(slot.key) - 1);
-                slot.created_at_epoch_ms = now_ms;
-                slot.waiter_count = 0;
-                slot.active = true;
-                return { InFlightRole::Leader };
-            }
+            if (slot.completed) {
+                if (now_ms >= slot.completed_at_epoch_ms + wait_window_ms) {
+                    // treat as new leader
+                    slot.completed = false;
+                    slot.created_at_epoch_ms = now_ms;
+                    slot.waiter_count = 0;
+                    slot.active = true;
+                    return { InFlightRole::Leader };
+                }
 
-            // Still in flight, check waiter limit
-            if (slot.waiter_count < max_waiters_per_key) {
-                slot.waiter_count++;
-                return { InFlightRole::Follower };
+                // Still within grace window, join as follower
+                if (slot.waiter_count < max_waiters_per_key) {
+                    slot.waiter_count++;
+                    return { InFlightRole::Follower };
+                } else {
+                    return { InFlightRole::Reject };
+                }
             } else {
-                // [BT-130-005] Too many waiters, Reject to protect backend
-                return { InFlightRole::Reject };
+                if (now_ms >= slot.created_at_epoch_ms + wait_window_ms) {
+                    // Treat as new leader
+                    std::strncpy(slot.key, key, sizeof(slot.key) - 1);
+                    slot.created_at_epoch_ms = now_ms;
+                    slot.completed = false;
+                    slot.waiter_count = 0;
+                    slot.active = true;
+                    return { InFlightRole::Leader };
+                }
+
+                // Still in flight, check waiter limit
+                if (slot.waiter_count < max_waiters_per_key) {
+                    slot.waiter_count++;
+                    return { InFlightRole::Follower };
+                } else {
+                    return { InFlightRole::Reject };
+                }
             }
         }
     }
@@ -82,7 +101,9 @@ RegistryRegistrationResult registry_register(InFlightRegistry* registry, const c
         if (!slot.active) {
             std::strncpy(slot.key, key, sizeof(slot.key) - 1);
             slot.created_at_epoch_ms = now_ms;
+            slot.completed_at_epoch_ms = 0;
             slot.waiter_count = 0;
+            slot.completed = false;
             slot.active = true;
             return { InFlightRole::Leader };
         }
@@ -92,7 +113,8 @@ RegistryRegistrationResult registry_register(InFlightRegistry* registry, const c
     return { InFlightRole::Reject };
 }
 
-void registry_complete(InFlightRegistry* registry, const char* key) {
+void registry_complete(InFlightRegistry* registry, const char* key, bool cacheable,
+                       std::uint64_t now_ms) {
     if (registry == nullptr || key == nullptr) {
         return;
     }
@@ -106,7 +128,12 @@ void registry_complete(InFlightRegistry* registry, const char* key) {
     for (std::size_t j = 0; j < kSlotsPerShard; ++j) {
         InFlightEntry& slot = shard.slots[j];
         if (slot.active && std::strcmp(slot.key, key) == 0) {
-            slot.active = false;
+            if (cacheable) {
+                slot.completed = true;
+                slot.completed_at_epoch_ms = now_ms;
+            } else {
+                slot.active = false;
+            }
             return;
         }
     }

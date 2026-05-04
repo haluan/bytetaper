@@ -84,10 +84,38 @@ TEST_F(InFlightRegistryTest, CompletionAllowsNewLeader) {
     EXPECT_EQ(registry_register(&registry, key, now, window, max_waiters).role,
               InFlightRole::Follower);
 
-    registry_complete(&registry, key);
+    registry_complete(&registry, key, false, now);
 
-    // After completion, next request is Leader again
+    // After completion with cacheable=false, next request is Leader again
     EXPECT_EQ(registry_register(&registry, key, now, window, max_waiters).role,
+              InFlightRole::Leader);
+}
+
+TEST_F(InFlightRegistryTest, CacheableCompletionAllowsFollower) {
+    const char* key = "c_key:test:1:/api";
+    std::uint64_t now = 1000;
+    std::uint32_t window = 100;
+    std::uint32_t max_waiters = 5;
+
+    registry_register(&registry, key, now, window, max_waiters);
+    registry_complete(&registry, key, true, now);
+
+    // After completion with cacheable=true, next request within window is Follower
+    EXPECT_EQ(registry_register(&registry, key, now + 10, window, max_waiters).role,
+              InFlightRole::Follower);
+}
+
+TEST_F(InFlightRegistryTest, CacheableCompletionExpiresToLeader) {
+    const char* key = "c_key:test:1:/api";
+    std::uint64_t now = 1000;
+    std::uint32_t window = 100;
+    std::uint32_t max_waiters = 5;
+
+    registry_register(&registry, key, now, window, max_waiters);
+    registry_complete(&registry, key, true, now);
+
+    // After completion window expires, next request is Leader again
+    EXPECT_EQ(registry_register(&registry, key, now + window + 1, window, max_waiters).role,
               InFlightRole::Leader);
 }
 

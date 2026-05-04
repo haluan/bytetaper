@@ -236,6 +236,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/policy/pagination_policy.cpp
     src/stages/pagination_request_mutation_stage.cpp
     src/stages/coalescing_follower_wait_stage.cpp
+    src/stages/coalescing_leader_completion_stage.cpp
     src/pagination/pagination_decision.cpp
     src/pagination/pagination_mutation.cpp
     src/pagination/pagination_query.cpp
@@ -956,6 +957,25 @@ if(BUILD_TESTING)
     add_test(
       NAME coalescing_follower_wait_test
       COMMAND coalescing_follower_wait_test
+    )
+
+    add_executable(coalescing_leader_completion_test
+      tests/coalescing_leader_completion_test.cpp
+      src/stages/coalescing_leader_completion_stage.cpp
+      src/coalescing/inflight_registry.cpp
+    )
+    target_include_directories(coalescing_leader_completion_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(coalescing_leader_completion_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME coalescing_leader_completion_test
+      COMMAND coalescing_leader_completion_test
     )
 
     add_executable(accept_encoding_test

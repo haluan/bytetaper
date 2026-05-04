@@ -33,8 +33,10 @@ struct RegistryRegistrationResult {
 struct InFlightEntry {
     char key[256] = { 0 };
     std::uint64_t created_at_epoch_ms = 0;
+    std::uint64_t completed_at_epoch_ms = 0;
     std::uint32_t waiter_count = 0;
     bool active = false;
+    bool completed = false;
 };
 
 /**
@@ -83,16 +85,21 @@ RegistryRegistrationResult registry_register(InFlightRegistry* registry, const c
                                              std::uint32_t max_waiters_per_key);
 
 /**
- * @brief Removes a leader's entry from the registry.
+ * @brief Marks a leader's request as completed in the registry.
  *
- * Called when the leader's request completes.
+ * If cacheable is true, the entry is kept in a "completed" state for a grace window.
+ * If false, the entry is cleared immediately.
  *
  * @param registry The registry instance.
- * @param key The coalescing key to complete.
+ * @param key The coalescing key.
+ * @param cacheable Whether the response was stored in cache.
+ * @param now_ms Current epoch time.
  */
-void registry_complete(InFlightRegistry* registry, const char* key);
+void registry_complete(InFlightRegistry* registry, const char* key, bool cacheable,
+                       std::uint64_t now_ms);
 
 /**
+
  * @brief Deregisters a follower/waiter from the registry.
  *
  * Called when a follower times out or otherwise cancels its wait.

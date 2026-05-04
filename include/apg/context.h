@@ -101,6 +101,7 @@ struct ApgTransformContext {
 
     // --- Coalescing decision output (written by coalescing_decision_stage) ---
     coalescing::CoalescingDecision coalescing_decision{};
+    coalescing::InFlightRegistry* coalescing_registry = nullptr;
 
     // --- Metrics (optional pointers to central registry counters) ---
     metrics::PaginationMetrics* pagination_metrics = nullptr;
