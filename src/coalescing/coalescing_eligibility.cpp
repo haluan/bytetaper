@@ -11,6 +11,8 @@ std::string_view get_rejection_reason_string(CoalescingRejectionReason reason) {
         return "none";
     case CoalescingRejectionReason::MethodNotGet:
         return "method_not_get";
+    case CoalescingRejectionReason::AuthenticatedRequest:
+        return "authenticated_request";
     }
     return "unknown";
 }

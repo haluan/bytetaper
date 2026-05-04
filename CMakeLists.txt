@@ -251,6 +251,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/policy/cache_policy_validator.cpp
     src/coalescing/coalescing_key.cpp
     src/coalescing/coalescing_eligibility.cpp
+    src/coalescing/coalescing_safety.cpp
   )
   target_include_directories(bytetaper_extproc_grpc_server
     PUBLIC
@@ -831,6 +832,25 @@ if(BUILD_TESTING)
     add_test(
       NAME coalescing_get_only_test
       COMMAND coalescing_get_only_test
+    )
+
+    add_executable(coalescing_auth_safety_test
+      tests/coalescing_auth_safety_test.cpp
+      src/coalescing/coalescing_safety.cpp
+      src/coalescing/coalescing_eligibility.cpp
+    )
+    target_include_directories(coalescing_auth_safety_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(coalescing_auth_safety_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME coalescing_auth_safety_test
+      COMMAND coalescing_auth_safety_test
     )
 
     add_executable(accept_encoding_test

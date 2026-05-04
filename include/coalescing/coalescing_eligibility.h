@@ -16,6 +16,7 @@ namespace bytetaper::coalescing {
 enum class CoalescingRejectionReason {
     None = 0,
     MethodNotGet,
+    AuthenticatedRequest,
 };
 
 /**
