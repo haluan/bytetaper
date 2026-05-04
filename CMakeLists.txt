@@ -1363,6 +1363,23 @@ if(BUILD_TESTING)
       COMMAND compression_signal_test
     )
 
+    add_executable(coalescing_signal_test
+      tests/coalescing_signal_test.cpp
+      src/api_intelligence/coalescing_signal.cpp
+    )
+    target_include_directories(coalescing_signal_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(coalescing_signal_test
+      PRIVATE
+        gtest_main
+    )
+    add_test(
+      NAME coalescing_signal_test
+      COMMAND coalescing_signal_test
+    )
+
     add_executable(coalescing_policy_test
       tests/coalescing_policy_test.cpp
       src/policy/coalescing_policy.cpp
