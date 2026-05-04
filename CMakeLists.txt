@@ -1093,6 +1093,24 @@ if(BUILD_TESTING)
       COMMAND pagination_signal_test
     )
 
+    add_executable(compression_signal_test
+      tests/compression_signal_test.cpp
+      src/api_intelligence/compression_signal.cpp
+    )
+    target_include_directories(compression_signal_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(compression_signal_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME compression_signal_test
+      COMMAND compression_signal_test
+    )
+
     add_executable(safety_fail_open_test
       tests/safety_fail_open_test.cpp
       src/safety/fail_open.cpp
