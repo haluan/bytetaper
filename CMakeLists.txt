@@ -624,6 +624,22 @@ if(BUILD_TESTING)
       COMMAND coalescing_event_driven_wait_test
     )
 
+    add_executable(coalescing_fallback_tightened_test
+      tests/coalescing_fallback_tightened_test.cpp
+    )
+    target_link_libraries(coalescing_fallback_tightened_test
+      PRIVATE
+        gtest_main
+        bytetaper_extproc_grpc_server
+        RocksDB::RocksDB
+        bytetaper_prometheus_registry
+    )
+
+    add_test(
+      NAME coalescing_fallback_tightened_test
+      COMMAND coalescing_fallback_tightened_test
+    )
+
     add_executable(json_transform_content_type_test
       tests/json_transform_content_type_test.cpp
       src/json_transform/content_type.cpp

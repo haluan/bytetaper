@@ -47,6 +47,10 @@ apg::StageOutput coalescing_follower_wait_stage(apg::ApgTransformContext& contex
     // Step 1: L1 Check before waiting
     apg::StageOutput l1_res = l1_cache_lookup_stage(context);
     if (l1_res.result == apg::StageResult::SkipRemaining) {
+        if (context.coalescing_registry != nullptr) {
+            coalescing::registry_remove_waiter(context.coalescing_registry,
+                                               context.coalescing_decision.key);
+        }
         record_coalescing_event(context.coalescing_metrics,
                                 metrics::CoalescingMetricEvent::FollowerCacheHit);
         return l1_res;
@@ -59,6 +63,10 @@ apg::StageOutput coalescing_follower_wait_stage(apg::ApgTransformContext& contex
     // Step 3: L1 check after wake (whether Completed, Timeout, or Missing)
     l1_res = l1_cache_lookup_stage(context);
     if (l1_res.result == apg::StageResult::SkipRemaining) {
+        if (context.coalescing_registry != nullptr) {
+            coalescing::registry_remove_waiter(context.coalescing_registry,
+                                               context.coalescing_decision.key);
+        }
         record_coalescing_event(context.coalescing_metrics,
                                 metrics::CoalescingMetricEvent::FollowerCacheHit);
         return l1_res;
