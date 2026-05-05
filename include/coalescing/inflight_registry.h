@@ -4,6 +4,7 @@
 #ifndef BYTETAPER_COALESCING_INFLIGHT_REGISTRY_H
 #define BYTETAPER_COALESCING_INFLIGHT_REGISTRY_H
 
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <mutex>
@@ -50,6 +51,7 @@ static constexpr std::size_t kSlotsPerShard = 16; // 4096 total capacity
  */
 struct InFlightShard {
     std::mutex mutex;
+    std::condition_variable cv; // notified by registry_complete()
     InFlightEntry slots[kSlotsPerShard];
 };
 
@@ -97,6 +99,28 @@ RegistryRegistrationResult registry_register(InFlightRegistry* registry, const c
  */
 void registry_complete(InFlightRegistry* registry, const char* key, bool cacheable,
                        std::uint64_t now_ms);
+
+/**
+ * @brief Result of a registry wait operation.
+ */
+enum class RegistryWaitResult : std::uint8_t {
+    Completed, // Leader marked completion before deadline
+    Timeout,   // Wait window elapsed without leader completion
+    Missing,   // Key not found in registry
+};
+
+/**
+ * @brief Blocks the calling thread until the leader for key completes or timeout.
+ *
+ * Uses std::condition_variable internally for efficient wakeup.
+ *
+ * @param registry The registry instance.
+ * @param key The coalescing key.
+ * @param wait_window_ms Maximum time to wait in milliseconds.
+ * @return RegistryWaitResult The result of the wait.
+ */
+RegistryWaitResult registry_wait_for_completion(InFlightRegistry* registry, const char* key,
+                                                std::uint32_t wait_window_ms);
 
 /**
 

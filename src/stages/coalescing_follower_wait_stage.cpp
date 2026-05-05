@@ -5,12 +5,10 @@
 
 #include "coalescing/coalescing_timeout.h"
 #include "coalescing/inflight_registry.h"
-#include "coalescing/wait_window.h"
 #include "metrics/coalescing_metrics.h"
 #include "stages/l1_cache_lookup_stage.h"
 
 #include <chrono>
-#include <thread>
 
 namespace bytetaper::stages {
 
@@ -39,48 +37,47 @@ apg::StageOutput coalescing_follower_wait_stage(apg::ApgTransformContext& contex
         return { apg::StageResult::Continue, "cache-disabled-bypassed" };
     }
 
-    std::uint32_t wait_window_ms = policy.wait_window_ms;
-    std::uint64_t start_epoch_ms = static_cast<std::uint64_t>(context.request_epoch_ms);
-
-    // Polling loop
-    while (true) {
-        // 1. Check L1 Cache
-        apg::StageOutput l1_res = l1_cache_lookup_stage(context);
-        if (l1_res.result == apg::StageResult::SkipRemaining) {
-            record_coalescing_event(context.coalescing_metrics,
-                                    metrics::CoalescingMetricEvent::FollowerCacheHit);
-            return l1_res;
-        }
-
-        // 2. Check for timeout
-        // We use a high-resolution steady clock for current time relative to start,
-        // but the context request_epoch_ms is our base.
-        // For simplicity and alignment with Orthodox C++ patterns in this project,
-        // we'll use a mocked-safe "now" logic or standard system clock.
-        auto now = std::chrono::system_clock::now();
-        auto now_ms =
-            std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
-
-        if (coalescing::has_wait_window_expired(start_epoch_ms, static_cast<std::uint64_t>(now_ms),
-                                                wait_window_ms)) {
-            break;
-        }
-
-        // 3. Wait a bit before polling again
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    const std::uint32_t wait_window_ms = policy.wait_window_ms;
+    if (context.coalescing_registry == nullptr) {
+        context.coalescing_decision.action = coalescing::CoalescingAction::Bypass;
+        record_coalescing_event(context.coalescing_metrics, metrics::CoalescingMetricEvent::Bypass);
+        return { apg::StageResult::Continue, "no-registry" };
     }
 
-    // Fallback upstream on timeout/miss
-    if (context.coalescing_registry != nullptr) {
+    // Step 1: L1 Check before waiting
+    apg::StageOutput l1_res = l1_cache_lookup_stage(context);
+    if (l1_res.result == apg::StageResult::SkipRemaining) {
+        record_coalescing_event(context.coalescing_metrics,
+                                metrics::CoalescingMetricEvent::FollowerCacheHit);
+        return l1_res;
+    }
+
+    // Step 2: Block until leader completes or timeout
+    const coalescing::RegistryWaitResult wait_result = coalescing::registry_wait_for_completion(
+        context.coalescing_registry, context.coalescing_decision.key, wait_window_ms);
+
+    // Step 3: L1 check after wake (whether Completed, Timeout, or Missing)
+    l1_res = l1_cache_lookup_stage(context);
+    if (l1_res.result == apg::StageResult::SkipRemaining) {
+        record_coalescing_event(context.coalescing_metrics,
+                                metrics::CoalescingMetricEvent::FollowerCacheHit);
+        return l1_res;
+    }
+
+    // L1 miss after wait — fallback upstream
+    if (wait_result == coalescing::RegistryWaitResult::Timeout ||
+        wait_result == coalescing::RegistryWaitResult::Missing) {
         coalescing::handle_timeout_fallback(context.coalescing_registry,
                                             context.coalescing_decision);
         record_coalescing_event(context.coalescing_metrics,
                                 metrics::CoalescingMetricEvent::Fallback);
-    } else {
-        context.coalescing_decision.action = coalescing::CoalescingAction::Bypass;
-        record_coalescing_event(context.coalescing_metrics, metrics::CoalescingMetricEvent::Bypass);
+        return { apg::StageResult::Continue, "timeout-fallback" };
     }
-    return { apg::StageResult::Continue, "timeout-fallback" };
+
+    // Leader completed (Completed) but L1 still miss — leader may not have cached or was evicted.
+    coalescing::handle_timeout_fallback(context.coalescing_registry, context.coalescing_decision);
+    record_coalescing_event(context.coalescing_metrics, metrics::CoalescingMetricEvent::Fallback);
+    return { apg::StageResult::Continue, "leader-complete-l1-miss" };
 }
 
 } // namespace bytetaper::stages

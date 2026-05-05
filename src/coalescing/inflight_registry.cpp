@@ -3,6 +3,7 @@
 
 #include "coalescing/inflight_registry.h"
 
+#include <chrono>
 #include <cstring>
 
 namespace bytetaper::coalescing {
@@ -134,6 +135,7 @@ void registry_complete(InFlightRegistry* registry, const char* key, bool cacheab
             } else {
                 slot.active = false;
             }
+            shard.cv.notify_all();
             return;
         }
     }
@@ -158,6 +160,49 @@ void registry_remove_waiter(InFlightRegistry* registry, const char* key) {
             return;
         }
     }
+}
+
+RegistryWaitResult registry_wait_for_completion(InFlightRegistry* registry, const char* key,
+                                                std::uint32_t wait_window_ms) {
+    if (registry == nullptr || key == nullptr) {
+        return RegistryWaitResult::Missing;
+    }
+
+    const std::uint64_t hash = hash_string(key);
+    InFlightShard& shard = registry->shards[hash % kInFlightShards];
+
+    std::unique_lock<std::mutex> lock(shard.mutex);
+
+    // 1. Find the entry
+    InFlightEntry* entry = nullptr;
+    for (std::size_t j = 0; j < kSlotsPerShard; ++j) {
+        if (shard.slots[j].active && std::strcmp(shard.slots[j].key, key) == 0) {
+            entry = &shard.slots[j];
+            break;
+        }
+    }
+
+    if (entry == nullptr) {
+        return RegistryWaitResult::Missing;
+    }
+
+    // 2. Already completed?
+    if (entry->completed) {
+        return RegistryWaitResult::Completed;
+    }
+
+    // 3. Wait for notification or timeout
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::milliseconds(wait_window_ms);
+
+    const bool signalled =
+        shard.cv.wait_until(lock, deadline, [entry] { return entry->completed || !entry->active; });
+
+    if (!signalled) {
+        return RegistryWaitResult::Timeout;
+    }
+
+    return entry->completed ? RegistryWaitResult::Completed : RegistryWaitResult::Missing;
 }
 
 } // namespace bytetaper::coalescing

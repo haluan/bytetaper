@@ -608,6 +608,22 @@ if(BUILD_TESTING)
       COMMAND cache_hot_path_regression_test
     )
 
+    add_executable(coalescing_event_driven_wait_test
+      tests/coalescing_event_driven_wait_test.cpp
+    )
+    target_link_libraries(coalescing_event_driven_wait_test
+      PRIVATE
+        gtest_main
+        bytetaper_extproc_grpc_server
+        RocksDB::RocksDB
+        bytetaper_prometheus_registry
+    )
+
+    add_test(
+      NAME coalescing_event_driven_wait_test
+      COMMAND coalescing_event_driven_wait_test
+    )
+
     add_executable(json_transform_content_type_test
       tests/json_transform_content_type_test.cpp
       src/json_transform/content_type.cpp

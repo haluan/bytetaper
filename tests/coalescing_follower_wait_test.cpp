@@ -3,6 +3,7 @@
 
 #include "cache/cache_key.h"
 #include "cache/l1_cache.h"
+#include "coalescing/inflight_registry.h"
 #include "stages/coalescing_follower_wait_stage.h"
 
 #include <chrono>
@@ -33,9 +34,15 @@ protected:
         ctx.request_epoch_ms =
             std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
 
+        registry = std::make_unique<coalescing::InFlightRegistry>();
+        coalescing::registry_init(registry.get());
+
         ctx.coalescing_decision.action = coalescing::CoalescingAction::Follower;
         std::strcpy(ctx.coalescing_decision.key, "c_key:test:1:/path");
+        ctx.coalescing_registry = registry.get();
     }
+
+    std::unique_ptr<coalescing::InFlightRegistry> registry;
 
     std::unique_ptr<cache::L1Cache> l1_cache;
     policy::RoutePolicy policy;
@@ -74,7 +81,10 @@ TEST_F(CoalescingFollowerWaitTest, ImmediateHitReturnsSkip) {
 }
 
 TEST_F(CoalescingFollowerWaitTest, TimeoutReturnsContinue) {
-    // Ensure cache is empty
+    // Register leader so follower actually enters wait
+    coalescing::registry_register(registry.get(), ctx.coalescing_decision.key, ctx.request_epoch_ms,
+                                  50, 128);
+
     policy.coalescing.wait_window_ms = 20; // Short wait
 
     auto start = std::chrono::steady_clock::now();
@@ -88,12 +98,10 @@ TEST_F(CoalescingFollowerWaitTest, TimeoutReturnsContinue) {
 }
 
 TEST_F(CoalescingFollowerWaitTest, L2SeededNoL1HitTimesOut) {
-    // Prove that follower wait does not consult L2.
-    // L2 is populated with a valid entry (implicitly via ctx.l2_cache check in code),
-    // but the stage must NOT call l2_cache_lookup_stage.
-    // In this test, ctx.l2_cache is nullptr — if the stage tried to call
-    // l2_cache_lookup_stage, it would hit the context.l2_cache == nullptr check
-    // and continue, but we want to ensure it doesn't even try.
+    // Register leader
+    coalescing::registry_register(registry.get(), ctx.coalescing_decision.key, ctx.request_epoch_ms,
+                                  50, 128);
+
     policy.coalescing.wait_window_ms = 20; // short timeout
 
     // No L1 population, so L1 will always miss.
