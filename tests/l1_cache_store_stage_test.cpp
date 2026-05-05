@@ -54,7 +54,9 @@ TEST_F(L1CacheStoreStageTest, EligibleResponseStored) {
     ASSERT_TRUE(cache::build_cache_key(ki, key_buf, sizeof(key_buf)));
 
     cache::CacheEntry hit{};
-    EXPECT_TRUE(cache::l1_get(l1_cache_ptr_.get(), key_buf, 1000, &hit));
+    char body_buf[cache::kL1MaxBodySize];
+    EXPECT_TRUE(
+        cache::l1_get(l1_cache_ptr_.get(), key_buf, 1000, &hit, body_buf, sizeof(body_buf)));
     EXPECT_EQ(hit.status_code, 200);
     EXPECT_EQ(hit.body_len, 5u);
     EXPECT_EQ(hit.expires_at_epoch_ms, 1000 + 60 * 1000);

@@ -40,7 +40,8 @@ apg::StageOutput l1_cache_lookup_stage(apg::ApgTransformContext& context) {
     }
 
     cache::CacheEntry hit{};
-    if (!cache::l1_get(context.l1_cache, key_buf, context.request_epoch_ms, &hit)) {
+    if (!cache::l1_get(context.l1_cache, key_buf, context.request_epoch_ms, &hit,
+                       context.l2_body_buf, sizeof(context.l2_body_buf))) {
         return { apg::StageResult::Continue, "l1-miss" };
     }
 

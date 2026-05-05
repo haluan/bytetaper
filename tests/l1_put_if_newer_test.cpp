@@ -30,7 +30,8 @@ TEST_F(L1PutIfNewerTest, EmptyL1PromotesUnconditionally) {
     l1_put_if_newer(l1_cache.get(), entry);
 
     CacheEntry out{};
-    EXPECT_TRUE(l1_get(l1_cache.get(), "key1", 0, &out));
+    char body_buf[kL1MaxBodySize] = {};
+    EXPECT_TRUE(l1_get(l1_cache.get(), "key1", 0, &out, body_buf, sizeof(body_buf)));
     EXPECT_EQ(out.created_at_epoch_ms, 1000);
 }
 
@@ -49,7 +50,8 @@ TEST_F(L1PutIfNewerTest, NewerExistingRejectsStaleIncoming) {
     l1_put_if_newer(l1_cache.get(), stale);
 
     CacheEntry out{};
-    EXPECT_TRUE(l1_get(l1_cache.get(), "key1", 0, &out));
+    char body_buf[kL1MaxBodySize] = {};
+    EXPECT_TRUE(l1_get(l1_cache.get(), "key1", 0, &out, body_buf, sizeof(body_buf)));
     EXPECT_EQ(out.created_at_epoch_ms, 2000); // Still 2000
     EXPECT_EQ(out.body_len, 0);               // Not the "stale" body
 }
@@ -69,7 +71,8 @@ TEST_F(L1PutIfNewerTest, OlderExistingAcceptsNewerIncoming) {
     l1_put_if_newer(l1_cache.get(), newer);
 
     CacheEntry out{};
-    EXPECT_TRUE(l1_get(l1_cache.get(), "key1", 0, &out));
+    char body_buf[kL1MaxBodySize] = {};
+    EXPECT_TRUE(l1_get(l1_cache.get(), "key1", 0, &out, body_buf, sizeof(body_buf)));
     EXPECT_EQ(out.created_at_epoch_ms, 2000);
     EXPECT_STREQ(static_cast<const char*>(out.body), "newer");
 }
@@ -89,7 +92,8 @@ TEST_F(L1PutIfNewerTest, SameTimestampPromotes) {
     l1_put_if_newer(l1_cache.get(), same);
 
     CacheEntry out{};
-    EXPECT_TRUE(l1_get(l1_cache.get(), "key1", 0, &out));
+    char body_buf[kL1MaxBodySize] = {};
+    EXPECT_TRUE(l1_get(l1_cache.get(), "key1", 0, &out, body_buf, sizeof(body_buf)));
     EXPECT_STREQ(static_cast<const char*>(out.body), "same");
 }
 

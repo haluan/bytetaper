@@ -13,6 +13,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(RocksDB REQUIRED)
 option(BYTETAPER_ENABLE_GTEST_TESTS "Enable GoogleTest-based unit tests" OFF)
 option(BYTETAPER_ENABLE_INTEGRATION_TESTS "Enable integration-style extproc adapter tests" OFF)
+option(BYTETAPER_ENABLE_TSAN "Enable ThreadSanitizer for concurrency tests" OFF)
 
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(YAML_CPP REQUIRED yaml-cpp)
@@ -59,6 +60,34 @@ target_include_directories(bytetaper-extproc
 target_link_libraries(bytetaper-extproc
   PRIVATE
     RocksDB::RocksDB
+)
+
+find_package(Threads REQUIRED)
+
+add_library(bytetaper_prometheus_registry STATIC
+  src/metrics/prometheus_registry.cpp
+  src/metrics/cache_metrics.cpp
+  src/metrics/pagination_metrics.cpp
+  src/metrics/compression_metrics.cpp
+  src/metrics/coalescing_metrics.cpp
+  src/metrics/runtime_metrics.cpp
+)
+target_include_directories(bytetaper_prometheus_registry
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
+add_library(bytetaper_metrics_http_server STATIC
+  src/metrics/metrics_http_server.cpp
+)
+target_include_directories(bytetaper_metrics_http_server
+  PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+target_link_libraries(bytetaper_metrics_http_server
+  PRIVATE
+    bytetaper_prometheus_registry
+    Threads::Threads
 )
 
 add_executable(bytetaper-validate-policy
@@ -188,33 +217,6 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
       bytetaper_extproc_proto
   )
 
-  find_package(Threads REQUIRED)
-
-  add_library(bytetaper_prometheus_registry STATIC
-    src/metrics/prometheus_registry.cpp
-    src/metrics/cache_metrics.cpp
-    src/metrics/pagination_metrics.cpp
-    src/metrics/compression_metrics.cpp
-    src/metrics/coalescing_metrics.cpp
-    src/metrics/runtime_metrics.cpp
-  )
-  target_include_directories(bytetaper_prometheus_registry
-    PUBLIC
-      ${CMAKE_CURRENT_SOURCE_DIR}/include
-  )
-
-  add_library(bytetaper_metrics_http_server STATIC
-    src/metrics/metrics_http_server.cpp
-  )
-  target_include_directories(bytetaper_metrics_http_server
-    PUBLIC
-      ${CMAKE_CURRENT_SOURCE_DIR}/include
-  )
-  target_link_libraries(bytetaper_metrics_http_server
-    PRIVATE
-      bytetaper_prometheus_registry
-      Threads::Threads
-  )
 
   add_library(bytetaper_extproc_grpc_server STATIC
     src/extproc/grpc_server.cpp
@@ -417,31 +419,12 @@ if(BUILD_TESTING)
       PRIVATE
         gtest_main
         RocksDB::RocksDB
+        bytetaper_prometheus_registry
     )
 
     add_test(
       NAME l1_cache_test
       COMMAND l1_cache_test
-    )
-
-    add_executable(l1_cache_concurrency_test
-      tests/l1_cache_concurrency_test.cpp
-      src/cache/l1_cache.cpp
-      src/cache/cache_entry.cpp
-    )
-    target_include_directories(l1_cache_concurrency_test
-      PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-    )
-    target_link_libraries(l1_cache_concurrency_test
-      PRIVATE
-        gtest_main
-        RocksDB::RocksDB
-    )
-
-    add_test(
-      NAME l1_cache_concurrency_test
-      COMMAND l1_cache_concurrency_test
     )
 
     add_executable(runtime_worker_queue_test
@@ -501,6 +484,7 @@ if(BUILD_TESTING)
     target_link_libraries(l1_cache_lookup_stage_test
       PRIVATE
         gtest_main
+        bytetaper_prometheus_registry
     )
 
     add_test(
@@ -547,6 +531,7 @@ if(BUILD_TESTING)
     target_link_libraries(l1_cache_store_stage_test
       PRIVATE
         gtest_main
+        bytetaper_prometheus_registry
     )
 
     add_test(
@@ -567,6 +552,7 @@ if(BUILD_TESTING)
       PRIVATE
         gtest_main
         RocksDB::RocksDB
+        bytetaper_prometheus_registry
     )
     add_test(
       NAME l1_put_if_newer_test
@@ -616,6 +602,7 @@ if(BUILD_TESTING)
       PRIVATE
         gtest_main
         RocksDB::RocksDB
+        bytetaper_prometheus_registry
     )
 
     add_test(
@@ -1179,6 +1166,69 @@ if(BUILD_TESTING)
       PRIVATE
         bytetaper_extproc_grpc_server
         gtest_main
+        RocksDB::RocksDB
+        Threads::Threads
+    )
+
+    add_executable(l1_cache_concurrency_test
+      tests/l1_cache_concurrency_test.cpp
+    )
+    target_include_directories(l1_cache_concurrency_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(l1_cache_concurrency_test
+      PRIVATE
+        bytetaper_extproc_grpc_server
+        gtest_main
+        Threads::Threads
+    )
+    if(BYTETAPER_ENABLE_TSAN)
+      target_compile_options(l1_cache_concurrency_test PRIVATE -fsanitize=thread)
+      target_link_options(l1_cache_concurrency_test PRIVATE -fsanitize=thread)
+    endif()
+
+    add_test(
+      NAME l1_cache_concurrency_test
+      COMMAND l1_cache_concurrency_test
+    )
+
+    add_executable(runtime_worker_queue_concurrency_test
+      tests/runtime_worker_queue_concurrency_test.cpp
+    )
+    target_include_directories(runtime_worker_queue_concurrency_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(runtime_worker_queue_concurrency_test
+      PRIVATE
+        bytetaper_extproc_grpc_server
+        gtest_main
+        RocksDB::RocksDB
+        Threads::Threads
+    )
+    add_test(
+      NAME runtime_worker_queue_concurrency_test
+      COMMAND runtime_worker_queue_concurrency_test
+    )
+
+    add_executable(l2_async_worker_concurrency_test
+      tests/l2_async_worker_concurrency_test.cpp
+    )
+    target_include_directories(l2_async_worker_concurrency_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(l2_async_worker_concurrency_test
+      PRIVATE
+        bytetaper_extproc_grpc_server
+        gtest_main
+        RocksDB::RocksDB
+        Threads::Threads
+    )
+    add_test(
+      NAME l2_async_worker_concurrency_test
+      COMMAND l2_async_worker_concurrency_test
     )
 
     add_test(

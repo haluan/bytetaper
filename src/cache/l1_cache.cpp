@@ -116,7 +116,8 @@ bool l1_put_if_newer(L1Cache* cache, const CacheEntry& entry) {
     return true;
 }
 
-bool l1_get(const L1Cache* cache, const char* key, std::int64_t now_ms, CacheEntry* out) {
+bool l1_get(const L1Cache* cache, const char* key, std::int64_t now_ms, CacheEntry* out,
+            char* body_out, std::size_t body_out_capacity) {
     if (cache == nullptr || key == nullptr || out == nullptr) {
         return false;
     }
@@ -140,9 +141,17 @@ bool l1_get(const L1Cache* cache, const char* key, std::int64_t now_ms, CacheEnt
         }
 
         *out = shard.slots[i];
-        // Ensure out->body points to the slot's buffer, not the original source
-        if (out->body_len > 0) {
-            out->body = shard.bodies[i];
+
+        // Copy body into provided buffer while locked to prevent torn reads.
+        if (out->body_len > 0 && body_out != nullptr && body_out_capacity > 0) {
+            std::size_t copy_len =
+                (out->body_len > body_out_capacity) ? body_out_capacity : out->body_len;
+            std::memcpy(body_out, shard.bodies[i], copy_len);
+            out->body = body_out;
+            out->body_len = copy_len;
+        } else {
+            out->body = nullptr;
+            out->body_len = 0;
         }
         return true;
     }

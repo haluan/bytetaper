@@ -92,6 +92,13 @@ bool worker_queue_try_enqueue(WorkerQueue* q, const RuntimeCacheJob& job);
 // Caller must keep any L2DiskCache alive until this returns.
 void worker_queue_shutdown(WorkerQueue* q);
 
+/**
+ * Dequeues and synchronously executes one job using q->resources.
+ * Intended for deterministic unit tests only — does not start threads.
+ * Returns true if a job was dequeued and executed; false if queue was empty.
+ */
+bool worker_queue_execute_one_for_test(WorkerQueue* q);
+
 } // namespace bytetaper::runtime
 
 #endif // BYTETAPER_RUNTIME_WORKER_QUEUE_H

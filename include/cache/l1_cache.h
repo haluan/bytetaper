@@ -40,9 +40,11 @@ void l1_put(L1Cache* cache, const CacheEntry& entry);
 bool l1_put_if_newer(L1Cache* cache, const CacheEntry& entry);
 
 // Retrieves an entry by key from the appropriate shard.
-// Copies the matching entry into *out and returns true. Returns false on miss.
-// now_ms == 0 skips expiry check (useful in tests with no real clock).
-bool l1_get(const L1Cache* cache, const char* key, std::int64_t now_ms, CacheEntry* out);
+// Copies the matching entry into *out and copies the body into body_out.
+// Returns true on hit. Returns false on miss.
+// now_ms == 0 skips expiry check.
+bool l1_get(const L1Cache* cache, const char* key, std::int64_t now_ms, CacheEntry* out,
+            char* body_out, std::size_t body_out_capacity);
 
 } // namespace bytetaper::cache
 

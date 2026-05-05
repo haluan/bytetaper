@@ -79,8 +79,8 @@ TEST_F(L2PromotionTest, L2HitPromotesToL1) {
     ki.policy_version = pol.route_id;
     char key_buf[cache::kCacheKeyMaxLen] = {};
     cache::build_cache_key(ki, key_buf, sizeof(key_buf));
-
-    EXPECT_FALSE(cache::l1_get(l1_.get(), key_buf, 0, &check));
+    char body_buf[cache::kL1MaxBodySize];
+    EXPECT_FALSE(cache::l1_get(l1_.get(), key_buf, 0, &check, body_buf, sizeof(body_buf)));
 
     // First request hits L2 and should promote
     auto out = l2_cache_lookup_stage(ctx);
@@ -88,7 +88,7 @@ TEST_F(L2PromotionTest, L2HitPromotesToL1) {
     EXPECT_STREQ(ctx.cache_layer, "L2");
 
     // Verify now in L1
-    EXPECT_TRUE(cache::l1_get(l1_.get(), key_buf, 0, &check));
+    EXPECT_TRUE(cache::l1_get(l1_.get(), key_buf, 0, &check, body_buf, sizeof(body_buf)));
     EXPECT_EQ(check.status_code, 200);
 }
 
@@ -143,7 +143,8 @@ TEST_F(L2PromotionTest, ExpiredL2NotPromoted) {
     cache::build_cache_key(ki, key_buf, sizeof(key_buf));
 
     cache::CacheEntry check{};
-    EXPECT_FALSE(cache::l1_get(l1_.get(), key_buf, 1000, &check));
+    char body_buf[cache::kL1MaxBodySize];
+    EXPECT_FALSE(cache::l1_get(l1_.get(), key_buf, 1000, &check, body_buf, sizeof(body_buf)));
 }
 
 TEST_F(L2PromotionTest, NullL1CacheSkipsPromotion) {
