@@ -5,6 +5,7 @@
 #include "cache/cache_key.h"
 #include "cache/l1_cache.h"
 #include "cache/l2_disk_cache.h"
+#include "metrics/runtime_metrics.h"
 #include "runtime/pending_lookup_registry.h"
 #include "runtime/worker_queue.h"
 #include "stages/l2_cache_async_store_enqueue_stage.h"
@@ -38,6 +39,7 @@ protected:
         ctx.l1_cache = l1_cache.get();
         ctx.l2_cache = l2_cache;
         ctx.worker_queue = &worker_queue;
+        ctx.runtime_metrics = &metrics;
         std::strcpy(ctx.raw_path, "/path");
         ctx.request_method = policy::HttpMethod::Get;
         ctx.response_status_code = 200;
@@ -48,6 +50,7 @@ protected:
     std::unique_ptr<cache::L1Cache> l1_cache;
     cache::L2DiskCache* l2_cache;
     runtime::WorkerQueue worker_queue;
+    metrics::RuntimeMetrics metrics{};
     policy::RoutePolicy policy;
     apg::ApgTransformContext ctx;
 };
@@ -57,6 +60,7 @@ TEST_F(L2CacheAsyncStoreEnqueueStageTest, EligibleResponseEnqueuesL2Store) {
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "enqueued");
     EXPECT_EQ(worker_queue.count, 1);
+    EXPECT_EQ(metrics.l2_async_store_total.load(), 1);
 
     // Verify job content
     auto& slot = worker_queue.slots[worker_queue.head];
@@ -75,6 +79,7 @@ TEST_F(L2CacheAsyncStoreEnqueueStageTest, L2StoreQueueFullDoesNotFailResponse) {
     auto output = l2_cache_async_store_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "queue-full");
+    EXPECT_EQ(metrics.l2_async_store_dropped_total.load(), 1);
 }
 
 TEST_F(L2CacheAsyncStoreEnqueueStageTest, L2StoreJobOwnsBodyMemory) {
@@ -98,6 +103,7 @@ TEST_F(L2CacheAsyncStoreEnqueueStageTest, OversizedBodySkipsAsyncL2Store) {
     auto output = l2_cache_async_store_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "body-too-large");
+    EXPECT_EQ(metrics.l2_async_store_oversized_skipped_total.load(), 1);
 }
 
 TEST_F(L2CacheAsyncStoreEnqueueStageTest, NonGetRequestSkips) {

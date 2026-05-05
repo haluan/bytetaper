@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Haluan Irsad
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
 
+#include "metrics/runtime_metrics.h"
 #include "runtime/worker_queue.h"
 
 #include <chrono>
@@ -18,6 +19,7 @@ protected:
     }
 
     std::unique_ptr<WorkerQueue> q_;
+    bytetaper::metrics::RuntimeMetrics metrics_{};
 };
 
 TEST_F(WorkerQueueTest, InitAndStartStop) {
@@ -28,6 +30,7 @@ TEST_F(WorkerQueueTest, InitAndStartStop) {
     const char* err = worker_queue_init(q_.get(), cfg);
     ASSERT_EQ(err, nullptr) << "Init failed: " << (err ? err : "");
     WorkerQueueResources res{};
+    res.runtime_metrics = &metrics_;
     EXPECT_EQ(worker_queue_start(q_.get(), res), nullptr);
 
     worker_queue_shutdown(q_.get());
@@ -39,6 +42,7 @@ TEST_F(WorkerQueueTest, EnqueueSucceeds) {
     cfg.worker_count = 1;
     ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
     WorkerQueueResources res{};
+    res.runtime_metrics = &metrics_;
     EXPECT_EQ(worker_queue_start(q_.get(), res), nullptr);
 
     RuntimeCacheJob job;
@@ -60,6 +64,7 @@ TEST_F(WorkerQueueTest, QueueFullReturnsFalse) {
     {
         std::lock_guard<std::mutex> lock(q_->mu);
         q_->running = true;
+        q_->resources.runtime_metrics = &metrics_;
     }
 
     RuntimeCacheJob job;
@@ -68,7 +73,7 @@ TEST_F(WorkerQueueTest, QueueFullReturnsFalse) {
     }
 
     EXPECT_FALSE(worker_queue_try_enqueue(q_.get(), job));
-    EXPECT_EQ(q_->dropped_count.load(), 1u);
+    EXPECT_EQ(metrics_.worker_enqueue_dropped_total.load(), 1u);
 }
 
 TEST_F(WorkerQueueTest, DroppedCountAccumulates) {
@@ -79,6 +84,7 @@ TEST_F(WorkerQueueTest, DroppedCountAccumulates) {
     {
         std::lock_guard<std::mutex> lock(q_->mu);
         q_->running = true;
+        q_->resources.runtime_metrics = &metrics_;
     }
 
     RuntimeCacheJob job;
@@ -88,7 +94,7 @@ TEST_F(WorkerQueueTest, DroppedCountAccumulates) {
         EXPECT_FALSE(worker_queue_try_enqueue(q_.get(), job));
     }
 
-    EXPECT_EQ(q_->dropped_count.load(), 10u);
+    EXPECT_EQ(metrics_.worker_enqueue_dropped_total.load(), 10u);
 }
 
 TEST_F(WorkerQueueTest, EnqueueAfterShutdownReturnsFalse) {
@@ -97,6 +103,7 @@ TEST_F(WorkerQueueTest, EnqueueAfterShutdownReturnsFalse) {
     cfg.worker_count = 1;
     ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
     WorkerQueueResources res{};
+    res.runtime_metrics = &metrics_;
     EXPECT_EQ(worker_queue_start(q_.get(), res), nullptr);
     worker_queue_shutdown(q_.get());
 

@@ -5,6 +5,7 @@
 
 #include "cache/l1_cache.h"
 #include "cache/l2_disk_cache.h"
+#include "metrics/runtime_metrics.h"
 #include "runtime/pending_lookup_registry.h"
 
 #include <chrono>
@@ -30,13 +31,22 @@ static void worker_loop(WorkerQueue* q) {
 
             q->head = (q->head + 1) % q->capacity;
             q->count--;
+
+            if (q->resources.runtime_metrics != nullptr) {
+                q->resources.runtime_metrics->worker_queue_depth.fetch_sub(
+                    1, std::memory_order_relaxed);
+            }
         }
+
+        ::bytetaper::metrics::record_runtime_event(
+            q->resources.runtime_metrics, ::bytetaper::metrics::RuntimeMetricEvent::JobExecuted);
 
         // Dispatch based on job kind
         if (job.kind == RuntimeJobKind::L2Lookup) {
             auto* l1 = q->resources.l1_cache;
             auto* l2 = q->resources.l2_cache;
             auto* pend = q->resources.pending;
+            auto* m = q->resources.runtime_metrics;
 
             if (l2 != nullptr) {
                 cache::CacheEntry hit{};
@@ -47,9 +57,27 @@ static void worker_loop(WorkerQueue* q) {
                 // Note: job.body in the slot is where we read the L2 body into.
                 bool found =
                     cache::l2_get(l2, job.entry.key, now_ms, &hit, job.body, kAsyncL2MaxBodySize);
-                if (found && l1 != nullptr) {
-                    cache::l1_put_if_newer(l1, hit);
+                if (found) {
+                    ::bytetaper::metrics::record_runtime_event(
+                        m, ::bytetaper::metrics::RuntimeMetricEvent::L2LookupHit);
+                    if (l1 != nullptr) {
+                        if (cache::l1_put_if_newer(l1, hit)) {
+                            ::bytetaper::metrics::record_runtime_event(
+                                m, ::bytetaper::metrics::RuntimeMetricEvent::L2ToL1Promotion);
+                        } else {
+                            ::bytetaper::metrics::record_runtime_event(
+                                m, ::bytetaper::metrics::RuntimeMetricEvent::L2ToL1StaleRejected);
+                        }
+                    }
+                } else {
+                    ::bytetaper::metrics::record_runtime_event(
+                        m, ::bytetaper::metrics::RuntimeMetricEvent::L2LookupMiss);
                 }
+            } else {
+                ::bytetaper::metrics::record_runtime_event(
+                    m, ::bytetaper::metrics::RuntimeMetricEvent::L2LookupError);
+                ::bytetaper::metrics::record_runtime_event(
+                    m, ::bytetaper::metrics::RuntimeMetricEvent::JobError);
             }
 
             if (pend != nullptr) {
@@ -57,9 +85,23 @@ static void worker_loop(WorkerQueue* q) {
             }
         } else if (job.kind == RuntimeJobKind::L2Store) {
             auto* l2 = q->resources.l2_cache;
+            auto* m = q->resources.runtime_metrics;
             if (l2 != nullptr) {
                 // entry.body already points to job.body (fixed in worker_loop dequeue or enqueue)
-                cache::l2_put(l2, job.entry);
+                if (cache::l2_put(l2, job.entry)) {
+                    ::bytetaper::metrics::record_runtime_event(
+                        m, ::bytetaper::metrics::RuntimeMetricEvent::L2StoreSuccess);
+                } else {
+                    ::bytetaper::metrics::record_runtime_event(
+                        m, ::bytetaper::metrics::RuntimeMetricEvent::L2StoreError);
+                    ::bytetaper::metrics::record_runtime_event(
+                        m, ::bytetaper::metrics::RuntimeMetricEvent::JobError);
+                }
+            } else {
+                ::bytetaper::metrics::record_runtime_event(
+                    m, ::bytetaper::metrics::RuntimeMetricEvent::L2StoreError);
+                ::bytetaper::metrics::record_runtime_event(
+                    m, ::bytetaper::metrics::RuntimeMetricEvent::JobError);
             }
         }
         // Additional job kinds dispatch added here if needed.
@@ -87,7 +129,6 @@ const char* worker_queue_init(WorkerQueue* q, const WorkerQueueConfig& config) {
     q->capacity = config.capacity;
     q->worker_count = config.worker_count;
     q->running = false;
-    q->dropped_count.store(0, std::memory_order_relaxed);
 
     return nullptr;
 }
@@ -104,6 +145,9 @@ const char* worker_queue_start(WorkerQueue* q, const WorkerQueueResources& res) 
 
     q->running = true;
     q->resources = res;
+    if (res.runtime_metrics != nullptr) {
+        res.runtime_metrics->worker_queue_capacity.store(q->capacity, std::memory_order_relaxed);
+    }
     for (std::size_t i = 0; i < q->worker_count; ++i) {
         q->workers[i] = std::thread(worker_loop, q);
     }
@@ -118,8 +162,15 @@ bool worker_queue_try_enqueue(WorkerQueue* q, const RuntimeCacheJob& job) {
 
     std::lock_guard<std::mutex> lock(q->mu);
     if (!q->running || q->count >= q->capacity) {
-        q->dropped_count.fetch_add(1, std::memory_order_relaxed);
+        ::bytetaper::metrics::record_runtime_event(
+            q->resources.runtime_metrics, ::bytetaper::metrics::RuntimeMetricEvent::EnqueueDropped);
         return false;
+    }
+
+    ::bytetaper::metrics::record_runtime_event(q->resources.runtime_metrics,
+                                               ::bytetaper::metrics::RuntimeMetricEvent::Enqueue);
+    if (q->resources.runtime_metrics != nullptr) {
+        q->resources.runtime_metrics->worker_queue_depth.fetch_add(1, std::memory_order_relaxed);
     }
 
     q->slots[q->tail] = job;

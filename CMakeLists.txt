@@ -196,6 +196,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/metrics/pagination_metrics.cpp
     src/metrics/compression_metrics.cpp
     src/metrics/coalescing_metrics.cpp
+    src/metrics/runtime_metrics.cpp
   )
   target_include_directories(bytetaper_prometheus_registry
     PUBLIC
@@ -461,6 +462,7 @@ if(BUILD_TESTING)
         gtest_main
         Threads::Threads
         RocksDB::RocksDB
+        bytetaper_prometheus_registry
     )
     add_test(
       NAME runtime_worker_queue_test
@@ -1074,6 +1076,7 @@ if(BUILD_TESTING)
         gtest_main
         RocksDB::RocksDB
         Threads::Threads
+        bytetaper_prometheus_registry
     )
     add_test(
       NAME l2_cache_async_lookup_enqueue_stage_test
@@ -1101,6 +1104,7 @@ if(BUILD_TESTING)
         gtest_main
         RocksDB::RocksDB
         Threads::Threads
+        bytetaper_prometheus_registry
     )
     add_test(
       NAME l2_cache_async_store_enqueue_stage_test
@@ -1125,6 +1129,23 @@ if(BUILD_TESTING)
     add_test(
       NAME coalescing_leader_completion_test
       COMMAND coalescing_leader_completion_test
+    )
+
+    add_executable(runtime_metrics_test
+      tests/runtime_metrics_test.cpp
+      src/metrics/runtime_metrics.cpp
+    )
+    target_include_directories(runtime_metrics_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(runtime_metrics_test
+      PRIVATE
+        gtest_main
+    )
+    add_test(
+      NAME runtime_metrics_test
+      COMMAND runtime_metrics_test
     )
 
     add_executable(coalescing_cache_integration_test

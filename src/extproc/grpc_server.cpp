@@ -383,6 +383,7 @@ public:
                             &metrics_registry->compression_metrics;
                         filter_state.context.coalescing_metrics =
                             &metrics_registry->coalescing_metrics;
+                        filter_state.context.runtime_metrics = &metrics_registry->runtime_metrics;
                     }
                     filter_state.context.worker_queue = &worker_queue;
                     filter_state.context.pending_lookup_registry = &pending_lookup_registry;
@@ -566,6 +567,8 @@ bool start_grpc_server(const GrpcServerConfig& config, GrpcServerHandle* handle)
     wq_res.l1_cache = config.l1_cache;
     wq_res.l2_cache = config.l2_cache;
     wq_res.pending = &impl->service.pending_lookup_registry;
+    wq_res.runtime_metrics =
+        config.metrics_registry ? &config.metrics_registry->runtime_metrics : nullptr;
     wq_err = runtime::worker_queue_start(&impl->service.worker_queue, wq_res);
     if (wq_err != nullptr) {
         return false;

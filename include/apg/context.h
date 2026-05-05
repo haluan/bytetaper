@@ -14,6 +14,7 @@
 #include "metrics/coalescing_metrics.h"
 #include "metrics/compression_metrics.h"
 #include "metrics/pagination_metrics.h"
+#include "metrics/runtime_metrics.h"
 #include "policy/field_filter_policy.h"
 #include "policy/route_policy.h"
 
@@ -118,6 +119,7 @@ struct ApgTransformContext {
     metrics::CacheMetrics* cache_metrics = nullptr;
     metrics::CompressionMetrics* compression_metrics = nullptr;
     metrics::CoalescingMetrics* coalescing_metrics = nullptr;
+    metrics::RuntimeMetrics* runtime_metrics = nullptr;
 };
 
 } // namespace bytetaper::apg

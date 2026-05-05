@@ -5,6 +5,7 @@
 #include "cache/cache_key.h"
 #include "cache/l1_cache.h"
 #include "cache/l2_disk_cache.h"
+#include "metrics/runtime_metrics.h"
 #include "runtime/pending_lookup_registry.h"
 #include "runtime/worker_queue.h"
 #include "stages/l2_cache_async_lookup_enqueue_stage.h"
@@ -43,6 +44,7 @@ protected:
         ctx.l2_cache = l2_cache;
         ctx.worker_queue = &worker_queue;
         ctx.pending_lookup_registry = &pending_registry;
+        ctx.runtime_metrics = &metrics;
         std::strcpy(ctx.raw_path, "/path");
         ctx.request_method = policy::HttpMethod::Get;
     }
@@ -51,6 +53,7 @@ protected:
     cache::L2DiskCache* l2_cache;
     runtime::PendingLookupRegistry pending_registry;
     runtime::WorkerQueue worker_queue;
+    metrics::RuntimeMetrics metrics{};
     policy::RoutePolicy policy;
     apg::ApgTransformContext ctx;
 };
@@ -70,6 +73,7 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, L1MissEnqueuesAndContinues) {
     EXPECT_STREQ(output.note, "enqueued");
     EXPECT_EQ(worker_queue.count, 1);
     EXPECT_EQ(pending_registry.count, 1);
+    EXPECT_EQ(metrics.l2_async_lookup_total.load(), 1);
 }
 
 TEST_F(L2CacheAsyncLookupEnqueueStageTest, DuplicateKeySkipped) {
@@ -88,6 +92,7 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, DuplicateKeySkipped) {
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "already-pending");
     EXPECT_EQ(worker_queue.count, 0);
+    EXPECT_EQ(metrics.l2_async_lookup_deduped_total.load(), 1);
 }
 
 TEST_F(L2CacheAsyncLookupEnqueueStageTest, QueueFullContinuesPendingCleared) {

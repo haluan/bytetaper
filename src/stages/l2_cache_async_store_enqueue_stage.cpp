@@ -4,6 +4,7 @@
 #include "stages/l2_cache_async_store_enqueue_stage.h"
 
 #include "cache/cache_key.h"
+#include "metrics/runtime_metrics.h"
 #include "runtime/worker_queue.h"
 
 #include <cstring>
@@ -51,6 +52,8 @@ apg::StageOutput l2_cache_async_store_enqueue_stage(apg::ApgTransformContext& co
 
     // 8. Body size cap
     if (context.response_body_len > runtime::kAsyncL2MaxBodySize) {
+        metrics::record_runtime_event(context.runtime_metrics,
+                                      metrics::RuntimeMetricEvent::L2StoreOversizedSkipped);
         return { apg::StageResult::Continue, "body-too-large" };
     }
 
@@ -88,9 +91,13 @@ apg::StageOutput l2_cache_async_store_enqueue_stage(apg::ApgTransformContext& co
 
     // 12. Enqueue
     if (!runtime::worker_queue_try_enqueue(context.worker_queue, job)) {
+        metrics::record_runtime_event(context.runtime_metrics,
+                                      metrics::RuntimeMetricEvent::L2StoreDropped);
         return { apg::StageResult::Continue, "queue-full" };
     }
 
+    metrics::record_runtime_event(context.runtime_metrics,
+                                  metrics::RuntimeMetricEvent::L2StoreEnqueued);
     return { apg::StageResult::Continue, "enqueued" };
 }
 

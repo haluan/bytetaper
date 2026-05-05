@@ -50,6 +50,8 @@ apg::StageOutput l2_cache_async_lookup_enqueue_stage(apg::ApgTransformContext& c
 
     // 4. Deduplicate via PendingRegistry
     if (!runtime::pending_lookup_try_mark(context.pending_lookup_registry, key)) {
+        metrics::record_runtime_event(context.runtime_metrics,
+                                      metrics::RuntimeMetricEvent::L2LookupDeduped);
         return apg::StageOutput{ apg::StageResult::Continue, "already-pending" };
     }
 
@@ -66,6 +68,8 @@ apg::StageOutput l2_cache_async_lookup_enqueue_stage(apg::ApgTransformContext& c
         return apg::StageOutput{ apg::StageResult::Continue, "queue-full" };
     }
 
+    metrics::record_runtime_event(context.runtime_metrics,
+                                  metrics::RuntimeMetricEvent::L2LookupEnqueued);
     return apg::StageOutput{ apg::StageResult::Continue, "enqueued" };
 }
 

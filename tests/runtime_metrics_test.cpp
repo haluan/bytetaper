@@ -1,0 +1,94 @@
+// SPDX-FileCopyrightText: 2026 Haluan Irsad
+// SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
+
+#include "metrics/runtime_metrics.h"
+
+#include <cstring>
+#include <gtest/gtest.h>
+
+namespace bytetaper::metrics {
+
+class RuntimeMetricsTest : public ::testing::Test {
+protected:
+    RuntimeMetrics metrics{};
+};
+
+TEST_F(RuntimeMetricsTest, RecordEventsIncrementsCounters) {
+    record_runtime_event(&metrics, RuntimeMetricEvent::Enqueue);
+    record_runtime_event(&metrics, RuntimeMetricEvent::EnqueueDropped);
+    record_runtime_event(&metrics, RuntimeMetricEvent::JobExecuted);
+    record_runtime_event(&metrics, RuntimeMetricEvent::JobError);
+
+    EXPECT_EQ(metrics.worker_enqueue_total.load(), 1);
+    EXPECT_EQ(metrics.worker_enqueue_dropped_total.load(), 1);
+    EXPECT_EQ(metrics.worker_job_executed_total.load(), 1);
+    EXPECT_EQ(metrics.worker_job_error_total.load(), 1);
+}
+
+TEST_F(RuntimeMetricsTest, L2LookupEvents) {
+    record_runtime_event(&metrics, RuntimeMetricEvent::L2LookupEnqueued);
+    record_runtime_event(&metrics, RuntimeMetricEvent::L2LookupHit);
+    record_runtime_event(&metrics, RuntimeMetricEvent::L2LookupMiss);
+    record_runtime_event(&metrics, RuntimeMetricEvent::L2LookupError);
+    record_runtime_event(&metrics, RuntimeMetricEvent::L2LookupDeduped);
+
+    EXPECT_EQ(metrics.l2_async_lookup_total.load(), 1);
+    EXPECT_EQ(metrics.l2_async_lookup_hit_total.load(), 1);
+    EXPECT_EQ(metrics.l2_async_lookup_miss_total.load(), 1);
+    EXPECT_EQ(metrics.l2_async_lookup_error_total.load(), 1);
+    EXPECT_EQ(metrics.l2_async_lookup_deduped_total.load(), 1);
+}
+
+TEST_F(RuntimeMetricsTest, L2StoreEvents) {
+    record_runtime_event(&metrics, RuntimeMetricEvent::L2StoreEnqueued);
+    record_runtime_event(&metrics, RuntimeMetricEvent::L2StoreSuccess);
+    record_runtime_event(&metrics, RuntimeMetricEvent::L2StoreError);
+    record_runtime_event(&metrics, RuntimeMetricEvent::L2StoreDropped);
+    record_runtime_event(&metrics, RuntimeMetricEvent::L2StoreOversizedSkipped);
+
+    EXPECT_EQ(metrics.l2_async_store_total.load(), 1);
+    EXPECT_EQ(metrics.l2_async_store_success_total.load(), 1);
+    EXPECT_EQ(metrics.l2_async_store_error_total.load(), 1);
+    EXPECT_EQ(metrics.l2_async_store_dropped_total.load(), 1);
+    EXPECT_EQ(metrics.l2_async_store_oversized_skipped_total.load(), 1);
+}
+
+TEST_F(RuntimeMetricsTest, PromotionEvents) {
+    record_runtime_event(&metrics, RuntimeMetricEvent::L2ToL1Promotion);
+    record_runtime_event(&metrics, RuntimeMetricEvent::L2ToL1StaleRejected);
+
+    EXPECT_EQ(metrics.l2_to_l1_promotion_total.load(), 1);
+    EXPECT_EQ(metrics.l2_to_l1_stale_rejected_total.load(), 1);
+}
+
+TEST_F(RuntimeMetricsTest, RenderPrometheusFormat) {
+    metrics.worker_enqueue_total.store(10);
+    metrics.worker_queue_depth.store(5);
+    metrics.worker_queue_capacity.store(1024);
+    metrics.l2_async_lookup_hit_total.store(7);
+
+    char buf[4096];
+    std::size_t len = render_runtime_metrics_prometheus(metrics, buf, sizeof(buf));
+    ASSERT_GT(len, 0);
+
+    EXPECT_NE(std::strstr(buf, "bytetaper_runtime_worker_enqueue_total 10"), nullptr);
+    EXPECT_NE(std::strstr(buf, "bytetaper_runtime_worker_queue_depth 5"), nullptr);
+    EXPECT_NE(std::strstr(buf, "bytetaper_runtime_worker_queue_capacity 1024"), nullptr);
+    EXPECT_NE(std::strstr(buf, "bytetaper_runtime_l2_async_lookup_hit_total 7"), nullptr);
+
+    // Check HELP/TYPE lines
+    EXPECT_NE(std::strstr(buf, "# HELP bytetaper_runtime_worker_queue_depth"), nullptr);
+    EXPECT_NE(std::strstr(buf, "# TYPE bytetaper_runtime_worker_queue_depth gauge"), nullptr);
+}
+
+TEST_F(RuntimeMetricsTest, RenderOverflowSafety) {
+    char small_buf[10];
+    std::size_t len = render_runtime_metrics_prometheus(metrics, small_buf, sizeof(small_buf));
+    EXPECT_EQ(len, 0);
+}
+
+TEST_F(RuntimeMetricsTest, NullRegistryIsSafe) {
+    record_runtime_event(nullptr, RuntimeMetricEvent::Enqueue);
+}
+
+} // namespace bytetaper::metrics

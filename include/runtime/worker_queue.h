@@ -18,6 +18,10 @@ namespace bytetaper::cache {
 struct L1Cache;
 }
 
+namespace bytetaper::metrics {
+struct RuntimeMetrics;
+}
+
 namespace bytetaper::runtime {
 
 struct PendingLookupRegistry;
@@ -53,6 +57,7 @@ struct WorkerQueueResources {
     cache::L2DiskCache* l2_cache = nullptr;
     cache::L1Cache* l1_cache = nullptr;
     PendingLookupRegistry* pending = nullptr;
+    metrics::RuntimeMetrics* runtime_metrics = nullptr;
 };
 
 // Fixed-capacity worker queue. Must not be copied or moved after init.
@@ -67,7 +72,6 @@ struct WorkerQueue {
     bool running = false;
     std::thread workers[kWorkerQueueMaxWorkers];
     std::size_t worker_count = 0;
-    std::atomic<std::uint64_t> dropped_count{ 0 }; // promoted to RuntimeMetrics in BT-035-007
     WorkerQueueResources resources;
 };
 

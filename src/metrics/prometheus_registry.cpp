@@ -123,6 +123,10 @@ std::string render_prometheus_text(const MetricsRegistry& registry) {
                                              sizeof(component_buf)) > 0) {
         out += component_buf;
     }
+    if (render_runtime_metrics_prometheus(registry.runtime_metrics, component_buf,
+                                          sizeof(component_buf)) > 0) {
+        out += component_buf;
+    }
 
     return out;
 }

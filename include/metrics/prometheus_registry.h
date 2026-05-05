@@ -8,6 +8,7 @@
 #include "metrics/coalescing_metrics.h"
 #include "metrics/compression_metrics.h"
 #include "metrics/pagination_metrics.h"
+#include "metrics/runtime_metrics.h"
 
 #include <atomic>
 #include <cstdint>
@@ -41,6 +42,7 @@ struct MetricsRegistry {
     CacheMetrics cache_metrics;
     CompressionMetrics compression_metrics;
     CoalescingMetrics coalescing_metrics;
+    RuntimeMetrics runtime_metrics;
 
     mutable std::mutex routes_mutex;
     std::vector<std::unique_ptr<RouteWasteMetric>> route_metrics;
