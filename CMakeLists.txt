@@ -592,6 +592,22 @@ if(BUILD_TESTING)
       COMMAND l2_promotion_test
     )
 
+    add_executable(cache_hot_path_regression_test
+      tests/cache_hot_path_regression_test.cpp
+    )
+    target_link_libraries(cache_hot_path_regression_test
+      PRIVATE
+        gtest_main
+        bytetaper_extproc_grpc_server
+        RocksDB::RocksDB
+        bytetaper_prometheus_registry
+    )
+
+    add_test(
+      NAME cache_hot_path_regression_test
+      COMMAND cache_hot_path_regression_test
+    )
+
     add_executable(json_transform_content_type_test
       tests/json_transform_content_type_test.cpp
       src/json_transform/content_type.cpp

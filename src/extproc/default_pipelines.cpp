@@ -19,8 +19,9 @@ namespace bytetaper::extproc {
 /**
  * HOT-PATH: request-header pipeline.
  *
- * This pipeline runs synchronously on the Envoy ExtProc request thread.
- * It must NOT contain any stages that perform synchronous disk I/O.
+ * L1 lookup runs first: a cache hit returns SkipRemaining, bypassing
+ * coalescing registration, async L2 enqueue, and pagination mutation entirely.
+ * Coalescing and L2 enqueue only run on L1 miss.
  *
  * See docs/runtime/RUNTIME_BOUNDARIES.md for the enforcement contract.
  */
