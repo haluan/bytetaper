@@ -8,6 +8,7 @@
 #include "compression/content_encoding.h"
 #include "envoy/service/ext_proc/v3/external_processor.grpc.pb.h"
 #include "extproc/bytetaper_to_envoy.h"
+#include "extproc/default_pipelines.h"
 #include "extproc/reporting_headers.h"
 #include "extproc/request_runtime.h"
 #include "field_selection/request_target.h"
@@ -16,16 +17,7 @@
 #include "runtime/pending_lookup_registry.h"
 #include "runtime/worker_queue.h"
 #include "safety/fail_open.h"
-#include "stages/coalescing_decision_stage.h"
-#include "stages/coalescing_follower_wait_stage.h"
-#include "stages/coalescing_leader_completion_stage.h"
 #include "stages/compression_decision_stage.h"
-#include "stages/l1_cache_lookup_stage.h"
-#include "stages/l1_cache_store_stage.h"
-#include "stages/l2_cache_async_lookup_enqueue_stage.h"
-#include "stages/l2_cache_async_store_enqueue_stage.h"
-#include "stages/l2_cache_lookup_stage.h"
-#include "stages/l2_cache_store_stage.h"
 #include "stages/pagination_request_mutation_stage.h"
 
 #include <chrono>
@@ -370,11 +362,7 @@ public:
                             std::chrono::system_clock::now().time_since_epoch())
                             .count();
 
-                    static constexpr apg::ApgStage kLookupStages[] = {
-                        stages::coalescing_decision_stage, stages::coalescing_follower_wait_stage,
-                        stages::l1_cache_lookup_stage, stages::l2_cache_async_lookup_enqueue_stage,
-                        stages::pagination_request_mutation_stage
-                    };
+                    // Execution boundary: hot-path only. See docs/runtime/RUNTIME_BOUNDARIES.md.
                     if (metrics_registry != nullptr) {
                         filter_state.context.pagination_metrics =
                             &metrics_registry->pagination_metrics;
@@ -387,7 +375,7 @@ public:
                     }
                     filter_state.context.worker_queue = &worker_queue;
                     filter_state.context.pending_lookup_registry = &pending_lookup_registry;
-                    apg::run_pipeline(kLookupStages, std::size(kLookupStages),
+                    apg::run_pipeline(extproc::kLookupStages, extproc::kLookupStageCount,
                                       filter_state.context);
                 }
 
@@ -480,12 +468,10 @@ public:
                         filter_state.context.response_body = filtered_body.c_str();
                         filter_state.context.response_body_len = filtered_body.size();
 
-                        static constexpr apg::ApgStage kStoreStages[] = {
-                            stages::l1_cache_store_stage,
-                            stages::l2_cache_async_store_enqueue_stage,
-                            stages::coalescing_leader_completion_stage
-                        };
-                        apg::run_pipeline(kStoreStages, 3, filter_state.context);
+                        // Execution boundary: hot-path only. See
+                        // docs/runtime/RUNTIME_BOUNDARIES.md.
+                        apg::run_pipeline(extproc::kStoreStages, extproc::kStoreStageCount,
+                                          filter_state.context);
                     }
                 }
 

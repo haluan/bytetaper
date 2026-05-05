@@ -220,6 +220,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/extproc/grpc_server.cpp
     src/extproc/request_runtime.cpp
     src/extproc/bytetaper_to_envoy.cpp
+    src/extproc/default_pipelines.cpp
     src/apg/pipeline.cpp
     src/stages/l1_cache_lookup_stage.cpp
     src/stages/l1_cache_store_stage.cpp
@@ -1146,6 +1147,25 @@ if(BUILD_TESTING)
     add_test(
       NAME runtime_metrics_test
       COMMAND runtime_metrics_test
+    )
+
+    add_executable(default_pipeline_boundaries_test
+      tests/default_pipeline_boundaries_test.cpp
+    )
+    target_include_directories(default_pipeline_boundaries_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(default_pipeline_boundaries_test
+      PRIVATE
+        bytetaper_extproc_grpc_server
+        gtest_main
+        RocksDB::RocksDB
+        Threads::Threads
+    )
+    add_test(
+      NAME default_pipeline_boundaries_test
+      COMMAND default_pipeline_boundaries_test
     )
 
     add_executable(coalescing_cache_integration_test
