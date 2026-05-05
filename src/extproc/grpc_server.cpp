@@ -509,6 +509,26 @@ struct GrpcServerImpl {
     std::unique_ptr<grpc::Server> server{};
 };
 
+struct WorkerQueueStartGuard {
+    runtime::WorkerQueue* queue = nullptr;
+    bool active = false;
+
+    ~WorkerQueueStartGuard() {
+        if (active && queue != nullptr) {
+            runtime::worker_queue_shutdown(queue);
+        }
+    }
+
+    void arm(runtime::WorkerQueue* q) {
+        queue = q;
+        active = true;
+    }
+
+    void release() {
+        active = false;
+    }
+};
+
 } // namespace
 
 bool start_grpc_server(const GrpcServerConfig& config, GrpcServerHandle* handle) {
@@ -551,31 +571,26 @@ bool start_grpc_server(const GrpcServerConfig& config, GrpcServerHandle* handle)
     wq_res.l2_cache = config.l2_cache;
     wq_res.runtime_metrics =
         config.metrics_registry ? &config.metrics_registry->runtime_metrics : nullptr;
-    bool worker_started = false;
+    WorkerQueueStartGuard worker_guard{};
     wq_err = runtime::worker_queue_start(&impl->service.worker_queue, wq_res);
     if (wq_err != nullptr) {
         return false;
     }
-    worker_started = true;
+    worker_guard.arm(&impl->service.worker_queue);
 
     impl->server = builder.BuildAndStart();
     if (!impl->server) {
-        if (worker_started) {
-            runtime::worker_queue_shutdown(&impl->service.worker_queue);
-        }
         return false;
     }
     if (selected_port <= 0 || selected_port > 65535) {
         impl->server->Shutdown();
         impl->server->Wait();
-        if (worker_started) {
-            runtime::worker_queue_shutdown(&impl->service.worker_queue);
-        }
         return false;
     }
 
     handle->bound_port = static_cast<std::uint16_t>(selected_port);
     handle->impl = impl.release();
+    worker_guard.release();
     return true;
 }
 
