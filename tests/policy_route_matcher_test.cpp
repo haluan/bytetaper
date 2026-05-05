@@ -120,4 +120,114 @@ TEST(RouteMatcherTest, PrefixMatchEmptyPrefix) {
     EXPECT_STREQ(matched->route_id, "catch-all");
 }
 
+TEST(CompiledRouteMatcherTest, CompiledPrefixMatch) {
+    RoutePolicy policies[1] = {};
+    policies[0].route_id = "p1";
+    policies[0].match_kind = RouteMatchKind::Prefix;
+    policies[0].match_prefix = "/api/v1/";
+
+    CompiledRouteMatcher matcher;
+    compile_route_matcher(policies, 1, &matcher);
+
+    const RoutePolicy* matched = match_route_compiled(matcher, "/api/v1/users");
+    ASSERT_NE(matched, nullptr);
+    EXPECT_STREQ(matched->route_id, "p1");
+}
+
+TEST(CompiledRouteMatcherTest, CompiledExactMatch) {
+    RoutePolicy policies[1] = {};
+    policies[0].route_id = "e1";
+    policies[0].match_kind = RouteMatchKind::Exact;
+    policies[0].match_prefix = "/health";
+
+    CompiledRouteMatcher matcher;
+    compile_route_matcher(policies, 1, &matcher);
+
+    // Exact match matches the same path
+    const RoutePolicy* matched1 = match_route_compiled(matcher, "/health");
+    ASSERT_NE(matched1, nullptr);
+    EXPECT_STREQ(matched1->route_id, "e1");
+
+    // Exact match does not match subpath
+    const RoutePolicy* matched2 = match_route_compiled(matcher, "/health/live");
+    EXPECT_EQ(matched2, nullptr);
+}
+
+TEST(CompiledRouteMatcherTest, CompiledFirstMatchWins_PrefixBeforeExact) {
+    RoutePolicy policies[2] = {};
+    policies[0].route_id = "p_first";
+    policies[0].match_kind = RouteMatchKind::Prefix;
+    policies[0].match_prefix = "/api/";
+
+    policies[1].route_id = "e_second";
+    policies[1].match_kind = RouteMatchKind::Exact;
+    policies[1].match_prefix = "/api/v1/users";
+
+    CompiledRouteMatcher matcher;
+    compile_route_matcher(policies, 2, &matcher);
+
+    // Request path /api/v1/users matches both policies, but prefix is first in order so it wins
+    const RoutePolicy* matched = match_route_compiled(matcher, "/api/v1/users");
+    ASSERT_NE(matched, nullptr);
+    EXPECT_STREQ(matched->route_id, "p_first");
+}
+
+TEST(CompiledRouteMatcherTest, CompiledFirstMatchWins_ExactBeforePrefix) {
+    RoutePolicy policies[2] = {};
+    policies[0].route_id = "e_first";
+    policies[0].match_kind = RouteMatchKind::Exact;
+    policies[0].match_prefix = "/api/v1/users";
+
+    policies[1].route_id = "p_second";
+    policies[1].match_kind = RouteMatchKind::Prefix;
+    policies[1].match_prefix = "/api/";
+
+    CompiledRouteMatcher matcher;
+    compile_route_matcher(policies, 2, &matcher);
+
+    // Request path /api/v1/users matches both policies, but exact is first in order so it wins
+    const RoutePolicy* matched = match_route_compiled(matcher, "/api/v1/users");
+    ASSERT_NE(matched, nullptr);
+    EXPECT_STREQ(matched->route_id, "e_first");
+}
+
+TEST(CompiledRouteMatcherTest, CompiledNullPathReturnsNullptr) {
+    RoutePolicy policies[1] = {};
+    policies[0].route_id = "p1";
+    policies[0].match_kind = RouteMatchKind::Prefix;
+    policies[0].match_prefix = "/";
+
+    CompiledRouteMatcher matcher;
+    compile_route_matcher(policies, 1, &matcher);
+
+    EXPECT_EQ(match_route_compiled(matcher, nullptr), nullptr);
+}
+
+TEST(CompiledRouteMatcherTest, CompiledNullPrefixEntrySkipped) {
+    RoutePolicy policies[1] = {};
+    policies[0].route_id = "p1";
+    policies[0].match_kind = RouteMatchKind::Prefix;
+    policies[0].match_prefix = nullptr;
+
+    CompiledRouteMatcher matcher;
+    compile_route_matcher(policies, 1, &matcher);
+
+    EXPECT_EQ(matcher.exact_count, 0u);
+    EXPECT_EQ(matcher.prefix_count, 0u);
+}
+
+TEST(CompiledRouteMatcherTest, CompiledPrefixLengthPrecomputed) {
+    RoutePolicy policies[1] = {};
+    policies[0].route_id = "p1";
+    policies[0].match_kind = RouteMatchKind::Prefix;
+    policies[0].match_prefix = "/api/v1/";
+
+    CompiledRouteMatcher matcher;
+    compile_route_matcher(policies, 1, &matcher);
+
+    ASSERT_EQ(matcher.prefix_count, 1u);
+    EXPECT_EQ(matcher.prefix_routes[0].prefix_len, 8u);
+    EXPECT_STREQ(matcher.prefix_routes[0].prefix, "/api/v1/");
+}
+
 } // namespace bytetaper::policy
