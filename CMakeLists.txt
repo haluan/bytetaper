@@ -270,6 +270,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/coalescing/wait_window.cpp
     src/coalescing/coalescing_timeout.cpp
     src/metrics/coalescing_metrics.cpp
+    src/extproc/header_view.cpp
   )
   target_include_directories(bytetaper_extproc_grpc_server
     PUBLIC
@@ -651,6 +652,24 @@ if(BUILD_TESTING)
         bytetaper_prometheus_registry
     )
     add_test(NAME grpc_server_worker_lifecycle_test COMMAND grpc_server_worker_lifecycle_test)
+
+    add_executable(extproc_header_view_test
+      tests/extproc_header_view_test.cpp
+      src/extproc/header_view.cpp
+    )
+    target_include_directories(extproc_header_view_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${BYTETAPER_GENERATED_PROTO_DIR}
+    )
+    target_link_libraries(extproc_header_view_test
+      PRIVATE
+        gtest_main
+        bytetaper_extproc_proto
+        protobuf::libprotobuf
+    )
+    add_test(NAME extproc_header_view_test COMMAND extproc_header_view_test)
+
 
     add_executable(runtime_partitioned_queue_test
       tests/runtime_partitioned_queue_test.cpp

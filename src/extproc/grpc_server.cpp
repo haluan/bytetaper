@@ -9,6 +9,7 @@
 #include "envoy/service/ext_proc/v3/external_processor.grpc.pb.h"
 #include "extproc/bytetaper_to_envoy.h"
 #include "extproc/default_pipelines.h"
+#include "extproc/header_view.h"
 #include "extproc/reporting_headers.h"
 #include "extproc/request_runtime.h"
 #include "field_selection/request_target.h"
@@ -113,20 +114,21 @@ void apply_request_headers_selection(const envoy::service::ext_proc::v3::Process
     state->response_kind = json_transform::JsonResponseKind::SkipUnsupported;
     state->has_query_selection = false;
 
-    std::string request_path{};
-    if (!read_header_value(request.request_headers().headers(), kPathHeader, &request_path)) {
+    const auto view = scan_request_headers(request.request_headers().headers());
+
+    if (view.path == nullptr) {
         return;
     }
 
-    if (!field_selection::extract_raw_path_and_query(request_path.c_str(), &state->context)) {
+    if (!field_selection::extract_raw_path_and_query(view.path, &state->context)) {
         return;
     }
     if (!field_selection::parse_and_store_selected_fields(&state->context)) {
         return;
     }
 
-    std::string method{};
-    if (read_header_value(request.request_headers().headers(), ":method", &method)) {
+    if (view.method != nullptr) {
+        const std::string_view method(view.method, view.method_len);
         if (method == "GET" || method == "get") {
             state->context.request_method = policy::HttpMethod::Get;
         } else if (method == "POST" || method == "post") {
@@ -134,10 +136,9 @@ void apply_request_headers_selection(const envoy::service::ext_proc::v3::Process
         }
     }
 
-    std::string accept_enc{};
-    if (read_header_value(request.request_headers().headers(), "accept-encoding", &accept_enc)) {
+    if (view.accept_encoding != nullptr) {
         state->context.client_accept_encoding =
-            compression::parse_accept_encoding(accept_enc.c_str(), accept_enc.size());
+            compression::parse_accept_encoding(view.accept_encoding, view.accept_encoding_len);
     }
 
     state->has_query_selection = state->context.selected_field_count > 0;
@@ -149,29 +150,23 @@ void apply_response_content_type(const envoy::service::ext_proc::v3::ProcessingR
         return;
     }
 
-    for (const auto& header : request.response_headers().headers().headers()) {
-        const std::string& key = header.key();
-        const std::string& val = header.raw_value().empty() ? header.value() : header.raw_value();
-        if (key == ":status") {
-            state->context.response_status_code =
-                static_cast<std::uint16_t>(std::atoi(val.c_str()));
-            if (!val.empty() && val[0] != '2') {
-                state->is_non_2xx_response = true;
-                state->response_kind = json_transform::JsonResponseKind::SkipUnsupported;
-            }
+    const auto view = scan_response_headers(request.response_headers().headers());
+
+    if (view.status != nullptr) {
+        state->context.response_status_code = static_cast<std::uint16_t>(std::atoi(view.status));
+        if (view.status_len > 0 && view.status[0] != '2') {
+            state->is_non_2xx_response = true;
+            state->response_kind = json_transform::JsonResponseKind::SkipUnsupported;
         }
     }
 
-    std::string content_enc{};
-    if (read_header_value(request.response_headers().headers(), "content-encoding", &content_enc)) {
+    if (view.content_encoding != nullptr) {
         state->context.response_content_encoding =
-            compression::detect_content_encoding(content_enc.c_str(), content_enc.size());
+            compression::detect_content_encoding(view.content_encoding, view.content_encoding_len);
     }
 
-    std::string content_type{};
-    if (read_header_value(request.response_headers().headers(), kContentTypeHeader,
-                          &content_type)) {
-        std::strncpy(state->context.response_content_type, content_type.c_str(),
+    if (view.content_type != nullptr) {
+        std::strncpy(state->context.response_content_type, view.content_type,
                      sizeof(state->context.response_content_type) - 1);
         state->context.response_content_type[sizeof(state->context.response_content_type) - 1] =
             '\0';
@@ -181,10 +176,9 @@ void apply_response_content_type(const envoy::service::ext_proc::v3::ProcessingR
         state->response_kind = json_transform::JsonResponseKind::SkipUnsupported;
     }
 
-    std::string content_len{};
-    if (read_header_value(request.response_headers().headers(), "content-length", &content_len)) {
+    if (view.content_length != nullptr) {
         state->context.response_body_len =
-            static_cast<std::size_t>(std::atoll(content_len.c_str()));
+            static_cast<std::size_t>(std::atoll(view.content_length));
         state->context.response_body_size_known = true;
     }
 }
