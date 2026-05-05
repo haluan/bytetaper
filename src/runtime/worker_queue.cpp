@@ -6,7 +6,6 @@
 #include "cache/l1_cache.h"
 #include "cache/l2_disk_cache.h"
 #include "metrics/runtime_metrics.h"
-#include "runtime/pending_lookup_registry.h"
 
 #include <chrono>
 #include <cstring>
@@ -24,10 +23,37 @@ static std::uint32_t hash_key_to_shard(const char* key) {
     while ((c = *key++)) {
         hash = ((hash << 5) + hash) + static_cast<std::uint32_t>(c);
     }
-    return hash % kWorkerQueueShardCount;
+    return hash % kRuntimeShardCount;
 }
 
-static void execute_job_internal(WorkerQueue* q, WorkerShard* shard, RuntimeCacheJob& job) {
+static bool shard_pending_try_mark(RuntimeShard* s, const char* key) {
+    for (std::size_t i = 0; i < kRuntimePendingSlotsPerShard; i++) {
+        if (s->pending_occupied[i] && std::strcmp(s->pending_keys[i], key) == 0) {
+            return false; // duplicate
+        }
+    }
+    for (std::size_t i = 0; i < kRuntimePendingSlotsPerShard; i++) {
+        if (!s->pending_occupied[i]) {
+            std::strncpy(s->pending_keys[i], key, cache::kCacheKeyMaxLen - 1);
+            s->pending_occupied[i] = true;
+            s->pending_count++;
+            return true;
+        }
+    }
+    return false; // full
+}
+
+static void shard_pending_clear(RuntimeShard* s, const char* key) {
+    for (std::size_t i = 0; i < kRuntimePendingSlotsPerShard; i++) {
+        if (s->pending_occupied[i] && std::strcmp(s->pending_keys[i], key) == 0) {
+            s->pending_occupied[i] = false;
+            s->pending_count--;
+            return;
+        }
+    }
+}
+
+static void execute_job_internal(WorkerQueue* q, RuntimeShard* shard, RuntimeCacheJob& job) {
     ::bytetaper::metrics::record_runtime_event(
         q->resources.runtime_metrics, ::bytetaper::metrics::RuntimeMetricEvent::JobExecuted);
 
@@ -69,7 +95,7 @@ static void execute_job_internal(WorkerQueue* q, WorkerShard* shard, RuntimeCach
                 m, ::bytetaper::metrics::RuntimeMetricEvent::JobError);
         }
 
-        pending_lookup_clear(&shard->pending, job.entry.key);
+        shard_pending_clear(shard, job.entry.key);
     } else if (job.kind == RuntimeJobKind::L2Store) {
         auto* l2 = q->resources.l2_cache;
         auto* m = q->resources.runtime_metrics;
@@ -97,16 +123,16 @@ static void worker_loop(WorkerQueue* q, std::size_t worker_id) {
     while (true) {
         bool found_work = false;
         RuntimeCacheJob job;
-        WorkerShard* selected_shard = nullptr;
+        RuntimeShard* selected_shard = nullptr;
 
         // Round-robin or fixed-assignment across shards owned by this worker.
         // Worker i owns shards where shard_id % worker_count == i.
-        for (std::size_t s_idx = 0; s_idx < kWorkerQueueShardCount; ++s_idx) {
+        for (std::size_t s_idx = 0; s_idx < kRuntimeShardCount; ++s_idx) {
             if (s_idx % q->worker_count != worker_id) {
                 continue;
             }
 
-            WorkerShard& shard = q->shards[s_idx];
+            RuntimeShard& shard = q->shards[s_idx];
             std::unique_lock<std::mutex> lock(shard.mu, std::try_to_lock);
             if (!lock.owns_lock()) {
                 continue;
@@ -116,7 +142,7 @@ static void worker_loop(WorkerQueue* q, std::size_t worker_id) {
                 job = shard.slots[shard.head];
                 job.entry.body = job.body; // Fix pointer in local copy
 
-                shard.head = (shard.head + 1) % shard.capacity;
+                shard.head = (shard.head + 1) % kRuntimeQueueSlotsPerShard;
                 shard.count--;
                 found_work = true;
                 selected_shard = &shard;
@@ -135,9 +161,8 @@ static void worker_loop(WorkerQueue* q, std::size_t worker_id) {
         }
 
         // No work found in any owned shard. Wait on the first owned shard's CV as a proxy.
-        // In a real high-perf system, we might sleep/backoff or wait on multiple CVs.
-        std::size_t first_shard_idx = worker_id % kWorkerQueueShardCount;
-        WorkerShard& primary = q->shards[first_shard_idx];
+        std::size_t first_shard_idx = worker_id % kRuntimeShardCount;
+        RuntimeShard& primary = q->shards[first_shard_idx];
         std::unique_lock<std::mutex> lock(primary.mu);
         primary.cv.wait_for(lock, std::chrono::milliseconds(10),
                             [q, &primary] { return primary.count > 0 || !q->running; });
@@ -145,7 +170,7 @@ static void worker_loop(WorkerQueue* q, std::size_t worker_id) {
         if (!q->running) {
             // Check if ALL shards assigned to this worker are empty before exiting.
             bool all_empty = true;
-            for (std::size_t s_idx = 0; s_idx < kWorkerQueueShardCount; ++s_idx) {
+            for (std::size_t s_idx = 0; s_idx < kRuntimeShardCount; ++s_idx) {
                 if (s_idx % q->worker_count == worker_id) {
                     if (q->shards[s_idx].count > 0) {
                         all_empty = false;
@@ -167,10 +192,6 @@ const char* worker_queue_init(WorkerQueue* q, const WorkerQueueConfig& config) {
         return "queue pointer is null";
     }
 
-    if (config.capacity == 0 || config.capacity > kWorkerQueueMaxCapacity) {
-        return "invalid capacity";
-    }
-
     if (config.worker_count == 0 || config.worker_count > kWorkerQueueMaxWorkers) {
         return "invalid worker_count";
     }
@@ -178,16 +199,14 @@ const char* worker_queue_init(WorkerQueue* q, const WorkerQueueConfig& config) {
     q->worker_count = config.worker_count;
     q->running = false;
 
-    std::size_t shard_capacity = config.capacity / kWorkerQueueShardCount;
-    if (shard_capacity == 0)
-        shard_capacity = 1;
-
-    for (std::size_t i = 0; i < kWorkerQueueShardCount; ++i) {
+    for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
         q->shards[i].head = 0;
         q->shards[i].tail = 0;
         q->shards[i].count = 0;
-        q->shards[i].capacity = shard_capacity;
-        pending_lookup_init(&q->shards[i].pending);
+        q->shards[i].pending_count = 0;
+        for (std::size_t j = 0; j < kRuntimePendingSlotsPerShard; j++) {
+            q->shards[i].pending_occupied[j] = false;
+        }
     }
 
     return nullptr;
@@ -205,11 +224,8 @@ const char* worker_queue_start(WorkerQueue* q, const WorkerQueueResources& res) 
     q->running = true;
     q->resources = res;
     if (res.runtime_metrics != nullptr) {
-        std::size_t total_cap = 0;
-        for (std::size_t i = 0; i < kWorkerQueueShardCount; ++i) {
-            total_cap += q->shards[i].capacity;
-        }
-        res.runtime_metrics->worker_queue_capacity.store(total_cap, std::memory_order_relaxed);
+        res.runtime_metrics->worker_queue_capacity.store(
+            kRuntimeShardCount * kRuntimeQueueSlotsPerShard, std::memory_order_relaxed);
     }
     for (std::size_t i = 0; i < q->worker_count; ++i) {
         q->workers[i] = std::thread(worker_loop, q, i);
@@ -224,20 +240,20 @@ bool worker_queue_try_enqueue(WorkerQueue* q, const RuntimeCacheJob& job) {
     }
 
     std::uint32_t shard_idx = hash_key_to_shard(job.entry.key);
-    WorkerShard& shard = q->shards[shard_idx];
+    RuntimeShard& shard = q->shards[shard_idx];
 
     // Check pending registry first (already sharded)
     {
         std::lock_guard<std::mutex> lock(shard.mu);
         if (job.kind == RuntimeJobKind::L2Lookup) {
-            if (!pending_lookup_try_mark(&shard.pending, job.entry.key)) {
+            if (!shard_pending_try_mark(&shard, job.entry.key)) {
                 return false; // Already pending or registry full
             }
         }
 
-        if (shard.count >= shard.capacity) {
+        if (shard.count >= kRuntimeQueueSlotsPerShard) {
             if (job.kind == RuntimeJobKind::L2Lookup) {
-                pending_lookup_clear(&shard.pending, job.entry.key);
+                shard_pending_clear(&shard, job.entry.key);
             }
             ::bytetaper::metrics::record_runtime_event(
                 q->resources.runtime_metrics,
@@ -263,7 +279,7 @@ bool worker_queue_try_enqueue(WorkerQueue* q, const RuntimeCacheJob& job) {
             shard.slots[shard.tail].entry.body_len = copy_len;
         }
 
-        shard.tail = (shard.tail + 1) % shard.capacity;
+        shard.tail = (shard.tail + 1) % kRuntimeQueueSlotsPerShard;
         shard.count++;
         shard.cv.notify_one();
     }
@@ -278,7 +294,7 @@ void worker_queue_shutdown(WorkerQueue* q) {
 
     q->running = false;
 
-    for (std::size_t i = 0; i < kWorkerQueueShardCount; ++i) {
+    for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
         q->shards[i].cv.notify_all();
     }
 
@@ -294,14 +310,14 @@ bool worker_queue_execute_one_for_test(WorkerQueue* q) {
         return false;
     }
 
-    for (std::size_t i = 0; i < kWorkerQueueShardCount; ++i) {
-        WorkerShard& shard = q->shards[i];
+    for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
+        RuntimeShard& shard = q->shards[i];
         std::lock_guard<std::mutex> lock(shard.mu);
         if (shard.count > 0) {
             RuntimeCacheJob job = shard.slots[shard.head];
             job.entry.body = job.body;
 
-            shard.head = (shard.head + 1) % shard.capacity;
+            shard.head = (shard.head + 1) % kRuntimeQueueSlotsPerShard;
             shard.count--;
 
             if (q->resources.runtime_metrics != nullptr) {

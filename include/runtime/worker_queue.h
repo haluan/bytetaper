@@ -6,7 +6,6 @@
 
 #include "cache/cache_entry.h"
 #include "cache/l2_disk_cache.h"
-#include "runtime/pending_lookup_registry.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -27,11 +26,10 @@ namespace bytetaper::runtime {
 static constexpr std::size_t kAsyncL2MaxBodySize = 65536; // 64 KB
 
 // Sharding configuration.
-static constexpr std::size_t kWorkerQueueShardCount = 8;
-
-// Upper bounds enforced by worker_queue_init.
+static constexpr std::size_t kRuntimeShardCount = 256;
+static constexpr std::size_t kRuntimeQueueSlotsPerShard = 4; // 256 * 4 = 1024 total slots
+static constexpr std::size_t kRuntimePendingSlotsPerShard = 16;
 static constexpr std::size_t kWorkerQueueMaxWorkers = 8;
-static constexpr std::size_t kWorkerQueueMaxCapacity = 1024;
 
 enum class RuntimeJobKind : std::uint8_t {
     L2Lookup = 0,
@@ -49,7 +47,6 @@ struct RuntimeCacheJob {
 };
 
 struct WorkerQueueConfig {
-    std::size_t capacity = 64;    // ring buffer slots; <= kWorkerQueueMaxCapacity
     std::size_t worker_count = 2; // >= 1, <= kWorkerQueueMaxWorkers
 };
 
@@ -59,26 +56,31 @@ struct WorkerQueueResources {
     metrics::RuntimeMetrics* runtime_metrics = nullptr;
 };
 
-// Represents a single sharded queue with its own lock and pending registry.
+// Represents a single sharded queue with its own lock and inline pending registry.
 // Each worker owns multiple shards based on its index.
-struct WorkerShard {
+struct RuntimeShard {
     alignas(64) std::mutex mu;
     std::condition_variable cv;
-    RuntimeCacheJob slots[kWorkerQueueMaxCapacity / kWorkerQueueShardCount] = {};
+
+    // Inline pending lookup dedup — shard-local, no external mutex.
+    char pending_keys[kRuntimePendingSlotsPerShard][cache::kCacheKeyMaxLen] = {};
+    bool pending_occupied[kRuntimePendingSlotsPerShard] = {};
+    std::size_t pending_count = 0;
+
+    // Fixed-capacity job ring.
+    RuntimeCacheJob slots[kRuntimeQueueSlotsPerShard] = {};
     std::size_t head = 0;
     std::size_t tail = 0;
     std::size_t count = 0;
-    std::size_t capacity = 0;
-    PendingLookupRegistry pending = {};
 };
 
 // Fixed-capacity worker queue with sharding. Must not be copied or moved after init.
 struct WorkerQueue {
-    WorkerShard shards[kWorkerQueueShardCount];
+    RuntimeShard shards[kRuntimeShardCount];
     bool running = false;
     std::thread workers[kWorkerQueueMaxWorkers];
     std::size_t worker_count = 0;
-    WorkerQueueResources resources;
+    WorkerQueueResources resources{};
 };
 
 // Validates config and initialises queue fields. Does not start threads.

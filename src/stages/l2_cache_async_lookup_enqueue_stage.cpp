@@ -4,7 +4,6 @@
 #include "stages/l2_cache_async_lookup_enqueue_stage.h"
 
 #include "cache/cache_key.h"
-#include "runtime/pending_lookup_registry.h"
 #include "runtime/worker_queue.h"
 
 #include <cstring>

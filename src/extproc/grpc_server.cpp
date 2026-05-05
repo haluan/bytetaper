@@ -14,7 +14,6 @@
 #include "field_selection/request_target.h"
 #include "json_transform/content_type.h"
 #include "policy/route_matcher.h"
-#include "runtime/pending_lookup_registry.h"
 #include "runtime/worker_queue.h"
 #include "safety/fail_open.h"
 #include "stages/compression_decision_stage.h"
@@ -559,7 +558,6 @@ bool start_grpc_server(const GrpcServerConfig& config, GrpcServerHandle* handle)
 
     // Initialize background worker resources
     runtime::WorkerQueueConfig wq_config{};
-    wq_config.capacity = runtime::kWorkerQueueMaxCapacity;
     wq_config.worker_count = 2;
     const char* wq_err = runtime::worker_queue_init(&impl->service.worker_queue, wq_config);
     if (wq_err != nullptr) {

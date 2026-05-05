@@ -238,7 +238,6 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/cache/cache_entry.cpp
     src/cache/cache_key.cpp
     src/runtime/worker_queue.cpp
-    src/runtime/pending_lookup_registry.cpp
     src/cache/cache_ttl.cpp
     src/safety/fail_open.cpp
     src/policy/pagination_policy.cpp
@@ -430,10 +429,10 @@ if(BUILD_TESTING)
     add_executable(runtime_worker_queue_test
       tests/runtime_worker_queue_test.cpp
       src/runtime/worker_queue.cpp
+      src/cache/cache_key.cpp
       src/cache/cache_entry.cpp
       src/cache/l1_cache.cpp
       src/cache/l2_rocksdb_cache.cpp
-      src/runtime/pending_lookup_registry.cpp
       src/cache/cache_entry_codec.cpp
       src/cache/cache_ttl.cpp
     )
@@ -451,23 +450,6 @@ if(BUILD_TESTING)
     add_test(
       NAME runtime_worker_queue_test
       COMMAND runtime_worker_queue_test
-    )
-
-    add_executable(pending_lookup_registry_test
-      tests/pending_lookup_registry_test.cpp
-      src/runtime/pending_lookup_registry.cpp
-    )
-    target_include_directories(pending_lookup_registry_test
-      PRIVATE
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-    )
-    target_link_libraries(pending_lookup_registry_test
-      PRIVATE
-        gtest_main
-    )
-    add_test(
-      NAME pending_lookup_registry_test
-      COMMAND pending_lookup_registry_test
     )
 
     add_executable(l1_cache_lookup_stage_test
@@ -1047,7 +1029,6 @@ if(BUILD_TESTING)
       tests/l2_cache_async_lookup_enqueue_stage_test.cpp
       src/stages/l2_cache_async_lookup_enqueue_stage.cpp
       src/runtime/worker_queue.cpp
-      src/runtime/pending_lookup_registry.cpp
       src/cache/cache_key.cpp
       src/cache/cache_entry.cpp
       src/cache/l1_cache.cpp
@@ -1075,7 +1056,6 @@ if(BUILD_TESTING)
       tests/l2_cache_async_store_enqueue_stage_test.cpp
       src/stages/l2_cache_async_store_enqueue_stage.cpp
       src/runtime/worker_queue.cpp
-      src/runtime/pending_lookup_registry.cpp
       src/cache/cache_key.cpp
       src/cache/cache_entry.cpp
       src/cache/l1_cache.cpp

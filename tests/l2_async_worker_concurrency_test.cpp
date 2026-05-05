@@ -4,7 +4,6 @@
 #include "cache/cache_entry.h"
 #include "cache/l2_disk_cache.h"
 #include "metrics/prometheus_registry.h"
-#include "runtime/pending_lookup_registry.h"
 #include "runtime/worker_queue.h"
 
 #include <cstring>
@@ -19,7 +18,6 @@ public:
         metrics_registry = std::make_unique<metrics::MetricsRegistry>();
 
         WorkerQueueConfig config{};
-        config.capacity = 16;
         config.worker_count = 1;
         worker_queue_init(&worker_queue, config);
 

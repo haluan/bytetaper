@@ -6,7 +6,6 @@
 #include "cache/l1_cache.h"
 #include "cache/l2_disk_cache.h"
 #include "metrics/prometheus_registry.h"
-#include "runtime/pending_lookup_registry.h"
 #include "runtime/worker_queue.h"
 #include "stages/coalescing_decision_stage.h"
 #include "stages/coalescing_follower_wait_stage.h"
@@ -24,11 +23,10 @@ namespace bytetaper::runtime {
 class WorkerQueueConcurrencyTest : public ::testing::Test {
 public:
     void SetUp() override {
-        l1_init(&l1_cache);
+        cache::l1_init(&l1_cache);
         metrics_reg = std::make_unique<metrics::MetricsRegistry>();
 
         WorkerQueueConfig config{};
-        config.capacity = 16;
         config.worker_count = 2;
         worker_queue_init(&worker_queue, config);
 
@@ -93,7 +91,7 @@ TEST_F(WorkerQueueConcurrencyTest, WorkerDoesNotReadExpiredRequestPointer) {
     // Let's just verify the slot copy directly as a proxy for "does not read expired pointer"
     {
         bool found = false;
-        for (std::size_t i = 0; i < kWorkerQueueShardCount; ++i) {
+        for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
             std::lock_guard<std::mutex> lock(worker_queue.shards[i].mu);
             if (worker_queue.shards[i].count > 0) {
                 EXPECT_EQ(worker_queue.shards[i].slots[worker_queue.shards[i].head].body[0],

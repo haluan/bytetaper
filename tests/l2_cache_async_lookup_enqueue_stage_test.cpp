@@ -6,7 +6,6 @@
 #include "cache/l1_cache.h"
 #include "cache/l2_disk_cache.h"
 #include "metrics/runtime_metrics.h"
-#include "runtime/pending_lookup_registry.h"
 #include "runtime/worker_queue.h"
 #include "stages/l2_cache_async_lookup_enqueue_stage.h"
 
@@ -25,7 +24,6 @@ protected:
         l2_cache = reinterpret_cast<cache::L2DiskCache*>(0x1234);
 
         runtime::WorkerQueueConfig wq_config{};
-        wq_config.capacity = 2;
         wq_config.worker_count = 1;
         runtime::worker_queue_init(&worker_queue, wq_config);
         // We don't start the queue threads to avoid background complexity in unit tests.
@@ -58,7 +56,7 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, L1HitSkipsEnqueue) {
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "l1-hit-skip");
     std::size_t total_count = 0;
-    for (std::size_t i = 0; i < runtime::kWorkerQueueShardCount; ++i) {
+    for (std::size_t i = 0; i < runtime::kRuntimeShardCount; ++i) {
         total_count += worker_queue.shards[i].count;
     }
     EXPECT_EQ(total_count, 0u);
@@ -71,9 +69,9 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, L1MissEnqueuesAndContinues) {
     EXPECT_STREQ(output.note, "enqueued");
     std::size_t total_count = 0;
     std::size_t pending_count = 0;
-    for (std::size_t i = 0; i < runtime::kWorkerQueueShardCount; ++i) {
+    for (std::size_t i = 0; i < runtime::kRuntimeShardCount; ++i) {
         total_count += worker_queue.shards[i].count;
-        pending_count += worker_queue.shards[i].pending.count;
+        pending_count += worker_queue.shards[i].pending_count;
     }
     EXPECT_EQ(total_count, 1u);
     EXPECT_EQ(pending_count, 1u);
@@ -105,7 +103,7 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, DuplicateKeySkipped) {
     EXPECT_STREQ(output.note, "enqueue-failed");
 
     std::size_t total_count = 0;
-    for (std::size_t i = 0; i < runtime::kWorkerQueueShardCount; ++i) {
+    for (std::size_t i = 0; i < runtime::kRuntimeShardCount; ++i) {
         total_count += worker_queue.shards[i].count;
     }
     EXPECT_EQ(total_count, 1u);
@@ -122,11 +120,11 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, QueueFullContinuesPendingCleared) {
     ki.policy_version = policy.route_id;
     cache::build_cache_key(ki, actual_key, sizeof(actual_key));
 
-    // Fill all shards using L2Store jobs (so they don't mark pending)
+    // Fill the shard that this key maps to
     runtime::RuntimeCacheJob job{};
     job.kind = runtime::RuntimeJobKind::L2Store;
     std::strcpy(job.entry.key, actual_key);
-    for (int i = 0; i < 100; ++i) {
+    for (int i = 0; i < 4; ++i) {
         runtime::worker_queue_try_enqueue(&worker_queue, job);
     }
 
@@ -135,8 +133,8 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, QueueFullContinuesPendingCleared) {
     EXPECT_STREQ(output.note, "enqueue-failed");
 
     std::size_t pending_count = 0;
-    for (std::size_t i = 0; i < runtime::kWorkerQueueShardCount; ++i) {
-        pending_count += worker_queue.shards[i].pending.count;
+    for (std::size_t i = 0; i < runtime::kRuntimeShardCount; ++i) {
+        pending_count += worker_queue.shards[i].pending_count;
     }
     EXPECT_EQ(pending_count, 0u); // Must be cleared
 }
