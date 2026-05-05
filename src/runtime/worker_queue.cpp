@@ -95,7 +95,10 @@ static void execute_job_internal(WorkerQueue* q, RuntimeShard* shard, RuntimeCac
                 m, ::bytetaper::metrics::RuntimeMetricEvent::JobError);
         }
 
-        shard_pending_clear(shard, job.entry.key);
+        {
+            std::lock_guard<std::mutex> lock(shard->mu);
+            shard_pending_clear(shard, job.entry.key);
+        }
     } else if (job.kind == RuntimeJobKind::L2Store) {
         auto* l2 = q->resources.l2_cache;
         auto* m = q->resources.runtime_metrics;
@@ -312,7 +315,7 @@ bool worker_queue_execute_one_for_test(WorkerQueue* q) {
 
     for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
         RuntimeShard& shard = q->shards[i];
-        std::lock_guard<std::mutex> lock(shard.mu);
+        std::unique_lock<std::mutex> lock(shard.mu);
         if (shard.count > 0) {
             RuntimeCacheJob job = shard.slots[shard.head];
             job.entry.body = job.body;
@@ -325,6 +328,7 @@ bool worker_queue_execute_one_for_test(WorkerQueue* q) {
                     1, std::memory_order_relaxed);
             }
 
+            lock.unlock(); // Release lock before I/O
             execute_job_internal(q, &shard, job);
             return true;
         }

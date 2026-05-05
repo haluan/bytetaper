@@ -640,6 +640,54 @@ if(BUILD_TESTING)
       COMMAND coalescing_fallback_tightened_test
     )
 
+    add_executable(grpc_server_worker_lifecycle_test
+      tests/grpc_server_worker_lifecycle_test.cpp
+    )
+    target_link_libraries(grpc_server_worker_lifecycle_test
+      PRIVATE
+        gtest_main
+        bytetaper_extproc_grpc_server
+        RocksDB::RocksDB
+        bytetaper_prometheus_registry
+    )
+    add_test(NAME grpc_server_worker_lifecycle_test COMMAND grpc_server_worker_lifecycle_test)
+
+    add_executable(runtime_partitioned_queue_test
+      tests/runtime_partitioned_queue_test.cpp
+    )
+    target_link_libraries(runtime_partitioned_queue_test
+      PRIVATE
+        gtest_main
+        bytetaper_extproc_grpc_server
+        RocksDB::RocksDB
+        bytetaper_prometheus_registry
+    )
+    add_test(NAME runtime_partitioned_queue_test COMMAND runtime_partitioned_queue_test)
+
+    add_executable(default_pipeline_order_test
+      tests/default_pipeline_order_test.cpp
+    )
+    target_link_libraries(default_pipeline_order_test
+      PRIVATE
+        gtest_main
+        bytetaper_extproc_grpc_server
+        RocksDB::RocksDB
+        bytetaper_prometheus_registry
+    )
+    add_test(NAME default_pipeline_order_test COMMAND default_pipeline_order_test)
+
+    add_executable(cache_hot_path_tail_regression_test
+      tests/cache_hot_path_tail_regression_test.cpp
+    )
+    target_link_libraries(cache_hot_path_tail_regression_test
+      PRIVATE
+        gtest_main
+        bytetaper_extproc_grpc_server
+        RocksDB::RocksDB
+        bytetaper_prometheus_registry
+    )
+    add_test(NAME cache_hot_path_tail_regression_test COMMAND cache_hot_path_tail_regression_test)
+
     add_executable(json_transform_content_type_test
       tests/json_transform_content_type_test.cpp
       src/json_transform/content_type.cpp
