@@ -14,8 +14,7 @@ namespace bytetaper::runtime {
 
 namespace {
 
-// Simple DJB2 hash for selecting shard.
-static std::uint32_t hash_key_to_shard(const char* key) {
+static std::uint32_t hash_key(const char* key) {
     if (key == nullptr)
         return 0;
     std::uint32_t hash = 5381;
@@ -23,18 +22,25 @@ static std::uint32_t hash_key_to_shard(const char* key) {
     while ((c = *key++)) {
         hash = ((hash << 5) + hash) + static_cast<std::uint32_t>(c);
     }
-    return hash % kRuntimeShardCount;
+    return hash;
 }
 
-static bool shard_pending_try_mark(RuntimeShard* s, const char* key) {
+// Simple DJB2 hash for selecting shard.
+static std::uint32_t hash_key_to_shard(const char* key) {
+    return hash_key(key) % kRuntimeShardCount;
+}
+
+static bool shard_pending_try_mark(RuntimeShard* s, const char* key, std::uint32_t hash) {
     for (std::size_t i = 0; i < kRuntimePendingSlotsPerShard; i++) {
-        if (s->pending_occupied[i] && std::strcmp(s->pending_keys[i], key) == 0) {
+        if (s->pending_occupied[i] && s->pending_hashes[i] == hash &&
+            std::strcmp(s->pending_keys[i], key) == 0) {
             return false; // duplicate
         }
     }
     for (std::size_t i = 0; i < kRuntimePendingSlotsPerShard; i++) {
         if (!s->pending_occupied[i]) {
             std::strncpy(s->pending_keys[i], key, cache::kCacheKeyMaxLen - 1);
+            s->pending_hashes[i] = hash;
             s->pending_occupied[i] = true;
             s->pending_count++;
             return true;
@@ -43,10 +49,12 @@ static bool shard_pending_try_mark(RuntimeShard* s, const char* key) {
     return false; // full
 }
 
-static void shard_pending_clear(RuntimeShard* s, const char* key) {
+static void shard_pending_clear(RuntimeShard* s, const char* key, std::uint32_t hash) {
     for (std::size_t i = 0; i < kRuntimePendingSlotsPerShard; i++) {
-        if (s->pending_occupied[i] && std::strcmp(s->pending_keys[i], key) == 0) {
+        if (s->pending_occupied[i] && s->pending_hashes[i] == hash &&
+            std::strcmp(s->pending_keys[i], key) == 0) {
             s->pending_occupied[i] = false;
+            s->pending_hashes[i] = 0;
             s->pending_count--;
             return;
         }
@@ -94,7 +102,7 @@ static void execute_lookup_job(WorkerQueue* q, RuntimeShard* shard, L2LookupJob&
 
     {
         std::lock_guard<std::mutex> lock(shard->mu);
-        shard_pending_clear(shard, job.key);
+        shard_pending_clear(shard, job.key, job.key_hash);
     }
 }
 
@@ -279,17 +287,18 @@ bool worker_queue_try_enqueue_lookup(WorkerQueue* q, const L2LookupJob& job) {
         return false;
     }
 
-    std::uint32_t shard_idx = hash_key_to_shard(job.key);
+    std::uint32_t hash = hash_key(job.key);
+    std::uint32_t shard_idx = hash % kRuntimeShardCount;
     RuntimeShard& shard = q->shards[shard_idx];
 
     {
         std::lock_guard<std::mutex> lock(shard.mu);
-        if (!shard_pending_try_mark(&shard, job.key)) {
+        if (!shard_pending_try_mark(&shard, job.key, hash)) {
             return false; // Already pending or registry full
         }
 
         if (shard.lookup_count >= kRuntimeQueueSlotsPerShard) {
-            shard_pending_clear(&shard, job.key);
+            shard_pending_clear(&shard, job.key, hash);
             ::bytetaper::metrics::record_runtime_event(
                 q->resources.runtime_metrics,
                 ::bytetaper::metrics::RuntimeMetricEvent::EnqueueDropped);
@@ -303,7 +312,9 @@ bool worker_queue_try_enqueue_lookup(WorkerQueue* q, const L2LookupJob& job) {
                                                                        std::memory_order_relaxed);
         }
 
-        shard.lookup_slots[shard.lookup_tail] = job;
+        L2LookupJob mutable_job = job;
+        mutable_job.key_hash = hash;
+        shard.lookup_slots[shard.lookup_tail] = mutable_job;
         shard.lookup_tail = (shard.lookup_tail + 1) % kRuntimeQueueSlotsPerShard;
         shard.lookup_count++;
         shard.cv.notify_one();

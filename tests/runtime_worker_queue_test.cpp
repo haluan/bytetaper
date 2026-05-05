@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Haluan Irsad
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
 
+#include "cache/l1_cache.h"
 #include "metrics/runtime_metrics.h"
 #include "runtime/worker_queue.h"
 
@@ -302,4 +303,54 @@ TEST_F(WorkerQueueTest, MixedLookupAndStoreBothEnqueue) {
     EXPECT_EQ(q_->shards[shard_idx].store_count, 1u);
     EXPECT_TRUE(
         q_->shards[shard_idx].body_pool.occupied[q_->shards[shard_idx].store_slots[0].body_slot]);
+}
+
+TEST_F(WorkerQueueTest, PendingHashDuplicateKeyRejected) {
+    WorkerQueueConfig cfg;
+    cfg.worker_count = 1;
+    ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
+    q_->running = true;
+
+    L2LookupJob job;
+    std::strcpy(job.key, "dup-key");
+
+    EXPECT_TRUE(worker_queue_try_enqueue_lookup(q_.get(), job));
+    EXPECT_FALSE(worker_queue_try_enqueue_lookup(q_.get(), job)); // Same key should be rejected
+}
+
+TEST_F(WorkerQueueTest, PendingHashDifferentKeysEachAccepted) {
+    WorkerQueueConfig cfg;
+    cfg.worker_count = 1;
+    ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
+    q_->running = true;
+
+    L2LookupJob job1;
+    std::strcpy(job1.key, "key-1");
+
+    L2LookupJob job2;
+    std::strcpy(job2.key, "key-2");
+
+    EXPECT_TRUE(worker_queue_try_enqueue_lookup(q_.get(), job1));
+    EXPECT_TRUE(worker_queue_try_enqueue_lookup(q_.get(), job2)); // Different keys should succeed
+}
+
+TEST_F(WorkerQueueTest, PendingHashClearedAfterExecution) {
+    WorkerQueueConfig cfg;
+    cfg.worker_count = 1;
+    ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
+    q_->running = true;
+
+    // Set mock L1 to allow successful execution
+    auto l1 = std::make_unique<bytetaper::cache::L1Cache>();
+    bytetaper::cache::l1_init(l1.get());
+    q_->resources.l1_cache = l1.get();
+
+    L2LookupJob job;
+    std::strcpy(job.key, "execution-clear-key");
+
+    EXPECT_TRUE(worker_queue_try_enqueue_lookup(q_.get(), job));
+    worker_queue_execute_one_for_test(q_.get());
+
+    // Should be able to enqueue again as it was successfully executed and cleared
+    EXPECT_TRUE(worker_queue_try_enqueue_lookup(q_.get(), job));
 }

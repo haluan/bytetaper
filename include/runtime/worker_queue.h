@@ -33,6 +33,7 @@ static constexpr std::size_t kWorkerQueueMaxWorkers = 8;
 
 struct L2LookupJob {
     char key[cache::kCacheKeyMaxLen] = {};
+    std::uint32_t key_hash = 0;
 };
 
 struct L2StoreJob {
@@ -65,6 +66,7 @@ struct RuntimeShard {
 
     // Inline pending lookup dedup — shard-local, no external mutex.
     char pending_keys[kRuntimePendingSlotsPerShard][cache::kCacheKeyMaxLen] = {};
+    std::uint32_t pending_hashes[kRuntimePendingSlotsPerShard] = {};
     bool pending_occupied[kRuntimePendingSlotsPerShard] = {};
     std::size_t pending_count = 0;
 
