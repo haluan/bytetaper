@@ -61,28 +61,25 @@ apg::StageOutput l2_cache_async_store_enqueue_stage(apg::ApgTransformContext& co
         return { apg::StageResult::Continue, "key-not-ready" };
     }
 
-    runtime::RuntimeCacheJob job{};
-    job.kind = runtime::RuntimeJobKind::L2Store;
+    runtime::L2StoreJob job{};
     std::memcpy(job.key, context.cache_key, cache::kCacheKeyMaxLen);
-    const char* key = job.key;
 
-    // 10. Deep copy body into job buffer
-    std::memcpy(job.body, context.response_body, context.response_body_len);
-    job.body_len = context.response_body_len;
-
-    // 11. Populate CacheEntry metadata
+    // 10. Populate CacheEntry metadata
     std::memcpy(job.entry.key, job.key, sizeof(job.key));
     job.entry.status_code = context.response_status_code;
     std::memcpy(job.entry.content_type, context.response_content_type,
                 sizeof(job.entry.content_type));
+    job.entry.body = context.response_body; // Original body source
     job.entry.body_len = context.response_body_len;
     job.entry.created_at_epoch_ms = context.request_epoch_ms;
     job.entry.expires_at_epoch_ms =
         context.request_epoch_ms +
         static_cast<std::int64_t>(context.matched_policy->cache.ttl_seconds) * 1000;
 
-    // 12. Enqueue
-    if (!runtime::worker_queue_try_enqueue(context.worker_queue, job)) {
+    job.body_len = context.response_body_len;
+
+    // 11. Enqueue
+    if (!runtime::worker_queue_try_enqueue_store(context.worker_queue, job)) {
         metrics::record_runtime_event(context.runtime_metrics,
                                       metrics::RuntimeMetricEvent::L2StoreDropped);
         return { apg::StageResult::Continue, "queue-full" };

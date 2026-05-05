@@ -31,19 +31,20 @@ static constexpr std::size_t kRuntimeQueueSlotsPerShard = 4; // 256 * 4 = 1024 t
 static constexpr std::size_t kRuntimePendingSlotsPerShard = 16;
 static constexpr std::size_t kWorkerQueueMaxWorkers = 8;
 
-enum class RuntimeJobKind : std::uint8_t {
-    L2Lookup = 0,
-    L2Store = 1,
+struct L2LookupJob {
+    char key[cache::kCacheKeyMaxLen] = {};
 };
 
-// All fields are value-owned. No raw pointers to request context or protobuf strings.
-// entry.body always points into body[] — fixed by worker_queue_try_enqueue.
-struct RuntimeCacheJob {
-    RuntimeJobKind kind = RuntimeJobKind::L2Lookup;
+struct L2StoreJob {
     char key[cache::kCacheKeyMaxLen] = {};
     cache::CacheEntry entry = {};
-    char body[kAsyncL2MaxBodySize] = {};
+    std::uint32_t body_slot = 0;
     std::size_t body_len = 0;
+};
+
+struct StoreBodyPool {
+    char bodies[kRuntimeQueueSlotsPerShard][kAsyncL2MaxBodySize] = {};
+    bool occupied[kRuntimeQueueSlotsPerShard] = {};
 };
 
 struct WorkerQueueConfig {
@@ -67,11 +68,20 @@ struct RuntimeShard {
     bool pending_occupied[kRuntimePendingSlotsPerShard] = {};
     std::size_t pending_count = 0;
 
-    // Fixed-capacity job ring.
-    RuntimeCacheJob slots[kRuntimeQueueSlotsPerShard] = {};
-    std::size_t head = 0;
-    std::size_t tail = 0;
-    std::size_t count = 0;
+    // Lookup ring.
+    L2LookupJob lookup_slots[kRuntimeQueueSlotsPerShard] = {};
+    std::size_t lookup_head = 0;
+    std::size_t lookup_tail = 0;
+    std::size_t lookup_count = 0;
+
+    // Store ring.
+    L2StoreJob store_slots[kRuntimeQueueSlotsPerShard] = {};
+    std::size_t store_head = 0;
+    std::size_t store_tail = 0;
+    std::size_t store_count = 0;
+
+    // Shard-local store body pool.
+    StoreBodyPool body_pool = {};
 };
 
 // Fixed-capacity worker queue with sharding. Must not be copied or moved after init.
@@ -91,10 +101,11 @@ const char* worker_queue_init(WorkerQueue* q, const WorkerQueueConfig& config);
 // Must be called after worker_queue_init.
 const char* worker_queue_start(WorkerQueue* q, const WorkerQueueResources& res);
 
-// Non-blocking enqueue. Returns true if accepted, false if queue is full or not running.
-// Copies all job data into the ring slot; fixes entry.body -> slot.body.
-// Thread-safe.
-bool worker_queue_try_enqueue(WorkerQueue* q, const RuntimeCacheJob& job);
+// Non-blocking enqueue for lookup jobs.
+bool worker_queue_try_enqueue_lookup(WorkerQueue* q, const L2LookupJob& job);
+
+// Non-blocking enqueue for store jobs.
+bool worker_queue_try_enqueue_store(WorkerQueue* q, const L2StoreJob& job);
 
 // Signals workers to stop and joins all threads.
 // Caller must keep any L2DiskCache alive until this returns.

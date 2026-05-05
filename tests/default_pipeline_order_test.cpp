@@ -95,7 +95,8 @@ TEST_F(DefaultPipelineOrderTest, L1HitDoesNotEnqueueL2AsyncLookup) {
 
     // 3. Assert worker queue is empty
     for (int i = 0; i < 256; i++) {
-        EXPECT_EQ(q->shards[i].count, 0u);
+        EXPECT_EQ(q->shards[i].lookup_count, 0u);
+        EXPECT_EQ(q->shards[i].store_count, 0u);
     }
 }
 

@@ -68,7 +68,7 @@ TEST_F(L2CacheAsyncStoreEnqueueStageTest, EligibleResponseEnqueuesL2Store) {
     EXPECT_STREQ(output.note, "enqueued");
     std::size_t total_count = 0;
     for (std::size_t i = 0; i < runtime::kRuntimeShardCount; ++i) {
-        total_count += worker_queue.shards[i].count;
+        total_count += worker_queue.shards[i].store_count;
     }
     EXPECT_EQ(total_count, 1u);
     EXPECT_EQ(metrics.l2_async_store_total.load(), 1);
@@ -76,10 +76,10 @@ TEST_F(L2CacheAsyncStoreEnqueueStageTest, EligibleResponseEnqueuesL2Store) {
     // Verify job content in whichever shard it landed
     bool found = false;
     for (std::size_t i = 0; i < runtime::kRuntimeShardCount; ++i) {
-        if (worker_queue.shards[i].count > 0) {
-            auto& slot = worker_queue.shards[i].slots[worker_queue.shards[i].head];
-            EXPECT_EQ(slot.kind, runtime::RuntimeJobKind::L2Store);
-            EXPECT_STREQ(slot.body, "hello");
+        if (worker_queue.shards[i].store_count > 0) {
+            auto& slot = worker_queue.shards[i].store_slots[worker_queue.shards[i].store_head];
+            std::uint32_t body_slot = slot.body_slot;
+            EXPECT_STREQ(worker_queue.shards[i].body_pool.bodies[body_slot], "hello");
             EXPECT_EQ(slot.body_len, 5u);
             found = true;
             break;
@@ -98,13 +98,15 @@ TEST_F(L2CacheAsyncStoreEnqueueStageTest, L2StoreQueueFullDoesNotFailResponse) {
     ki.policy_version = policy.route_id;
     cache::build_cache_key(ki, actual_key, sizeof(actual_key));
 
-    // Fill the shard that this key maps to
-    runtime::RuntimeCacheJob job{};
-    job.kind = runtime::RuntimeJobKind::L2Store;
-    std::strcpy(job.entry.key, actual_key);
-    for (int i = 0; i < 4; ++i) {
-        runtime::worker_queue_try_enqueue(&worker_queue, job);
+    // Find shard for actual_key
+    std::uint32_t hash = 5381;
+    for (const char* p = actual_key; *p; ++p) {
+        hash = ((hash << 5) + hash) + static_cast<std::uint32_t>(*p);
     }
+    std::uint32_t shard_idx = hash % runtime::kRuntimeShardCount;
+
+    // Directly saturate store queue for that shard
+    worker_queue.shards[shard_idx].store_count = 4;
 
     cache_key_prepare_stage(ctx);
     auto output = l2_cache_async_store_enqueue_stage(ctx);
@@ -128,9 +130,10 @@ TEST_F(L2CacheAsyncStoreEnqueueStageTest, L2StoreJobOwnsBodyMemory) {
     // Verify slot body is unchanged in whichever shard it landed
     bool found = false;
     for (std::size_t i = 0; i < runtime::kRuntimeShardCount; ++i) {
-        if (worker_queue.shards[i].count > 0) {
-            auto& slot = worker_queue.shards[i].slots[worker_queue.shards[i].head];
-            EXPECT_STREQ(slot.body, "world");
+        if (worker_queue.shards[i].store_count > 0) {
+            auto& slot = worker_queue.shards[i].store_slots[worker_queue.shards[i].store_head];
+            std::uint32_t body_slot = slot.body_slot;
+            EXPECT_STREQ(worker_queue.shards[i].body_pool.bodies[body_slot], "world");
             found = true;
             break;
         }

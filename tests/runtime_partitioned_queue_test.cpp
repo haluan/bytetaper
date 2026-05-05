@@ -73,11 +73,10 @@ TEST_F(RuntimePartitionedQueueTest, RuntimeWorkerClearsPendingMarkerAfterHitMiss
     cache::l1_init(l1.get());
     q_->resources.l1_cache = l1.get();
 
-    RuntimeCacheJob job;
-    job.kind = RuntimeJobKind::L2Lookup;
-    std::strcpy(job.entry.key, "pending-test-key");
+    L2LookupJob job;
+    std::strcpy(job.key, "pending-test-key");
 
-    EXPECT_TRUE(worker_queue_try_enqueue(q_.get(), job));
+    EXPECT_TRUE(worker_queue_try_enqueue_lookup(q_.get(), job));
     std::uint32_t shard_idx = hash_key_to_shard_proxy("pending-test-key");
     EXPECT_EQ(q_->shards[shard_idx].pending_count, 1u);
 
@@ -91,21 +90,20 @@ TEST_F(RuntimePartitionedQueueTest, AsyncL2StoreStillOwnsBodyMemory) {
     worker_queue_init(q_.get(), cfg);
     q_->running = true;
 
-    RuntimeCacheJob job;
-    job.kind = RuntimeJobKind::L2Store;
-    std::strcpy(job.entry.key, "memory-test-key");
+    L2StoreJob job;
+    std::strcpy(job.key, "memory-test-key");
     const char* test_data = "body data";
     job.entry.body = test_data;
     job.body_len = std::strlen(test_data);
-    std::strcpy(job.body, test_data);
 
-    worker_queue_try_enqueue(q_.get(), job);
+    worker_queue_try_enqueue_store(q_.get(), job);
 
     std::uint32_t shard_idx = hash_key_to_shard_proxy("memory-test-key");
-    RuntimeCacheJob& slot = q_->shards[shard_idx].slots[q_->shards[shard_idx].head];
+    L2StoreJob& slot = q_->shards[shard_idx].store_slots[q_->shards[shard_idx].store_head];
+    std::uint32_t body_slot = slot.body_slot;
 
-    EXPECT_STREQ(slot.body, test_data);
-    EXPECT_EQ(slot.entry.body, slot.body);
+    EXPECT_STREQ(q_->shards[shard_idx].body_pool.bodies[body_slot], test_data);
+    EXPECT_EQ(slot.entry.body, q_->shards[shard_idx].body_pool.bodies[body_slot]);
 }
 
 TEST_F(RuntimePartitionedQueueTest, AsyncL2LookupStalePromotionStillRejected) {
@@ -137,11 +135,10 @@ TEST_F(RuntimePartitionedQueueTest, AsyncL2LookupStalePromotionStillRejected) {
     older.expires_at_epoch_ms = 2000000000000LL; // Far future
     cache::l2_put(l2, older);
 
-    RuntimeCacheJob job;
-    job.kind = RuntimeJobKind::L2Lookup;
-    std::strcpy(job.entry.key, "stale-key");
+    L2LookupJob job;
+    std::strcpy(job.key, "stale-key");
 
-    worker_queue_try_enqueue(q_.get(), job);
+    worker_queue_try_enqueue_lookup(q_.get(), job);
     worker_queue_execute_one_for_test(q_.get());
 
     // Should be rejected by l1_put_if_newer (recorded in metrics)

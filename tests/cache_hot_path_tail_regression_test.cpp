@@ -99,15 +99,14 @@ TEST_F(CacheHotPathTailRegressionTest, GlobalMutexAbsentFromAsyncPath) {
 
     for (int i = 0; i < 8; i++) {
         threads.emplace_back([this, i, &success_count]() {
-            runtime::RuntimeCacheJob job;
-            job.kind = runtime::RuntimeJobKind::L2Store;
+            runtime::L2StoreJob job;
             // Generate keys that map to different shards
             // "key-0", "key-1", ...
             char key[32];
             std::sprintf(key, "key-%d", i * 32);
-            std::strcpy(job.entry.key, key);
+            std::strcpy(job.key, key);
 
-            if (runtime::worker_queue_try_enqueue(q.get(), job)) {
+            if (runtime::worker_queue_try_enqueue_store(q.get(), job)) {
                 success_count++;
             }
         });

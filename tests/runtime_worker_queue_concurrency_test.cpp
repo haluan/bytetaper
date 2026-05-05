@@ -50,11 +50,10 @@ TEST_F(WorkerQueueConcurrencyTest, ShutdownDoesNotHang) {
 
     // Enqueue some work
     for (int i = 0; i < 4; ++i) {
-        RuntimeCacheJob job{};
-        job.kind = RuntimeJobKind::L2Lookup; // Safe no-op as L2 is null
+        L2LookupJob job{};
         std::string key = "key" + std::to_string(i);
-        ::strncpy(job.entry.key, key.c_str(), sizeof(job.entry.key) - 1);
-        worker_queue_try_enqueue(&worker_queue, job);
+        ::strncpy(job.key, key.c_str(), sizeof(job.key) - 1);
+        worker_queue_try_enqueue_lookup(&worker_queue, job);
     }
 
     // Shutdown should join threads and complete
@@ -67,8 +66,8 @@ TEST_F(WorkerQueueConcurrencyTest, ShutdownStopsEnqueueBeforeJoin) {
     worker_queue_start(&worker_queue, resources);
     worker_queue_shutdown(&worker_queue);
 
-    RuntimeCacheJob job{};
-    EXPECT_FALSE(worker_queue_try_enqueue(&worker_queue, job));
+    L2LookupJob job{};
+    EXPECT_FALSE(worker_queue_try_enqueue_lookup(&worker_queue, job));
 }
 
 TEST_F(WorkerQueueConcurrencyTest, WorkerDoesNotReadExpiredRequestPointer) {
@@ -78,13 +77,12 @@ TEST_F(WorkerQueueConcurrencyTest, WorkerDoesNotReadExpiredRequestPointer) {
     char source_body[100];
     std::memset(source_body, 0xAA, sizeof(source_body));
 
-    RuntimeCacheJob job{};
-    job.kind = RuntimeJobKind::L2Store;
+    L2StoreJob job{};
     job.entry.body = source_body;
     job.body_len = sizeof(source_body);
 
     worker_queue_start(&worker_queue, resources);
-    worker_queue_try_enqueue(&worker_queue, job);
+    worker_queue_try_enqueue_store(&worker_queue, job);
 
     // Simulate source buffer being overwritten/reused
     std::memset(source_body, 0xBB, sizeof(source_body));
@@ -94,9 +92,10 @@ TEST_F(WorkerQueueConcurrencyTest, WorkerDoesNotReadExpiredRequestPointer) {
         bool found = false;
         for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
             std::lock_guard<std::mutex> lock(worker_queue.shards[i].mu);
-            if (worker_queue.shards[i].count > 0) {
-                EXPECT_EQ(worker_queue.shards[i].slots[worker_queue.shards[i].head].body[0],
-                          (char) 0xAA);
+            if (worker_queue.shards[i].store_count > 0) {
+                std::uint32_t body_slot =
+                    worker_queue.shards[i].store_slots[worker_queue.shards[i].store_head].body_slot;
+                EXPECT_EQ(worker_queue.shards[i].body_pool.bodies[body_slot][0], (char) 0xAA);
                 found = true;
                 break;
             }

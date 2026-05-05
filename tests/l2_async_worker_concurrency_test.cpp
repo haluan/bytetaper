@@ -44,12 +44,10 @@ TEST_F(L2AsyncWorkerConcurrencyTest, WorkerErrorIncrementsMetric) {
     // Leave resources.l2_cache as nullptr to trigger error path
     worker_queue.resources = resources;
 
-    RuntimeCacheJob job{};
-    job.kind = RuntimeJobKind::L2Store;
+    L2StoreJob job{};
     job.body_len = 100;
-    // job.entry.body doesn't matter for this error path
 
-    worker_queue_try_enqueue(&worker_queue, job);
+    worker_queue_try_enqueue_store(&worker_queue, job);
     bool executed = worker_queue_execute_one_for_test(&worker_queue);
     EXPECT_TRUE(executed);
 
@@ -61,11 +59,10 @@ TEST_F(L2AsyncWorkerConcurrencyTest, AsyncL2ErrorDoesNotFailRequest) {
     // This is more of a logic check: if worker fails, it shouldn't crash
     worker_queue.resources = resources;
 
-    RuntimeCacheJob job{};
-    job.kind = RuntimeJobKind::L2Lookup;
-    ::strncpy(job.entry.key, "err_key", sizeof(job.entry.key) - 1);
+    L2LookupJob job{};
+    ::strncpy(job.key, "err_key", sizeof(job.key) - 1);
 
-    worker_queue_try_enqueue(&worker_queue, job);
+    worker_queue_try_enqueue_lookup(&worker_queue, job);
     // Should complete without exception/crash
     EXPECT_TRUE(worker_queue_execute_one_for_test(&worker_queue));
     EXPECT_EQ(this->metrics_registry->runtime_metrics.l2_async_lookup_error_total.load(), 1);
@@ -76,17 +73,17 @@ TEST_F(L2AsyncWorkerConcurrencyTest, PendingLookupClearedOnMiss) {
 
     const char* key = "miss_key";
 
-    RuntimeCacheJob job{};
-    job.kind = RuntimeJobKind::L2Lookup;
-    ::strncpy(job.entry.key, key, sizeof(job.entry.key) - 1);
+    L2LookupJob job{};
+    ::strncpy(job.key, key, sizeof(job.key) - 1);
 
     // Enqueue handles marking it as pending in the correct shard
-    ASSERT_TRUE(worker_queue_try_enqueue(&worker_queue, job));
+    ASSERT_TRUE(worker_queue_try_enqueue_lookup(&worker_queue, job));
     worker_queue_execute_one_for_test(&worker_queue);
 
     // Verify marker is cleared even on miss by trying to enqueue again
     // If it was cleared, try_enqueue should succeed (at least for the pending check)
-    EXPECT_TRUE(worker_queue_try_enqueue(&worker_queue, job)) << "Marker should have been cleared";
+    EXPECT_TRUE(worker_queue_try_enqueue_lookup(&worker_queue, job))
+        << "Marker should have been cleared";
 }
 
 TEST_F(L2AsyncWorkerConcurrencyTest, PendingLookupClearedOnHit) {
@@ -96,14 +93,14 @@ TEST_F(L2AsyncWorkerConcurrencyTest, PendingLookupClearedOnHit) {
 
     const char* key = "any_key";
 
-    RuntimeCacheJob job{};
-    job.kind = RuntimeJobKind::L2Lookup;
-    ::strncpy(job.entry.key, key, sizeof(job.entry.key) - 1);
+    L2LookupJob job{};
+    ::strncpy(job.key, key, sizeof(job.key) - 1);
 
-    ASSERT_TRUE(worker_queue_try_enqueue(&worker_queue, job));
+    ASSERT_TRUE(worker_queue_try_enqueue_lookup(&worker_queue, job));
     worker_queue_execute_one_for_test(&worker_queue);
 
-    EXPECT_TRUE(worker_queue_try_enqueue(&worker_queue, job)) << "Marker should have been cleared";
+    EXPECT_TRUE(worker_queue_try_enqueue_lookup(&worker_queue, job))
+        << "Marker should have been cleared";
 }
 
 TEST_F(L2AsyncWorkerConcurrencyTest, PendingLookupClearedOnError) {
@@ -112,15 +109,15 @@ TEST_F(L2AsyncWorkerConcurrencyTest, PendingLookupClearedOnError) {
 
     const char* key = "error_key";
 
-    RuntimeCacheJob job{};
-    job.kind = RuntimeJobKind::L2Lookup;
-    ::strncpy(job.entry.key, key, sizeof(job.entry.key) - 1);
+    L2LookupJob job{};
+    ::strncpy(job.key, key, sizeof(job.key) - 1);
 
-    ASSERT_TRUE(worker_queue_try_enqueue(&worker_queue, job));
+    ASSERT_TRUE(worker_queue_try_enqueue_lookup(&worker_queue, job));
     worker_queue_execute_one_for_test(&worker_queue);
 
     // Verify marker is cleared even on error
-    EXPECT_TRUE(worker_queue_try_enqueue(&worker_queue, job)) << "Marker should have been cleared";
+    EXPECT_TRUE(worker_queue_try_enqueue_lookup(&worker_queue, job))
+        << "Marker should have been cleared";
     EXPECT_EQ(this->metrics_registry->runtime_metrics.l2_async_lookup_error_total.load(), 1);
 }
 

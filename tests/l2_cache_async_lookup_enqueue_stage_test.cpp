@@ -27,8 +27,6 @@ protected:
         runtime::WorkerQueueConfig wq_config{};
         wq_config.worker_count = 1;
         runtime::worker_queue_init(&worker_queue, wq_config);
-        // We don't start the queue threads to avoid background complexity in unit tests.
-        // We just manually set running=true so try_enqueue works.
         worker_queue.running = true;
 
         policy.cache.behavior = policy::CacheBehavior::Store;
@@ -66,7 +64,7 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, L1HitSkipsEnqueue) {
     EXPECT_STREQ(output.note, "l1-hit-skip");
     std::size_t total_count = 0;
     for (std::size_t i = 0; i < runtime::kRuntimeShardCount; ++i) {
-        total_count += worker_queue.shards[i].count;
+        total_count += worker_queue.shards[i].lookup_count;
     }
     EXPECT_EQ(total_count, 0u);
 }
@@ -80,7 +78,7 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, L1MissEnqueuesAndContinues) {
     std::size_t total_count = 0;
     std::size_t pending_count = 0;
     for (std::size_t i = 0; i < runtime::kRuntimeShardCount; ++i) {
-        total_count += worker_queue.shards[i].count;
+        total_count += worker_queue.shards[i].lookup_count;
         pending_count += worker_queue.shards[i].pending_count;
     }
     EXPECT_EQ(total_count, 1u);
@@ -101,11 +99,11 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, DuplicateKeySkipped) {
     ki.selected_fields = ctx.selected_fields;
     cache::build_cache_key(ki, actual_key, sizeof(actual_key));
 
-    // Fill all shards using the same key as the stage
-    runtime::RuntimeCacheJob job{};
-    std::strcpy(job.entry.key, actual_key);
+    // Fill shards using the same key
+    runtime::L2LookupJob job{};
+    std::strcpy(job.key, actual_key);
     for (int i = 0; i < 100; ++i) {
-        runtime::worker_queue_try_enqueue(&worker_queue, job);
+        runtime::worker_queue_try_enqueue_lookup(&worker_queue, job);
     }
 
     cache_key_prepare_stage(ctx);
@@ -115,7 +113,7 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, DuplicateKeySkipped) {
 
     std::size_t total_count = 0;
     for (std::size_t i = 0; i < runtime::kRuntimeShardCount; ++i) {
-        total_count += worker_queue.shards[i].count;
+        total_count += worker_queue.shards[i].lookup_count;
     }
     EXPECT_EQ(total_count, 1u);
 }
@@ -131,13 +129,15 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, QueueFullContinuesPendingCleared) {
     ki.policy_version = policy.route_id;
     cache::build_cache_key(ki, actual_key, sizeof(actual_key));
 
-    // Fill the shard that this key maps to
-    runtime::RuntimeCacheJob job{};
-    job.kind = runtime::RuntimeJobKind::L2Store;
-    std::strcpy(job.entry.key, actual_key);
-    for (int i = 0; i < 4; ++i) {
-        runtime::worker_queue_try_enqueue(&worker_queue, job);
+    // Find shard for actual_key
+    std::uint32_t hash = 5381;
+    for (const char* p = actual_key; *p; ++p) {
+        hash = ((hash << 5) + hash) + static_cast<std::uint32_t>(*p);
     }
+    std::uint32_t shard_idx = hash % runtime::kRuntimeShardCount;
+
+    // Directly saturate lookup queue for that shard
+    worker_queue.shards[shard_idx].lookup_count = 4;
 
     cache_key_prepare_stage(ctx);
     auto output = l2_cache_async_lookup_enqueue_stage(ctx);
@@ -148,7 +148,7 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, QueueFullContinuesPendingCleared) {
     for (std::size_t i = 0; i < runtime::kRuntimeShardCount; ++i) {
         pending_count += worker_queue.shards[i].pending_count;
     }
-    EXPECT_EQ(pending_count, 0u); // Must be cleared
+    EXPECT_EQ(pending_count, 0u); // Must be cleared on failed enqueue
 }
 
 } // namespace bytetaper::stages

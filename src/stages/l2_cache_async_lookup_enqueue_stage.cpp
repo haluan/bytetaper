@@ -35,16 +35,14 @@ apg::StageOutput l2_cache_async_lookup_enqueue_stage(apg::ApgTransformContext& c
     }
     const char* key = context.cache_key;
     // 4. Enqueue
-    runtime::RuntimeCacheJob job{};
-    job.kind = runtime::RuntimeJobKind::L2Lookup;
-    std::strncpy(job.entry.key, key, cache::kCacheKeyMaxLen - 1);
-    job.entry.key[cache::kCacheKeyMaxLen - 1] = '\0';
-    job.body_len = 0; // Worker will populate this during l2_get
+    runtime::L2LookupJob job{};
+    std::strncpy(job.key, key, cache::kCacheKeyMaxLen - 1);
+    job.key[cache::kCacheKeyMaxLen - 1] = '\0';
 
-    if (!runtime::worker_queue_try_enqueue(context.worker_queue, job)) {
+    if (!runtime::worker_queue_try_enqueue_lookup(context.worker_queue, job)) {
         // Enqueue might fail due to queue full OR already pending (internal to
-        // worker_queue_try_enqueue). The worker_queue_try_enqueue function handles the metrics and
-        // the internal pending state.
+        // worker_queue_try_enqueue_lookup). The worker_queue_try_enqueue_lookup function handles
+        // the metrics and the internal pending state.
         return apg::StageOutput{ apg::StageResult::Continue, "enqueue-failed" };
     }
 
