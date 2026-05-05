@@ -319,7 +319,6 @@ public:
     metrics::MetricsRegistry* metrics_registry = nullptr;
     coalescing::InFlightRegistry* coalescing_registry = nullptr;
     runtime::WorkerQueue worker_queue{};
-    runtime::PendingLookupRegistry pending_lookup_registry{};
 
     grpc::Status Process(grpc::ServerContext*,
                          grpc::ServerReaderWriter<envoy::service::ext_proc::v3::ProcessingResponse,
@@ -374,7 +373,6 @@ public:
                         filter_state.context.runtime_metrics = &metrics_registry->runtime_metrics;
                     }
                     filter_state.context.worker_queue = &worker_queue;
-                    filter_state.context.pending_lookup_registry = &pending_lookup_registry;
                     apg::run_pipeline(extproc::kLookupStages, extproc::kLookupStageCount,
                                       filter_state.context);
                 }
@@ -540,7 +538,6 @@ bool start_grpc_server(const GrpcServerConfig& config, GrpcServerHandle* handle)
     impl->service.coalescing_registry = config.coalescing_registry;
 
     // Initialize background worker resources
-    runtime::pending_lookup_init(&impl->service.pending_lookup_registry);
     runtime::WorkerQueueConfig wq_config{};
     wq_config.capacity = runtime::kWorkerQueueMaxCapacity;
     wq_config.worker_count = 2;
@@ -552,21 +549,28 @@ bool start_grpc_server(const GrpcServerConfig& config, GrpcServerHandle* handle)
     runtime::WorkerQueueResources wq_res{};
     wq_res.l1_cache = config.l1_cache;
     wq_res.l2_cache = config.l2_cache;
-    wq_res.pending = &impl->service.pending_lookup_registry;
     wq_res.runtime_metrics =
         config.metrics_registry ? &config.metrics_registry->runtime_metrics : nullptr;
+    bool worker_started = false;
     wq_err = runtime::worker_queue_start(&impl->service.worker_queue, wq_res);
     if (wq_err != nullptr) {
         return false;
     }
+    worker_started = true;
 
     impl->server = builder.BuildAndStart();
     if (!impl->server) {
+        if (worker_started) {
+            runtime::worker_queue_shutdown(&impl->service.worker_queue);
+        }
         return false;
     }
     if (selected_port <= 0 || selected_port > 65535) {
         impl->server->Shutdown();
         impl->server->Wait();
+        if (worker_started) {
+            runtime::worker_queue_shutdown(&impl->service.worker_queue);
+        }
         return false;
     }
 

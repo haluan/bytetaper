@@ -47,7 +47,7 @@ TEST_F(WorkerQueueTest, EnqueueSucceeds) {
 
     RuntimeCacheJob job;
     job.kind = RuntimeJobKind::L2Store;
-    std::strcpy(job.key, "test-key");
+    std::strcpy(job.entry.key, "test-key");
 
     EXPECT_TRUE(worker_queue_try_enqueue(q_.get(), job));
 
@@ -56,18 +56,19 @@ TEST_F(WorkerQueueTest, EnqueueSucceeds) {
 
 TEST_F(WorkerQueueTest, QueueFullReturnsFalse) {
     WorkerQueueConfig cfg;
-    cfg.capacity = 5;
+    cfg.capacity = kWorkerQueueShardCount * 5;
     cfg.worker_count = 1;
     const char* err = worker_queue_init(q_.get(), cfg);
     ASSERT_EQ(err, nullptr) << "Init failed: " << (err ? err : "");
 
     {
-        std::lock_guard<std::mutex> lock(q_->mu);
         q_->running = true;
         q_->resources.runtime_metrics = &metrics_;
     }
 
     RuntimeCacheJob job;
+    job.kind = RuntimeJobKind::L2Store;
+    std::strcpy(job.entry.key, "test-key");
     for (int i = 0; i < 5; ++i) {
         EXPECT_TRUE(worker_queue_try_enqueue(q_.get(), job)) << "Failed at index " << i;
     }
@@ -78,16 +79,17 @@ TEST_F(WorkerQueueTest, QueueFullReturnsFalse) {
 
 TEST_F(WorkerQueueTest, DroppedCountAccumulates) {
     WorkerQueueConfig cfg;
-    cfg.capacity = 1;
+    cfg.capacity = kWorkerQueueShardCount; // Each shard gets capacity 1
     cfg.worker_count = 1;
     ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
     {
-        std::lock_guard<std::mutex> lock(q_->mu);
         q_->running = true;
         q_->resources.runtime_metrics = &metrics_;
     }
 
     RuntimeCacheJob job;
+    job.kind = RuntimeJobKind::L2Store;
+    std::strcpy(job.entry.key, "test-key");
     worker_queue_try_enqueue(q_.get(), job); // Fill it
 
     for (int i = 0; i < 10; ++i) {
@@ -117,7 +119,6 @@ TEST_F(WorkerQueueTest, BodyPointerFixedInSlot) {
     cfg.worker_count = 1;
     ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
     {
-        std::lock_guard<std::mutex> lock(q_->mu);
         q_->running = true;
     }
 
@@ -128,10 +129,20 @@ TEST_F(WorkerQueueTest, BodyPointerFixedInSlot) {
 
     EXPECT_TRUE(worker_queue_try_enqueue(q_.get(), job));
 
+    // Find which shard it went to
+    std::size_t found_shard = 999;
+    for (std::size_t i = 0; i < kWorkerQueueShardCount; ++i) {
+        if (q_->shards[i].count > 0) {
+            found_shard = i;
+            break;
+        }
+    }
+    ASSERT_NE(found_shard, 999u);
+
     // Check that the slot has a pointer to its OWN body buffer, not the original_body
-    EXPECT_EQ(q_->slots[0].entry.body, q_->slots[0].body);
-    EXPECT_NE(q_->slots[0].entry.body, original_body);
-    EXPECT_STREQ(q_->slots[0].body, original_body);
+    EXPECT_EQ(q_->shards[found_shard].slots[0].entry.body, q_->shards[found_shard].slots[0].body);
+    EXPECT_NE(q_->shards[found_shard].slots[0].entry.body, original_body);
+    EXPECT_STREQ(q_->shards[found_shard].slots[0].body, original_body);
 }
 
 TEST_F(WorkerQueueTest, InitInvalidCapacityZero) {

@@ -7,14 +7,12 @@
 #include "cache/cache_entry.h"
 
 #include <cstddef>
-#include <mutex>
 
 namespace bytetaper::runtime {
 
-static constexpr std::size_t kPendingLookupMaxKeys = 1024;
+static constexpr std::size_t kPendingLookupMaxKeys = 128;
 
 struct PendingLookupRegistry {
-    std::mutex mu;
     char keys[kPendingLookupMaxKeys][cache::kCacheKeyMaxLen];
     bool occupied[kPendingLookupMaxKeys];
     std::size_t count;

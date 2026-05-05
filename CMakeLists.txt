@@ -2328,5 +2328,24 @@ if(BUILD_TESTING)
       NAME extproc_compression_candidate_header_integration_test
       COMMAND extproc_compression_candidate_header_integration_test
     )
+    
+    add_executable(extproc_worker_lifecycle_cleanup_test
+      tests/integration/extproc/extproc_worker_lifecycle_cleanup_test.cpp
+    )
+    target_include_directories(extproc_worker_lifecycle_cleanup_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${BYTETAPER_GENERATED_PROTO_DIR}
+    )
+    target_link_libraries(extproc_worker_lifecycle_cleanup_test
+      PRIVATE
+        bytetaper_extproc_grpc_server
+        bytetaper_extproc_grpc
+        gtest
+    )
+    add_test(
+      NAME extproc_worker_lifecycle_cleanup_test
+      COMMAND extproc_worker_lifecycle_cleanup_test
+    )
   endif()
 endif()

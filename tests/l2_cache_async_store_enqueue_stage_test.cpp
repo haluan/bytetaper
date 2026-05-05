@@ -59,22 +59,36 @@ TEST_F(L2CacheAsyncStoreEnqueueStageTest, EligibleResponseEnqueuesL2Store) {
     auto output = l2_cache_async_store_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "enqueued");
-    EXPECT_EQ(worker_queue.count, 1);
+    std::size_t total_count = 0;
+    for (std::size_t i = 0; i < runtime::kWorkerQueueShardCount; ++i) {
+        total_count += worker_queue.shards[i].count;
+    }
+    EXPECT_EQ(total_count, 1u);
     EXPECT_EQ(metrics.l2_async_store_total.load(), 1);
 
-    // Verify job content
-    auto& slot = worker_queue.slots[worker_queue.head];
-    EXPECT_EQ(slot.kind, runtime::RuntimeJobKind::L2Store);
-    EXPECT_STREQ(slot.body, "hello");
-    EXPECT_EQ(slot.body_len, 5);
+    // Verify job content in whichever shard it landed
+    bool found = false;
+    for (std::size_t i = 0; i < runtime::kWorkerQueueShardCount; ++i) {
+        if (worker_queue.shards[i].count > 0) {
+            auto& slot = worker_queue.shards[i].slots[worker_queue.shards[i].head];
+            EXPECT_EQ(slot.kind, runtime::RuntimeJobKind::L2Store);
+            EXPECT_STREQ(slot.body, "hello");
+            EXPECT_EQ(slot.body_len, 5u);
+            found = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
 }
 
 TEST_F(L2CacheAsyncStoreEnqueueStageTest, L2StoreQueueFullDoesNotFailResponse) {
-    // Fill queue
+    // Fill all shards using the same key as the stage
     runtime::RuntimeCacheJob job{};
-    runtime::worker_queue_try_enqueue(&worker_queue, job);
-    runtime::worker_queue_try_enqueue(&worker_queue, job);
-    EXPECT_EQ(worker_queue.count, 2);
+    std::strcpy(job.entry.key, "test_key");
+    for (int i = 0; i < 100; ++i) {
+        runtime::worker_queue_try_enqueue(&worker_queue, job);
+    }
+    std::strcpy(ctx.raw_path, "test_key");
 
     auto output = l2_cache_async_store_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
@@ -93,9 +107,17 @@ TEST_F(L2CacheAsyncStoreEnqueueStageTest, L2StoreJobOwnsBodyMemory) {
     // Overwrite original buffer
     std::memset(mutable_body, 0, 5);
 
-    // Verify slot body is unchanged
-    auto& slot = worker_queue.slots[worker_queue.head];
-    EXPECT_STREQ(slot.body, "world");
+    // Verify slot body is unchanged in whichever shard it landed
+    bool found = false;
+    for (std::size_t i = 0; i < runtime::kWorkerQueueShardCount; ++i) {
+        if (worker_queue.shards[i].count > 0) {
+            auto& slot = worker_queue.shards[i].slots[worker_queue.shards[i].head];
+            EXPECT_STREQ(slot.body, "world");
+            found = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
 }
 
 TEST_F(L2CacheAsyncStoreEnqueueStageTest, OversizedBodySkipsAsyncL2Store) {

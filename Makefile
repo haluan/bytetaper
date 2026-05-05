@@ -21,6 +21,10 @@ smoke-test:
 	@rm -rf build
 	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-smoke-test
 
+benchmark:
+	@rm -rf build
+	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) run --rm bytetaper-benchmark
+
 all-tests:
 	@rm -rf build
 	@$(COMPOSE_ENV) $(DOCKER_COMPOSE) build bytetaper-dev

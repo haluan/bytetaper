@@ -23,7 +23,6 @@
 
 namespace bytetaper::runtime {
 struct WorkerQueue;
-struct PendingLookupRegistry;
 } // namespace bytetaper::runtime
 
 namespace bytetaper::apg {
@@ -112,7 +111,6 @@ struct ApgTransformContext {
 
     // --- Background runtime inputs (set by caller for async stages) ---
     runtime::WorkerQueue* worker_queue = nullptr;
-    runtime::PendingLookupRegistry* pending_lookup_registry = nullptr;
 
     // --- Metrics (optional pointers to central registry counters) ---
     metrics::PaginationMetrics* pagination_metrics = nullptr;

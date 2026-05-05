@@ -26,8 +26,6 @@ public:
     void SetUp() override {
         l1_init(&l1_cache);
         metrics_reg = std::make_unique<metrics::MetricsRegistry>();
-        pending_reg_val = std::make_unique<PendingLookupRegistry>();
-        pending_lookup_init(pending_reg_val.get());
 
         WorkerQueueConfig config{};
         config.capacity = 16;
@@ -36,7 +34,6 @@ public:
 
         resources.l1_cache = &l1_cache;
         resources.runtime_metrics = &metrics_reg->runtime_metrics;
-        resources.pending = pending_reg_val.get();
     }
 
     void TearDown() override {
@@ -45,7 +42,6 @@ public:
 
     WorkerQueue worker_queue;
     cache::L1Cache l1_cache;
-    std::unique_ptr<PendingLookupRegistry> pending_reg_val;
     std::unique_ptr<metrics::MetricsRegistry> metrics_reg;
     WorkerQueueResources resources;
 };
@@ -96,8 +92,17 @@ TEST_F(WorkerQueueConcurrencyTest, WorkerDoesNotReadExpiredRequestPointer) {
 
     // Let's just verify the slot copy directly as a proxy for "does not read expired pointer"
     {
-        std::lock_guard<std::mutex> lock(worker_queue.mu);
-        EXPECT_EQ(worker_queue.slots[worker_queue.head].body[0], (char) 0xAA);
+        bool found = false;
+        for (std::size_t i = 0; i < kWorkerQueueShardCount; ++i) {
+            std::lock_guard<std::mutex> lock(worker_queue.shards[i].mu);
+            if (worker_queue.shards[i].count > 0) {
+                EXPECT_EQ(worker_queue.shards[i].slots[worker_queue.shards[i].head].body[0],
+                          (char) 0xAA);
+                found = true;
+                break;
+            }
+        }
+        EXPECT_TRUE(found);
     }
 }
 

@@ -299,7 +299,7 @@ services:
   bytetaper-benchmark:
     build:
       context: .
-      dockerfile: Dockerfile.benchmark
+      dockerfile: docker/benchmark.Dockerfile
     working_dir: /workspace
     volumes:
       - ./:/workspace

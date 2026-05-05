@@ -25,9 +25,9 @@ namespace bytetaper::extproc {
  * See docs/runtime/RUNTIME_BOUNDARIES.md for the enforcement contract.
  */
 const apg::ApgStage kLookupStages[] = {
+    stages::l1_cache_lookup_stage,
     stages::coalescing_decision_stage,
     stages::coalescing_follower_wait_stage,
-    stages::l1_cache_lookup_stage,
     stages::l2_cache_async_lookup_enqueue_stage,
     stages::pagination_request_mutation_stage,
 };

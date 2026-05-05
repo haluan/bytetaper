@@ -6,6 +6,7 @@
 
 #include "cache/cache_entry.h"
 #include "cache/l2_disk_cache.h"
+#include "runtime/pending_lookup_registry.h"
 
 #include <atomic>
 #include <condition_variable>
@@ -23,11 +24,10 @@ struct RuntimeMetrics;
 }
 
 namespace bytetaper::runtime {
-
-struct PendingLookupRegistry;
-
-// Maximum body size for an async cache job.
 static constexpr std::size_t kAsyncL2MaxBodySize = 65536; // 64 KB
+
+// Sharding configuration.
+static constexpr std::size_t kWorkerQueueShardCount = 8;
 
 // Upper bounds enforced by worker_queue_init.
 static constexpr std::size_t kWorkerQueueMaxWorkers = 8;
@@ -56,19 +56,25 @@ struct WorkerQueueConfig {
 struct WorkerQueueResources {
     cache::L2DiskCache* l2_cache = nullptr;
     cache::L1Cache* l1_cache = nullptr;
-    PendingLookupRegistry* pending = nullptr;
     metrics::RuntimeMetrics* runtime_metrics = nullptr;
 };
 
-// Fixed-capacity worker queue. Must not be copied or moved after init.
-struct WorkerQueue {
-    std::mutex mu;
+// Represents a single sharded queue with its own lock and pending registry.
+// Each worker owns multiple shards based on its index.
+struct WorkerShard {
+    alignas(64) std::mutex mu;
     std::condition_variable cv;
-    RuntimeCacheJob slots[kWorkerQueueMaxCapacity] = {};
+    RuntimeCacheJob slots[kWorkerQueueMaxCapacity / kWorkerQueueShardCount] = {};
     std::size_t head = 0;
     std::size_t tail = 0;
     std::size_t count = 0;
     std::size_t capacity = 0;
+    PendingLookupRegistry pending = {};
+};
+
+// Fixed-capacity worker queue with sharding. Must not be copied or moved after init.
+struct WorkerQueue {
+    WorkerShard shards[kWorkerQueueShardCount];
     bool running = false;
     std::thread workers[kWorkerQueueMaxWorkers];
     std::size_t worker_count = 0;

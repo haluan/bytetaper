@@ -10,7 +10,6 @@ namespace bytetaper::runtime {
 void pending_lookup_init(PendingLookupRegistry* reg) {
     if (reg == nullptr)
         return;
-    std::lock_guard<std::mutex> lock(reg->mu);
     for (std::size_t i = 0; i < kPendingLookupMaxKeys; ++i) {
         reg->occupied[i] = false;
     }
@@ -20,8 +19,6 @@ void pending_lookup_init(PendingLookupRegistry* reg) {
 bool pending_lookup_try_mark(PendingLookupRegistry* reg, const char* key) {
     if (reg == nullptr || key == nullptr)
         return false;
-
-    std::lock_guard<std::mutex> lock(reg->mu);
 
     // 1. Check for duplicates
     for (std::size_t i = 0; i < kPendingLookupMaxKeys; ++i) {
@@ -51,8 +48,6 @@ bool pending_lookup_try_mark(PendingLookupRegistry* reg, const char* key) {
 void pending_lookup_clear(PendingLookupRegistry* reg, const char* key) {
     if (reg == nullptr || key == nullptr)
         return;
-
-    std::lock_guard<std::mutex> lock(reg->mu);
 
     for (std::size_t i = 0; i < kPendingLookupMaxKeys; ++i) {
         if (reg->occupied[i] && std::strcmp(reg->keys[i], key) == 0) {

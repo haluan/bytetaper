@@ -22,11 +22,7 @@ protected:
         l1_cache = std::make_unique<cache::L1Cache>();
         cache::l1_init(l1_cache.get());
 
-        // L2 is needed for stage to run, but we don't need real RocksDB for these logic tests
-        // unless we call l2_get. Here we just need the pointer.
         l2_cache = reinterpret_cast<cache::L2DiskCache*>(0x1234);
-
-        pending_lookup_init(&pending_registry);
 
         runtime::WorkerQueueConfig wq_config{};
         wq_config.capacity = 2;
@@ -43,7 +39,6 @@ protected:
         ctx.l1_cache = l1_cache.get();
         ctx.l2_cache = l2_cache;
         ctx.worker_queue = &worker_queue;
-        ctx.pending_lookup_registry = &pending_registry;
         ctx.runtime_metrics = &metrics;
         std::strcpy(ctx.raw_path, "/path");
         ctx.request_method = policy::HttpMethod::Get;
@@ -51,7 +46,6 @@ protected:
 
     std::unique_ptr<cache::L1Cache> l1_cache;
     cache::L2DiskCache* l2_cache;
-    runtime::PendingLookupRegistry pending_registry;
     runtime::WorkerQueue worker_queue;
     metrics::RuntimeMetrics metrics{};
     policy::RoutePolicy policy;
@@ -63,7 +57,11 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, L1HitSkipsEnqueue) {
     auto output = l2_cache_async_lookup_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "l1-hit-skip");
-    EXPECT_EQ(worker_queue.count, 0);
+    std::size_t total_count = 0;
+    for (std::size_t i = 0; i < runtime::kWorkerQueueShardCount; ++i) {
+        total_count += worker_queue.shards[i].count;
+    }
+    EXPECT_EQ(total_count, 0u);
 }
 
 TEST_F(L2CacheAsyncLookupEnqueueStageTest, L1MissEnqueuesAndContinues) {
@@ -71,42 +69,76 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, L1MissEnqueuesAndContinues) {
     auto output = l2_cache_async_lookup_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "enqueued");
-    EXPECT_EQ(worker_queue.count, 1);
-    EXPECT_EQ(pending_registry.count, 1);
+    std::size_t total_count = 0;
+    std::size_t pending_count = 0;
+    for (std::size_t i = 0; i < runtime::kWorkerQueueShardCount; ++i) {
+        total_count += worker_queue.shards[i].count;
+        pending_count += worker_queue.shards[i].pending.count;
+    }
+    EXPECT_EQ(total_count, 1u);
+    EXPECT_EQ(pending_count, 1u);
     EXPECT_EQ(metrics.l2_async_lookup_total.load(), 1);
 }
 
 TEST_F(L2CacheAsyncLookupEnqueueStageTest, DuplicateKeySkipped) {
     ctx.cache_hit = false;
-    // Pre-mark key
-    char key[cache::kCacheKeyMaxLen];
+    // Build the actual key the stage will use
+    char actual_key[cache::kCacheKeyMaxLen];
     cache::CacheKeyInput ki{};
     ki.method = ctx.request_method;
     ki.route_id = policy.route_id;
     ki.path = ctx.raw_path;
     ki.policy_version = policy.route_id;
-    cache::build_cache_key(ki, key, sizeof(key));
-    runtime::pending_lookup_try_mark(&pending_registry, key);
+    ki.selected_field_count = ctx.selected_field_count;
+    ki.selected_fields = ctx.selected_fields;
+    cache::build_cache_key(ki, actual_key, sizeof(actual_key));
+
+    // Fill all shards using the same key as the stage
+    runtime::RuntimeCacheJob job{};
+    std::strcpy(job.entry.key, actual_key);
+    for (int i = 0; i < 100; ++i) {
+        runtime::worker_queue_try_enqueue(&worker_queue, job);
+    }
 
     auto output = l2_cache_async_lookup_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
-    EXPECT_STREQ(output.note, "already-pending");
-    EXPECT_EQ(worker_queue.count, 0);
-    EXPECT_EQ(metrics.l2_async_lookup_deduped_total.load(), 1);
+    EXPECT_STREQ(output.note, "enqueue-failed");
+
+    std::size_t total_count = 0;
+    for (std::size_t i = 0; i < runtime::kWorkerQueueShardCount; ++i) {
+        total_count += worker_queue.shards[i].count;
+    }
+    EXPECT_EQ(total_count, 1u);
 }
 
 TEST_F(L2CacheAsyncLookupEnqueueStageTest, QueueFullContinuesPendingCleared) {
     ctx.cache_hit = false;
-    // Fill queue
+    // Build the actual key the stage will use
+    char actual_key[cache::kCacheKeyMaxLen];
+    cache::CacheKeyInput ki{};
+    ki.method = ctx.request_method;
+    ki.route_id = policy.route_id;
+    ki.path = ctx.raw_path;
+    ki.policy_version = policy.route_id;
+    cache::build_cache_key(ki, actual_key, sizeof(actual_key));
+
+    // Fill all shards using L2Store jobs (so they don't mark pending)
     runtime::RuntimeCacheJob job{};
-    runtime::worker_queue_try_enqueue(&worker_queue, job);
-    runtime::worker_queue_try_enqueue(&worker_queue, job);
-    EXPECT_EQ(worker_queue.count, 2);
+    job.kind = runtime::RuntimeJobKind::L2Store;
+    std::strcpy(job.entry.key, actual_key);
+    for (int i = 0; i < 100; ++i) {
+        runtime::worker_queue_try_enqueue(&worker_queue, job);
+    }
 
     auto output = l2_cache_async_lookup_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
-    EXPECT_STREQ(output.note, "queue-full");
-    EXPECT_EQ(pending_registry.count, 0); // Must be cleared
+    EXPECT_STREQ(output.note, "enqueue-failed");
+
+    std::size_t pending_count = 0;
+    for (std::size_t i = 0; i < runtime::kWorkerQueueShardCount; ++i) {
+        pending_count += worker_queue.shards[i].pending.count;
+    }
+    EXPECT_EQ(pending_count, 0u); // Must be cleared
 }
 
 } // namespace bytetaper::stages

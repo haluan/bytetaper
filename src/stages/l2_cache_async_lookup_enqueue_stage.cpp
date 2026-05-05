@@ -30,9 +30,6 @@ apg::StageOutput l2_cache_async_lookup_enqueue_stage(apg::ApgTransformContext& c
     if (context.worker_queue == nullptr) {
         return apg::StageOutput{ apg::StageResult::Continue, "no-worker-queue" };
     }
-    if (context.pending_lookup_registry == nullptr) {
-        return apg::StageOutput{ apg::StageResult::Continue, "no-pending-registry" };
-    }
 
     // 3. Build key
     cache::CacheKeyInput ki{};
@@ -47,15 +44,7 @@ apg::StageOutput l2_cache_async_lookup_enqueue_stage(apg::ApgTransformContext& c
     if (!cache::build_cache_key(ki, key, sizeof(key))) {
         return apg::StageOutput{ apg::StageResult::Continue, "key-build-failed" };
     }
-
-    // 4. Deduplicate via PendingRegistry
-    if (!runtime::pending_lookup_try_mark(context.pending_lookup_registry, key)) {
-        metrics::record_runtime_event(context.runtime_metrics,
-                                      metrics::RuntimeMetricEvent::L2LookupDeduped);
-        return apg::StageOutput{ apg::StageResult::Continue, "already-pending" };
-    }
-
-    // 5. Enqueue
+    // 4. Enqueue
     runtime::RuntimeCacheJob job{};
     job.kind = runtime::RuntimeJobKind::L2Lookup;
     std::strncpy(job.entry.key, key, cache::kCacheKeyMaxLen - 1);
@@ -63,9 +52,10 @@ apg::StageOutput l2_cache_async_lookup_enqueue_stage(apg::ApgTransformContext& c
     job.body_len = 0; // Worker will populate this during l2_get
 
     if (!runtime::worker_queue_try_enqueue(context.worker_queue, job)) {
-        // Queue full: MUST clear pending marker to avoid leak
-        runtime::pending_lookup_clear(context.pending_lookup_registry, key);
-        return apg::StageOutput{ apg::StageResult::Continue, "queue-full" };
+        // Enqueue might fail due to queue full OR already pending (internal to
+        // worker_queue_try_enqueue). The worker_queue_try_enqueue function handles the metrics and
+        // the internal pending state.
+        return apg::StageOutput{ apg::StageResult::Continue, "enqueue-failed" };
     }
 
     metrics::record_runtime_event(context.runtime_metrics,
