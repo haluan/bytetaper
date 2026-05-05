@@ -15,14 +15,14 @@ namespace {
 static constexpr std::size_t kDJB2InitialHash = 5381;
 
 // Simple, fast hash function (DJB2) used when cache is large.
-std::size_t hash_key(const char* key) {
+std::uint64_t hash_key(const char* key) {
     if (key == nullptr) {
         return 0;
     }
-    std::size_t h = kDJB2InitialHash;
+    std::uint64_t h = kDJB2InitialHash;
     int c;
     while ((c = static_cast<unsigned char>(*key++))) {
-        h = ((h << 5) + h) + static_cast<std::size_t>(c); // h * 33 + c
+        h = ((h << 5) + h) + static_cast<std::uint64_t>(c); // h * 33 + c
     }
     return h;
 }
@@ -51,6 +51,7 @@ void l1_init(L1Cache* cache) {
         std::memset(shard.slots, 0, sizeof(shard.slots));
         std::memset(shard.bodies, 0, sizeof(shard.bodies));
         std::memset(shard.generations, 0, sizeof(shard.generations));
+        std::memset(shard.key_hashes, 0, sizeof(shard.key_hashes));
         shard.write_cursor = 0;
     }
 }
@@ -60,7 +61,7 @@ void l1_put(L1Cache* cache, const CacheEntry& entry) {
         return;
     }
 
-    const std::size_t h = hash_key(entry.key);
+    const std::uint64_t h = hash_key(entry.key);
     const std::size_t shard_idx = h % kL1ShardCount;
     auto& shard = cache->shards[shard_idx];
 
@@ -70,6 +71,7 @@ void l1_put(L1Cache* cache, const CacheEntry& entry) {
     const std::size_t slot_idx = shard.write_cursor % kL1SlotsPerShard;
     shard.slots[slot_idx] = entry;
     copy_body_to_slot(&shard, slot_idx, entry);
+    shard.key_hashes[slot_idx] = h;
     shard.generations[slot_idx] += 1;
     shard.write_cursor += 1;
 }
@@ -79,7 +81,7 @@ bool l1_put_if_newer(L1Cache* cache, const CacheEntry& entry) {
         return false;
     }
 
-    const std::size_t h = hash_key(entry.key);
+    const std::uint64_t h = hash_key(entry.key);
     const std::size_t shard_idx = h % kL1ShardCount;
     auto& shard = cache->shards[shard_idx];
 
@@ -90,7 +92,8 @@ bool l1_put_if_newer(L1Cache* cache, const CacheEntry& entry) {
 
     // 1. Check for existing entry to verify staleness
     for (std::size_t i = 0; i < kL1SlotsPerShard; ++i) {
-        if (shard.generations[i] > 0 && std::strcmp(shard.slots[i].key, entry.key) == 0) {
+        if (shard.generations[i] > 0 && shard.key_hashes[i] == h &&
+            std::strcmp(shard.slots[i].key, entry.key) == 0) {
             // Found existing entry. Check if it is newer.
             if (shard.slots[i].created_at_epoch_ms > entry.created_at_epoch_ms) {
                 return false; // Existing is newer, do not promote stale data.
@@ -106,6 +109,7 @@ bool l1_put_if_newer(L1Cache* cache, const CacheEntry& entry) {
     // 2. Perform insertion
     shard.slots[target_slot] = entry;
     copy_body_to_slot(&shard, target_slot, entry);
+    shard.key_hashes[target_slot] = h;
     shard.generations[target_slot] += 1;
 
     // Only increment cursor if we didn't overwrite an existing slot.
@@ -122,7 +126,7 @@ bool l1_get(const L1Cache* cache, const char* key, std::int64_t now_ms, CacheEnt
         return false;
     }
 
-    const std::size_t h = hash_key(key);
+    const std::uint64_t h = hash_key(key);
     const std::size_t shard_idx = h % kL1ShardCount;
     auto& shard = cache->shards[shard_idx];
 
@@ -131,6 +135,9 @@ bool l1_get(const L1Cache* cache, const char* key, std::int64_t now_ms, CacheEnt
     // Linear Scan within the shard.
     for (std::size_t i = 0; i < kL1SlotsPerShard; ++i) {
         if (shard.generations[i] == 0) {
+            continue;
+        }
+        if (shard.key_hashes[i] != h) {
             continue;
         }
         if (std::strncmp(shard.slots[i].key, key, kCacheKeyMaxLen) != 0) {

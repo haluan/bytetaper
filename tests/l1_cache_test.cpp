@@ -89,4 +89,119 @@ TEST_F(L1CacheTest, Expiry) {
     EXPECT_TRUE(l1_get(cache.get(), "expired_key", 500, &out, body_buf, sizeof(body_buf)));
 }
 
+static std::uint64_t expected_hash_key(const char* key) {
+    if (key == nullptr)
+        return 0;
+    std::uint64_t h = 5381;
+    int c;
+    while ((c = static_cast<unsigned char>(*key++))) {
+        h = ((h << 5) + h) + static_cast<std::uint64_t>(c);
+    }
+    return h;
+}
+
+TEST_F(L1CacheTest, HashTagStoredOnPut) {
+    CacheEntry e{};
+    ::strncpy(e.key, "k1", sizeof(e.key) - 1);
+    l1_put(cache.get(), e);
+
+    const std::uint64_t h = expected_hash_key("k1");
+    const std::size_t shard_idx = h % kL1ShardCount;
+    auto& shard = cache->shards[shard_idx];
+
+    // Find the slot with this key
+    bool found = false;
+    for (std::size_t i = 0; i < kL1SlotsPerShard; ++i) {
+        if (shard.generations[i] > 0 && std::strcmp(shard.slots[i].key, "k1") == 0) {
+            EXPECT_EQ(shard.key_hashes[i], h);
+            found = true;
+            break;
+        }
+    }
+    EXPECT_TRUE(found);
+}
+
+TEST_F(L1CacheTest, HashTagClearedOrOverwrittenOnEviction) {
+    // Generate 17 keys that map to the exact same shard
+    std::vector<std::string> keys;
+    int suffix = 0;
+    std::size_t targeted_shard = 0;
+
+    while (keys.size() < kL1SlotsPerShard + 1) {
+        std::string candidate = "key_" + std::to_string(suffix++);
+        std::uint64_t h = expected_hash_key(candidate.c_str());
+        if (h % kL1ShardCount == targeted_shard) {
+            keys.push_back(candidate);
+        }
+    }
+
+    // Put the first 16 keys (fills the shard completely)
+    for (std::size_t i = 0; i < kL1SlotsPerShard; ++i) {
+        CacheEntry e{};
+        ::strncpy(e.key, keys[i].c_str(), sizeof(e.key) - 1);
+        l1_put(cache.get(), e);
+    }
+
+    // Verify slot 0 has the first key's hash
+    auto& shard = cache->shards[targeted_shard];
+    std::uint64_t first_hash = expected_hash_key(keys[0].c_str());
+    EXPECT_EQ(shard.key_hashes[0], first_hash);
+
+    // Put the 17th key to wrap around and overwrite slot 0
+    CacheEntry last_entry{};
+    ::strncpy(last_entry.key, keys[kL1SlotsPerShard].c_str(), sizeof(last_entry.key) - 1);
+    l1_put(cache.get(), last_entry);
+
+    // Verify slot 0 hash is overwritten to the 17th key's hash
+    std::uint64_t last_hash = expected_hash_key(keys[kL1SlotsPerShard].c_str());
+    EXPECT_EQ(shard.key_hashes[0], last_hash);
+}
+
+TEST_F(L1CacheTest, HashCollisionStillCorrect) {
+    CacheEntry e{};
+    ::strncpy(e.key, "real_key", sizeof(e.key) - 1);
+    l1_put(cache.get(), e);
+
+    const std::uint64_t real_hash = expected_hash_key("real_key");
+    const std::size_t shard_idx = real_hash % kL1ShardCount;
+    auto& shard = cache->shards[shard_idx];
+
+    // Find a "fake_key" that maps to the SAME shard but has a different key string
+    std::string fake_key;
+    int suffix = 0;
+    while (true) {
+        std::string candidate = "fake_" + std::to_string(suffix++);
+        if (candidate == "real_key")
+            continue;
+        std::uint64_t h = expected_hash_key(candidate.c_str());
+        if (h % kL1ShardCount == shard_idx) {
+            fake_key = candidate;
+            break;
+        }
+    }
+
+    const std::uint64_t fake_hash = expected_hash_key(fake_key.c_str());
+
+    // Find slot index of "real_key"
+    std::size_t slot_idx = 9999;
+    for (std::size_t i = 0; i < kL1SlotsPerShard; ++i) {
+        if (shard.generations[i] > 0 && std::strcmp(shard.slots[i].key, "real_key") == 0) {
+            slot_idx = i;
+            break;
+        }
+    }
+    ASSERT_NE(slot_idx, 9999u);
+
+    // Artificially modify the key_hash in that slot to fake_hash.
+    // Now, looking up fake_key will find a slot with generations > 0 and key_hashes[i] ==
+    // fake_hash. However, std::strncmp should fail because the key is "real_key" instead of
+    // "fake_key".
+    shard.key_hashes[slot_idx] = fake_hash;
+
+    CacheEntry out{};
+    char body_buf[kL1MaxBodySize] = {};
+    EXPECT_FALSE(l1_get(cache.get(), fake_key.c_str(), 0, &out, body_buf, sizeof(body_buf)))
+        << "Should not match different key even if key_hashes match (collision correctness)";
+}
+
 } // namespace bytetaper::cache

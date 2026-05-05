@@ -21,6 +21,7 @@ struct L1CacheShard {
     CacheEntry slots[kL1SlotsPerShard];
     char bodies[kL1SlotsPerShard][kL1MaxBodySize];
     std::uint32_t generations[kL1SlotsPerShard];
+    std::uint64_t key_hashes[kL1SlotsPerShard];
     std::size_t write_cursor;
 };
 
