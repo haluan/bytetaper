@@ -7,6 +7,7 @@
 #include "cache/l2_disk_cache.h"
 #include "metrics/runtime_metrics.h"
 #include "runtime/worker_queue.h"
+#include "stages/cache_key_prepare_stage.h"
 #include "stages/l2_cache_async_store_enqueue_stage.h"
 
 #include <cstring>
@@ -53,8 +54,16 @@ protected:
     apg::ApgTransformContext ctx;
 };
 
-TEST_F(L2CacheAsyncStoreEnqueueStageTest, EligibleResponseEnqueuesL2Store) {
+TEST_F(L2CacheAsyncStoreEnqueueStageTest, KeyNotReadyReturnsContinue) {
     auto output = l2_cache_async_store_enqueue_stage(ctx);
+    EXPECT_EQ(output.result, apg::StageResult::Continue);
+    EXPECT_STREQ(output.note, "key-not-ready");
+}
+
+TEST_F(L2CacheAsyncStoreEnqueueStageTest, EligibleResponseEnqueuesL2Store) {
+    cache_key_prepare_stage(ctx);
+    auto output = l2_cache_async_store_enqueue_stage(ctx);
+
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "enqueued");
     std::size_t total_count = 0;
@@ -97,6 +106,7 @@ TEST_F(L2CacheAsyncStoreEnqueueStageTest, L2StoreQueueFullDoesNotFailResponse) {
         runtime::worker_queue_try_enqueue(&worker_queue, job);
     }
 
+    cache_key_prepare_stage(ctx);
     auto output = l2_cache_async_store_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "queue-full");
@@ -108,6 +118,7 @@ TEST_F(L2CacheAsyncStoreEnqueueStageTest, L2StoreJobOwnsBodyMemory) {
     ctx.response_body = mutable_body;
     ctx.response_body_len = 5;
 
+    cache_key_prepare_stage(ctx);
     auto output = l2_cache_async_store_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
 
@@ -129,6 +140,7 @@ TEST_F(L2CacheAsyncStoreEnqueueStageTest, L2StoreJobOwnsBodyMemory) {
 
 TEST_F(L2CacheAsyncStoreEnqueueStageTest, OversizedBodySkipsAsyncL2Store) {
     ctx.response_body_len = runtime::kAsyncL2MaxBodySize + 1;
+    cache_key_prepare_stage(ctx);
     auto output = l2_cache_async_store_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "body-too-large");
@@ -137,6 +149,7 @@ TEST_F(L2CacheAsyncStoreEnqueueStageTest, OversizedBodySkipsAsyncL2Store) {
 
 TEST_F(L2CacheAsyncStoreEnqueueStageTest, NonGetRequestSkips) {
     ctx.request_method = policy::HttpMethod::Post;
+    cache_key_prepare_stage(ctx);
     auto output = l2_cache_async_store_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "non-get");
@@ -144,6 +157,7 @@ TEST_F(L2CacheAsyncStoreEnqueueStageTest, NonGetRequestSkips) {
 
 TEST_F(L2CacheAsyncStoreEnqueueStageTest, Non2xxStatusSkips) {
     ctx.response_status_code = 500;
+    cache_key_prepare_stage(ctx);
     auto output = l2_cache_async_store_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "non-2xx");
@@ -151,6 +165,7 @@ TEST_F(L2CacheAsyncStoreEnqueueStageTest, Non2xxStatusSkips) {
 
 TEST_F(L2CacheAsyncStoreEnqueueStageTest, NoTtlSkips) {
     policy.cache.ttl_seconds = 0;
+    cache_key_prepare_stage(ctx);
     auto output = l2_cache_async_store_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "no-ttl");

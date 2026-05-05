@@ -46,20 +46,11 @@ apg::StageOutput l1_cache_store_stage(apg::ApgTransformContext& context) {
         return { apg::StageResult::Continue, "body-too-large-for-l1" };
     }
 
-    // Build cache key
-    cache::CacheKeyInput ki{};
-    ki.method = context.request_method;
-    ki.route_id = context.matched_policy->route_id;
-    ki.path = context.raw_path;
-    ki.query = context.raw_query;
-    ki.selected_fields = context.selected_fields;
-    ki.selected_field_count = context.selected_field_count;
-    ki.policy_version = context.matched_policy->route_id;
-
-    char key_buf[cache::kCacheKeyMaxLen] = {};
-    if (!cache::build_cache_key(ki, key_buf, sizeof(key_buf))) {
-        return { apg::StageResult::Continue, "key-build-failed" };
+    if (!context.cache_key_ready) {
+        return { apg::StageResult::Continue, "key-not-ready" };
     }
+
+    const char* key_buf = context.cache_key;
 
     // Build CacheEntry and store
     cache::CacheEntry entry{};

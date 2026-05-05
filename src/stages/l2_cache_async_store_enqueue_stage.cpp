@@ -57,22 +57,14 @@ apg::StageOutput l2_cache_async_store_enqueue_stage(apg::ApgTransformContext& co
         return { apg::StageResult::Continue, "body-too-large" };
     }
 
-    // 9. Build cache key
+    if (!context.cache_key_ready) {
+        return { apg::StageResult::Continue, "key-not-ready" };
+    }
+
     runtime::RuntimeCacheJob job{};
     job.kind = runtime::RuntimeJobKind::L2Store;
-
-    cache::CacheKeyInput ki{};
-    ki.method = context.request_method;
-    ki.route_id = context.matched_policy->route_id;
-    ki.path = context.raw_path;
-    ki.query = context.raw_query;
-    ki.selected_fields = context.selected_fields;
-    ki.selected_field_count = context.selected_field_count;
-    ki.policy_version = context.matched_policy->route_id;
-
-    if (!cache::build_cache_key(ki, job.key, sizeof(job.key))) {
-        return { apg::StageResult::Continue, "key-build-failed" };
-    }
+    std::memcpy(job.key, context.cache_key, cache::kCacheKeyMaxLen);
+    const char* key = job.key;
 
     // 10. Deep copy body into job buffer
     std::memcpy(job.body, context.response_body, context.response_body_len);

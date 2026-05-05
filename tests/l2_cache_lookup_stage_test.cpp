@@ -3,6 +3,7 @@
 
 #include "cache/cache_key.h"
 #include "cache/l2_disk_cache.h"
+#include "stages/cache_key_prepare_stage.h"
 #include "stages/l2_cache_lookup_stage.h"
 
 #include <cstring>
@@ -67,10 +68,26 @@ TEST_F(L2CacheLookupStageTest, DisabledPolicySkips) {
     ctx.matched_policy = &pol;
     ctx.l2_cache = l2_;
 
+    cache_key_prepare_stage(ctx);
     auto out = l2_cache_lookup_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::Continue);
     EXPECT_FALSE(ctx.cache_hit);
     EXPECT_STREQ(out.note, "cache-disabled");
+}
+
+TEST_F(L2CacheLookupStageTest, KeyNotReadyReturnsContinue) {
+    policy::RoutePolicy pol{};
+    pol.route_id = "rt1";
+    pol.cache.behavior = policy::CacheBehavior::Store;
+
+    apg::ApgTransformContext ctx{};
+    ctx.matched_policy = &pol;
+    ctx.l2_cache = l2_;
+
+    auto out = l2_cache_lookup_stage(ctx);
+    EXPECT_EQ(out.result, apg::StageResult::Continue);
+    EXPECT_STREQ(out.note, "key-not-ready");
+    EXPECT_FALSE(ctx.cache_hit);
 }
 
 TEST_F(L2CacheLookupStageTest, L2HitPreparesResponse) {
@@ -81,6 +98,7 @@ TEST_F(L2CacheLookupStageTest, L2HitPreparesResponse) {
     apg::ApgTransformContext ctx{};
     setup_l2_with_entry(&ctx, &pol, "/api/items", 200, 9999999);
 
+    cache_key_prepare_stage(ctx);
     auto out = l2_cache_lookup_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::SkipRemaining);
     EXPECT_TRUE(ctx.cache_hit);
@@ -103,6 +121,7 @@ TEST_F(L2CacheLookupStageTest, L2MissContinues) {
     ctx.l2_cache = l2_;
     std::strncpy(ctx.raw_path, "/not/in/cache", sizeof(ctx.raw_path) - 1);
 
+    cache_key_prepare_stage(ctx);
     auto out = l2_cache_lookup_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::Continue);
     EXPECT_FALSE(ctx.cache_hit);
@@ -118,6 +137,7 @@ TEST_F(L2CacheLookupStageTest, ExpiredEntryRejected) {
     setup_l2_with_entry(&ctx, &pol, "/api/items", 200, 1000); // Expired at 1000ms
     ctx.request_epoch_ms = 2000;                              // Requested at 2000ms
 
+    cache_key_prepare_stage(ctx);
     auto out = l2_cache_lookup_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::Continue);
     EXPECT_FALSE(ctx.cache_hit);

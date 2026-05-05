@@ -271,6 +271,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/coalescing/coalescing_timeout.cpp
     src/metrics/coalescing_metrics.cpp
     src/extproc/header_view.cpp
+    src/stages/cache_key_prepare_stage.cpp
   )
   target_include_directories(bytetaper_extproc_grpc_server
     PUBLIC
@@ -456,6 +457,7 @@ if(BUILD_TESTING)
     add_executable(l1_cache_lookup_stage_test
       tests/l1_cache_lookup_stage_test.cpp
       src/stages/l1_cache_lookup_stage.cpp
+      src/stages/cache_key_prepare_stage.cpp
       src/cache/cache_entry.cpp
       src/cache/cache_key.cpp
       src/cache/l1_cache.cpp
@@ -478,6 +480,7 @@ if(BUILD_TESTING)
     add_executable(l2_cache_lookup_stage_test
       tests/l2_cache_lookup_stage_test.cpp
       src/stages/l2_cache_lookup_stage.cpp
+      src/stages/cache_key_prepare_stage.cpp
       src/cache/l2_rocksdb_cache.cpp
       src/cache/cache_entry_codec.cpp
       src/cache/cache_entry.cpp
@@ -500,9 +503,25 @@ if(BUILD_TESTING)
       COMMAND l2_cache_lookup_stage_test
     )
 
+    add_executable(cache_key_prepare_stage_test
+      tests/cache_key_prepare_stage_test.cpp
+      src/stages/cache_key_prepare_stage.cpp
+      src/cache/cache_key.cpp
+    )
+    target_include_directories(cache_key_prepare_stage_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(cache_key_prepare_stage_test
+      PRIVATE
+        gtest_main
+    )
+    add_test(NAME cache_key_prepare_stage_test COMMAND cache_key_prepare_stage_test)
+
     add_executable(l1_cache_store_stage_test
       tests/l1_cache_store_stage_test.cpp
       src/stages/l1_cache_store_stage.cpp
+      src/stages/cache_key_prepare_stage.cpp
       src/cache/cache_entry.cpp
       src/cache/cache_key.cpp
       src/cache/l1_cache.cpp
@@ -570,6 +589,7 @@ if(BUILD_TESTING)
       tests/l2_promotion_test.cpp
       src/stages/l2_cache_lookup_stage.cpp
       src/stages/l1_cache_lookup_stage.cpp
+      src/stages/cache_key_prepare_stage.cpp
       src/cache/l2_rocksdb_cache.cpp
       src/cache/cache_entry_codec.cpp
       src/cache/l1_cache.cpp
@@ -1143,6 +1163,7 @@ if(BUILD_TESTING)
     add_executable(l2_cache_async_lookup_enqueue_stage_test
       tests/l2_cache_async_lookup_enqueue_stage_test.cpp
       src/stages/l2_cache_async_lookup_enqueue_stage.cpp
+      src/stages/cache_key_prepare_stage.cpp
       src/runtime/worker_queue.cpp
       src/cache/cache_key.cpp
       src/cache/cache_entry.cpp
@@ -1170,6 +1191,7 @@ if(BUILD_TESTING)
     add_executable(l2_cache_async_store_enqueue_stage_test
       tests/l2_cache_async_store_enqueue_stage_test.cpp
       src/stages/l2_cache_async_store_enqueue_stage.cpp
+      src/stages/cache_key_prepare_stage.cpp
       src/runtime/worker_queue.cpp
       src/cache/cache_key.cpp
       src/cache/cache_entry.cpp

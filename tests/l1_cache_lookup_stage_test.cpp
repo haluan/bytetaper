@@ -4,6 +4,7 @@
 #include "cache/cache_key.h"
 #include "cache/l1_cache.h"
 #include "policy/route_policy.h"
+#include "stages/cache_key_prepare_stage.h"
 #include "stages/l1_cache_lookup_stage.h"
 
 #include <cstring>
@@ -28,9 +29,22 @@ TEST_F(L1CacheLookupStageTest, DisabledPolicySkips) {
     apg::ApgTransformContext ctx{};
     ctx.matched_policy = &policy_;
 
+    cache_key_prepare_stage(ctx);
     auto out = l1_cache_lookup_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::Continue);
     EXPECT_STREQ(out.note, "cache-disabled");
+    EXPECT_FALSE(ctx.cache_hit);
+}
+
+TEST_F(L1CacheLookupStageTest, KeyNotReadyReturnsContinue) {
+    policy_.cache.behavior = policy::CacheBehavior::Store;
+    apg::ApgTransformContext ctx{};
+    ctx.matched_policy = &policy_;
+    ctx.l1_cache = l1_cache_.get();
+
+    auto out = l1_cache_lookup_stage(ctx);
+    EXPECT_EQ(out.result, apg::StageResult::Continue);
+    EXPECT_STREQ(out.note, "key-not-ready");
     EXPECT_FALSE(ctx.cache_hit);
 }
 
@@ -41,7 +55,7 @@ TEST_F(L1CacheLookupStageTest, L1MissContinues) {
     ctx.matched_policy = &policy_;
     ctx.l1_cache = l1_cache_.get();
     std::strncpy(ctx.raw_path, "/api", sizeof(ctx.raw_path) - 1);
-
+    cache_key_prepare_stage(ctx);
     auto out = l1_cache_lookup_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::Continue);
     EXPECT_STREQ(out.note, "l1-miss");
@@ -71,6 +85,7 @@ TEST_F(L1CacheLookupStageTest, L1HitPreparesResponse) {
     entry.status_code = 200;
     cache::l1_put(l1_cache_.get(), entry);
 
+    cache_key_prepare_stage(ctx);
     auto out = l1_cache_lookup_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::SkipRemaining);
     EXPECT_STREQ(out.note, "l1-hit");
@@ -105,6 +120,7 @@ TEST_F(L1CacheLookupStageTest, ExpiredHitMisses) {
     entry.expires_at_epoch_ms = 1000; // Expired at 2000
     cache::l1_put(l1_cache_.get(), entry);
 
+    cache_key_prepare_stage(ctx);
     auto out = l1_cache_lookup_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::Continue);
     EXPECT_STREQ(out.note, "l1-miss");

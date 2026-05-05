@@ -4,6 +4,7 @@
 #include "cache/cache_key.h"
 #include "cache/l1_cache.h"
 #include "coalescing/inflight_registry.h"
+#include "stages/cache_key_prepare_stage.h"
 #include "stages/coalescing_follower_wait_stage.h"
 
 #include <chrono>
@@ -74,6 +75,7 @@ TEST_F(CoalescingFollowerWaitTest, ImmediateHitReturnsSkip) {
 
     cache::l1_put(l1_cache.get(), entry);
 
+    cache_key_prepare_stage(ctx);
     auto output = coalescing_follower_wait_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::SkipRemaining);
     EXPECT_TRUE(ctx.cache_hit);
@@ -88,6 +90,7 @@ TEST_F(CoalescingFollowerWaitTest, TimeoutReturnsContinue) {
     policy.coalescing.wait_window_ms = 20; // Short wait
 
     auto start = std::chrono::steady_clock::now();
+    cache_key_prepare_stage(ctx);
     auto output = coalescing_follower_wait_stage(ctx);
     auto end = std::chrono::steady_clock::now();
 
@@ -105,6 +108,7 @@ TEST_F(CoalescingFollowerWaitTest, L2SeededNoL1HitTimesOut) {
     policy.coalescing.wait_window_ms = 20; // short timeout
 
     // No L1 population, so L1 will always miss.
+    cache_key_prepare_stage(ctx);
     auto output = coalescing_follower_wait_stage(ctx);
 
     EXPECT_EQ(output.result, apg::StageResult::Continue);

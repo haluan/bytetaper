@@ -30,19 +30,10 @@ apg::StageOutput l2_cache_async_lookup_enqueue_stage(apg::ApgTransformContext& c
         return apg::StageOutput{ apg::StageResult::Continue, "no-worker-queue" };
     }
 
-    // 3. Build key
-    cache::CacheKeyInput ki{};
-    ki.method = context.request_method;
-    ki.route_id = context.matched_policy->route_id;
-    ki.path = context.raw_path;
-    ki.policy_version = context.matched_policy->route_id;
-    ki.selected_field_count = context.selected_field_count;
-    ki.selected_fields = context.selected_fields;
-
-    char key[cache::kCacheKeyMaxLen];
-    if (!cache::build_cache_key(ki, key, sizeof(key))) {
-        return apg::StageOutput{ apg::StageResult::Continue, "key-build-failed" };
+    if (!context.cache_key_ready) {
+        return apg::StageOutput{ apg::StageResult::Continue, "key-not-ready" };
     }
+    const char* key = context.cache_key;
     // 4. Enqueue
     runtime::RuntimeCacheJob job{};
     job.kind = runtime::RuntimeJobKind::L2Lookup;

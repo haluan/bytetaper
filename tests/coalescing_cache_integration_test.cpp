@@ -4,6 +4,7 @@
 #include "cache/cache_key.h"
 #include "cache/l1_cache.h"
 #include "coalescing/inflight_registry.h"
+#include "stages/cache_key_prepare_stage.h"
 #include "stages/coalescing_follower_wait_stage.h"
 
 #include <chrono>
@@ -57,6 +58,7 @@ TEST_F(CoalescingCacheIntegrationTest, FollowerObservesCacheHit) {
     cache::l1_put(l1_cache_ptr_.get(), entry);
 
     // 2. Run follower wait stage
+    cache_key_prepare_stage(ctx);
     auto out = coalescing_follower_wait_stage(ctx);
 
     // 3. Should hit L1 and skip remaining

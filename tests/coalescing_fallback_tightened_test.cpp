@@ -6,6 +6,7 @@
 #include "cache/l1_cache.h"
 #include "coalescing/inflight_registry.h"
 #include "policy/route_policy.h"
+#include "stages/cache_key_prepare_stage.h"
 #include "stages/coalescing_follower_wait_stage.h"
 
 #include <chrono>
@@ -99,6 +100,7 @@ TEST_F(CoalescingFallbackTightenedTest, FinalL1HitSavesFollowerBeforeFallback) {
     });
 
     auto start = std::chrono::steady_clock::now();
+    cache_key_prepare_stage(ctx);
     apg::StageOutput output = coalescing_follower_wait_stage(ctx);
     auto end = std::chrono::steady_clock::now();
     auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
@@ -127,6 +129,7 @@ TEST_F(CoalescingFallbackTightenedTest, WaiterCountDecrementedOnPreWaitL1Hit) {
     cache::build_cache_key(ki, key, sizeof(key));
     populate_l1(key);
 
+    cache_key_prepare_stage(ctx);
     auto output = coalescing_follower_wait_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::SkipRemaining);
 
@@ -155,6 +158,7 @@ TEST_F(CoalescingFallbackTightenedTest, WaiterCountDecrementedOnPostWaitL1Hit) {
         coalescing::registry_complete(registry.get(), "burst-key", true, ctx.request_epoch_ms + 20);
     });
 
+    cache_key_prepare_stage(ctx);
     coalescing_follower_wait_stage(ctx);
     leader_thread.join();
 
@@ -169,6 +173,7 @@ TEST_F(CoalescingFallbackTightenedTest, WaiterCountDecrementedOnTimeout) {
     EXPECT_EQ(get_waiter_count("burst-key"), 1);
 
     policy.coalescing.wait_window_ms = 50;
+    cache_key_prepare_stage(ctx);
     auto output = coalescing_follower_wait_stage(ctx);
 
     EXPECT_EQ(output.result, apg::StageResult::Continue);
@@ -180,6 +185,7 @@ TEST_F(CoalescingFallbackTightenedTest, SteadyClockUsedForWait) {
 
     policy.coalescing.wait_window_ms = 50;
     auto start = std::chrono::steady_clock::now();
+    cache_key_prepare_stage(ctx);
     coalescing_follower_wait_stage(ctx);
     auto end = std::chrono::steady_clock::now();
 

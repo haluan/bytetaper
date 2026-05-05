@@ -69,8 +69,13 @@ struct ApgTransformContext {
     // --- Cache lookup inputs (set by caller before running pipeline) ---
     const policy::RoutePolicy* matched_policy = nullptr;
     cache::L1Cache* l1_cache = nullptr;
-    std::int64_t request_epoch_ms = 0;
     policy::HttpMethod request_method = policy::HttpMethod::Get;
+    std::int64_t request_epoch_ms = 0;
+
+    // --- Prepared cache key (written once by cache_key_prepare_stage) ---
+    char cache_key[cache::kCacheKeyMaxLen] = {};
+    bool cache_key_ready = false; // true iff build_cache_key succeeded
+    bool cache_eligible = false;  // true iff method==GET and policy.cache==Store
 
     // --- Cache lookup outputs (written by l1_cache_lookup_stage) ---
     bool cache_hit = false;

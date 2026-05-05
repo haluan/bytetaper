@@ -3,6 +3,7 @@
 
 #include "extproc/default_pipelines.h"
 
+#include "stages/cache_key_prepare_stage.h"
 #include "stages/coalescing_decision_stage.h"
 #include "stages/coalescing_follower_wait_stage.h"
 #include "stages/coalescing_leader_completion_stage.h"
@@ -26,6 +27,7 @@ namespace bytetaper::extproc {
  * See docs/runtime/RUNTIME_BOUNDARIES.md for the enforcement contract.
  */
 const apg::ApgStage kLookupStages[] = {
+    stages::cache_key_prepare_stage,
     stages::l1_cache_lookup_stage,
     stages::coalescing_decision_stage,
     stages::coalescing_follower_wait_stage,
@@ -40,6 +42,9 @@ const std::size_t kLookupStageCount = std::size(kLookupStages);
  * This pipeline runs synchronously on the Envoy ExtProc response thread.
  * L1 store is synchronous and fast. L2 store is async-enqueued.
  * Coalescing leader completion runs after L1 store.
+ *
+ * PRECONDITION: cache_key_prepare_stage must have been executed in the
+ * request-header (lookup) pipeline. This stage reuses the key from context.
  *
  * See docs/runtime/RUNTIME_BOUNDARIES.md for the enforcement contract.
  */

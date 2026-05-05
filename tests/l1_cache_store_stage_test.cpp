@@ -4,6 +4,7 @@
 #include "cache/cache_key.h"
 #include "cache/l1_cache.h"
 #include "policy/route_policy.h"
+#include "stages/cache_key_prepare_stage.h"
 #include "stages/l1_cache_store_stage.h"
 
 #include <cstring>
@@ -40,6 +41,7 @@ TEST_F(L1CacheStoreStageTest, EligibleResponseStored) {
     ctx.response_body_len = 5;
     std::strncpy(ctx.response_content_type, "application/json", cache::kCacheContentTypeMaxLen - 1);
 
+    cache_key_prepare_stage(ctx);
     auto out = l1_cache_store_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::Continue);
     EXPECT_STREQ(out.note, "stored");
@@ -75,6 +77,7 @@ TEST_F(L1CacheStoreStageTest, NonGetNotStored) {
     ctx.response_body = "body";
     ctx.response_body_len = 4;
 
+    cache_key_prepare_stage(ctx);
     auto out = l1_cache_store_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::Continue);
     EXPECT_STREQ(out.note, "non-get");
@@ -99,6 +102,7 @@ TEST_F(L1CacheStoreStageTest, Non2xxNotStored) {
     ctx.response_body = "body";
     ctx.response_body_len = 4;
 
+    cache_key_prepare_stage(ctx);
     auto out = l1_cache_store_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::Continue);
     EXPECT_STREQ(out.note, "non-2xx");
@@ -123,9 +127,10 @@ TEST_F(L1CacheStoreStageTest, MissingKeyNotStored) {
     ctx.response_body = "body";
     ctx.response_body_len = 4;
 
+    cache_key_prepare_stage(ctx);
     auto out = l1_cache_store_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::Continue);
-    EXPECT_STREQ(out.note, "key-build-failed");
+    EXPECT_STREQ(out.note, "key-not-ready");
 
     for (std::size_t s = 0; s < cache::kL1ShardCount; ++s) {
         for (std::size_t i = 0; i < cache::kL1SlotsPerShard; ++i) {

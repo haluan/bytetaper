@@ -4,6 +4,7 @@
 #include "cache/cache_key.h"
 #include "cache/l1_cache.h"
 #include "cache/l2_disk_cache.h"
+#include "stages/cache_key_prepare_stage.h"
 #include "stages/l1_cache_lookup_stage.h"
 #include "stages/l2_cache_lookup_stage.h"
 
@@ -83,6 +84,7 @@ TEST_F(L2PromotionTest, L2HitPromotesToL1) {
     EXPECT_FALSE(cache::l1_get(l1_.get(), key_buf, 0, &check, body_buf, sizeof(body_buf)));
 
     // First request hits L2 and should promote
+    cache_key_prepare_stage(ctx);
     auto out = l2_cache_lookup_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::SkipRemaining);
     EXPECT_STREQ(ctx.cache_layer, "L2");
@@ -103,6 +105,7 @@ TEST_F(L2PromotionTest, SecondRequestHitsL1AfterPromotion) {
     ctx.request_epoch_ms = 1000;
 
     // First request: L2 hit + promotion
+    cache_key_prepare_stage(ctx);
     l2_cache_lookup_stage(ctx);
     EXPECT_STREQ(ctx.cache_layer, "L2");
 
@@ -114,6 +117,7 @@ TEST_F(L2PromotionTest, SecondRequestHitsL1AfterPromotion) {
     ctx2.request_epoch_ms = 1000;
     std::strncpy(ctx2.raw_path, "/api/items", sizeof(ctx2.raw_path) - 1);
 
+    cache_key_prepare_stage(ctx2);
     auto out2 = l1_cache_lookup_stage(ctx2);
     EXPECT_EQ(out2.result, apg::StageResult::SkipRemaining);
     EXPECT_STREQ(ctx2.cache_layer, "L1");
@@ -130,6 +134,7 @@ TEST_F(L2PromotionTest, ExpiredL2NotPromoted) {
     ctx.request_method = policy::HttpMethod::Get;
     ctx.request_epoch_ms = 1000;
 
+    cache_key_prepare_stage(ctx);
     auto out = l2_cache_lookup_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::Continue);
 
@@ -157,6 +162,7 @@ TEST_F(L2PromotionTest, NullL1CacheSkipsPromotion) {
     ctx.request_method = policy::HttpMethod::Get;
     ctx.l1_cache = nullptr; // Explicitly null
 
+    cache_key_prepare_stage(ctx);
     auto out = l2_cache_lookup_stage(ctx);
     EXPECT_EQ(out.result, apg::StageResult::SkipRemaining);
     EXPECT_STREQ(ctx.cache_layer, "L2");

@@ -7,6 +7,7 @@
 #include "cache/l2_disk_cache.h"
 #include "metrics/prometheus_registry.h"
 #include "runtime/worker_queue.h"
+#include "stages/cache_key_prepare_stage.h"
 #include "stages/coalescing_decision_stage.h"
 #include "stages/coalescing_follower_wait_stage.h"
 #include "stages/coalescing_leader_completion_stage.h"
@@ -134,10 +135,10 @@ TEST_F(WorkerQueueConcurrencyTest, L1StoreBeforeLeaderCompletion) {
     ctx.coalescing_decision.action = coalescing::CoalescingAction::Leader;
     ::strncpy(ctx.coalescing_decision.key, shared_key, sizeof(ctx.coalescing_decision.key) - 1);
 
-    const apg::ApgStage kStages[] = { stages::l1_cache_store_stage,
+    const apg::ApgStage kStages[] = { stages::cache_key_prepare_stage, stages::l1_cache_store_stage,
                                       stages::coalescing_leader_completion_stage };
 
-    apg::run_pipeline(kStages, 2, ctx);
+    apg::run_pipeline(kStages, 3, ctx);
 
     // Build the key to check L1
     cache::CacheKeyInput ki{};
@@ -185,10 +186,11 @@ TEST_F(WorkerQueueConcurrencyTest, FollowerCanReadL1AfterLeaderCompletion) {
               sizeof(leader_ctx.coalescing_decision.key) - 1);
 
     // Leader stores and completes
-    const apg::ApgStage kLeaderStages[] = { stages::l1_cache_store_stage,
+    const apg::ApgStage kLeaderStages[] = { stages::cache_key_prepare_stage,
+                                            stages::l1_cache_store_stage,
                                             stages::l2_cache_async_store_enqueue_stage,
                                             stages::coalescing_leader_completion_stage };
-    apg::run_pipeline(kLeaderStages, 3, leader_ctx);
+    apg::run_pipeline(kLeaderStages, 4, leader_ctx);
 
     // Follower starts
     apg::ApgTransformContext follower_ctx{};
@@ -204,6 +206,7 @@ TEST_F(WorkerQueueConcurrencyTest, FollowerCanReadL1AfterLeaderCompletion) {
               sizeof(follower_ctx.coalescing_decision.key) - 1);
 
     // Follower wait stage should see L1 hit immediately
+    stages::cache_key_prepare_stage(follower_ctx);
     apg::StageOutput output = stages::coalescing_follower_wait_stage(follower_ctx);
     EXPECT_EQ(output.result, apg::StageResult::SkipRemaining);
     EXPECT_TRUE(follower_ctx.cache_hit);

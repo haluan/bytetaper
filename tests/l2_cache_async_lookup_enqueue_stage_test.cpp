@@ -7,6 +7,7 @@
 #include "cache/l2_disk_cache.h"
 #include "metrics/runtime_metrics.h"
 #include "runtime/worker_queue.h"
+#include "stages/cache_key_prepare_stage.h"
 #include "stages/l2_cache_async_lookup_enqueue_stage.h"
 
 #include <cstring>
@@ -50,9 +51,17 @@ protected:
     apg::ApgTransformContext ctx;
 };
 
+TEST_F(L2CacheAsyncLookupEnqueueStageTest, KeyNotReadyReturnsContinue) {
+    ctx.cache_hit = false;
+    auto output = l2_cache_async_lookup_enqueue_stage(ctx);
+    EXPECT_EQ(output.result, apg::StageResult::Continue);
+    EXPECT_STREQ(output.note, "key-not-ready");
+}
+
 TEST_F(L2CacheAsyncLookupEnqueueStageTest, L1HitSkipsEnqueue) {
     ctx.cache_hit = true;
     auto output = l2_cache_async_lookup_enqueue_stage(ctx);
+
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "l1-hit-skip");
     std::size_t total_count = 0;
@@ -64,6 +73,7 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, L1HitSkipsEnqueue) {
 
 TEST_F(L2CacheAsyncLookupEnqueueStageTest, L1MissEnqueuesAndContinues) {
     ctx.cache_hit = false;
+    cache_key_prepare_stage(ctx);
     auto output = l2_cache_async_lookup_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "enqueued");
@@ -98,6 +108,7 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, DuplicateKeySkipped) {
         runtime::worker_queue_try_enqueue(&worker_queue, job);
     }
 
+    cache_key_prepare_stage(ctx);
     auto output = l2_cache_async_lookup_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "enqueue-failed");
@@ -128,6 +139,7 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, QueueFullContinuesPendingCleared) {
         runtime::worker_queue_try_enqueue(&worker_queue, job);
     }
 
+    cache_key_prepare_stage(ctx);
     auto output = l2_cache_async_lookup_enqueue_stage(ctx);
     EXPECT_EQ(output.result, apg::StageResult::Continue);
     EXPECT_STREQ(output.note, "enqueue-failed");
