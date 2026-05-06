@@ -1,0 +1,93 @@
+=== ByteTaper Benchmark Execution ===
+Scenario: pagination_guardrail
+Time: Wed May  6 11:03:27 UTC 2026
+Target Host: http://envoy-bytetaper-pagination:10000
+
+=== System Information ===
+OS: Linux a5950721e2b9 6.11.3-200.fc40.aarch64 aarch64 Linux
+CPU cores: 2
+Memory Total: 3617.73 MB
+
+--------------------------------------------------
+Leg A: Missing Limit (GET /orders)
+--------------------------------------------------
+Pagination Applied Header: true
+Pagination Reason Header: missing_limit
+Pagination Limit Header: 50
+Upstream Received Limit (Echo): 50
+Response Payload Size: 198 bytes
+
+Running 10s test @ http://envoy-bytetaper-pagination:10000/orders
+  2 threads and 10 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     4.17ms    5.03ms  81.62ms   94.14%
+    Req/Sec     1.47k   559.41     2.18k    61.00%
+  Latency Distribution
+     50%    2.81ms
+     75%    3.98ms
+     90%    7.00ms
+     99%   27.70ms
+  29341 requests in 10.01s, 25.58MB read
+Requests/sec:   2931.01
+Transfer/sec:      2.55MB
+
+--------------------------------------------------
+Leg B: Excessive Limit (GET /orders?limit=5000)
+--------------------------------------------------
+Pagination Applied Header: true
+Pagination Reason Header: limit_exceeds_max
+Pagination Limit Header: 500
+Upstream Received Limit (Echo): 500
+Response Payload Size: 199 bytes
+
+Running 10s test @ http://envoy-bytetaper-pagination:10000/orders?limit=5000
+  2 threads and 10 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     4.29ms    6.86ms 102.25ms   95.49%
+    Req/Sec     1.58k   607.19     2.21k    74.50%
+  Latency Distribution
+     50%    2.68ms
+     75%    3.54ms
+     90%    6.59ms
+     99%   39.28ms
+  31442 requests in 10.03s, 27.59MB read
+Requests/sec:   3134.53
+Transfer/sec:      2.75MB
+
+=== Parsed Scenario Metrics ===
+Leg A (Missing Limit) - Expected Mutated Limit: 50
+Leg A Upstream Received Limit: 50
+Leg A Decision Reason: missing_limit
+Leg A Payload Size: 198 bytes
+Leg A Total Requests (10s): 29341
+Leg A Successful Requests: 29341
+Leg A Latency p50: 2.81ms
+Leg A Latency p75: 3.98ms
+Leg A Latency p90: 7.00ms
+Leg A Latency p99: 27.70ms
+Leg A Transfer Rate: 2.55MB 
+
+Leg B (Excessive Limit) - Expected Mutated Limit: 500
+Leg B Upstream Received Limit: 500
+Leg B Decision Reason: limit_exceeds_max
+Leg B Payload Size: 199 bytes
+Leg B Total Requests (10s): 31442
+Leg B Successful Requests: 31442
+Leg B Latency p50: 2.68ms
+Leg B Latency p75: 3.54ms
+Leg B Latency p90: 6.59ms
+Leg B Latency p99: 39.28ms
+Leg B Transfer Rate: 2.75MB 
+
+=== Baseline Comparison ===
+Baseline Scenario (envoy_only) File: benchmark_results_20260506_083659_envoy_only.txt
+Total Requests: 486
+Success Count: 455
+Latency p50: 202.03ms
+Latency p99: 412.46ms
+
+Observe Scenario (bytetaper_observe) File: benchmark_results_20260506_091444_bytetaper_observe.txt
+Total Requests: 443
+Success Count: 437
+Latency p50: 241.56ms
+Latency p99: 464.99ms

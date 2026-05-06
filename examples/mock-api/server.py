@@ -209,6 +209,7 @@ class Handler(BaseHTTPRequestHandler):
         return
 
 if __name__ == "__main__":
+    ThreadingHTTPServer.request_queue_size = 1024
     server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"Mock API listening on {HOST}:{PORT}")
     server.serve_forever()

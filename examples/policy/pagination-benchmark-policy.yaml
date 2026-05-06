@@ -1,0 +1,14 @@
+routes:
+  - id: "orders-paginated-benchmark"
+    match:
+      kind: prefix
+      prefix: /orders
+    mutation: full
+    pagination:
+      enabled: true
+      mode: limit_offset
+      default_limit: 50
+      max_limit: 500
+      limit_param: limit
+      offset_param: offset
+      upstream_supports_pagination: true
