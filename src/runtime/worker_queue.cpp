@@ -139,6 +139,8 @@ static void execute_store_job(WorkerQueue* q, RuntimeShard* shard, L2StoreJob& j
 }
 
 static void worker_loop(WorkerQueue* q, std::size_t worker_id) {
+    const std::size_t owned_count = q->worker_owned_shard_count[worker_id];
+
     while (true) {
         bool found_work = false;
         L2LookupJob lookup_job;
@@ -147,12 +149,8 @@ static void worker_loop(WorkerQueue* q, std::size_t worker_id) {
         RuntimeShard* selected_shard = nullptr;
 
         // Round-robin or fixed-assignment across shards owned by this worker.
-        // Worker i owns shards where shard_id % worker_count == i.
-        for (std::size_t s_idx = 0; s_idx < kRuntimeShardCount; ++s_idx) {
-            if (s_idx % q->worker_count != worker_id) {
-                continue;
-            }
-
+        for (std::size_t i = 0; i < owned_count; ++i) {
+            const std::size_t s_idx = q->worker_owned_shards[worker_id][i];
             RuntimeShard& shard = q->shards[s_idx];
             std::unique_lock<std::mutex> lock(shard.mu, std::try_to_lock);
             if (!lock.owns_lock()) {
@@ -202,7 +200,7 @@ static void worker_loop(WorkerQueue* q, std::size_t worker_id) {
         }
 
         // No work found in any owned shard. Wait on the first owned shard's CV as a proxy.
-        std::size_t first_shard_idx = worker_id % kRuntimeShardCount;
+        std::size_t first_shard_idx = q->worker_owned_shards[worker_id][0];
         RuntimeShard& primary = q->shards[first_shard_idx];
         std::unique_lock<std::mutex> lock(primary.mu);
         primary.cv.wait_for(lock, std::chrono::milliseconds(10), [q, &primary] {
@@ -213,12 +211,11 @@ static void worker_loop(WorkerQueue* q, std::size_t worker_id) {
         if (!q->running.load(std::memory_order_acquire)) {
             // Check if ALL shards assigned to this worker are empty before exiting.
             bool all_empty = true;
-            for (std::size_t s_idx = 0; s_idx < kRuntimeShardCount; ++s_idx) {
-                if (s_idx % q->worker_count == worker_id) {
-                    if (q->shards[s_idx].lookup_count > 0 || q->shards[s_idx].store_count > 0) {
-                        all_empty = false;
-                        break;
-                    }
+            for (std::size_t i = 0; i < owned_count; ++i) {
+                const std::size_t s_idx = q->worker_owned_shards[worker_id][i];
+                if (q->shards[s_idx].lookup_count > 0 || q->shards[s_idx].store_count > 0) {
+                    all_empty = false;
+                    break;
                 }
             }
             if (all_empty) {
@@ -241,6 +238,21 @@ const char* worker_queue_init(WorkerQueue* q, const WorkerQueueConfig& config) {
 
     q->worker_count = config.worker_count;
     q->running.store(false, std::memory_order_release);
+
+    // Reset ownership arrays
+    for (std::size_t w = 0; w < kWorkerQueueMaxWorkers; ++w) {
+        q->worker_owned_shard_count[w] = 0;
+        for (std::size_t s = 0; s < kRuntimeMaxShardsPerWorker; ++s) {
+            q->worker_owned_shards[w][s] = 0;
+        }
+    }
+
+    // Populate ownership arrays
+    for (std::size_t s_idx = 0; s_idx < kRuntimeShardCount; ++s_idx) {
+        std::size_t w_id = s_idx % config.worker_count;
+        q->worker_owned_shards[w_id][q->worker_owned_shard_count[w_id]] = s_idx;
+        q->worker_owned_shard_count[w_id]++;
+    }
 
     for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
         q->shards[i].lookup_head = 0;

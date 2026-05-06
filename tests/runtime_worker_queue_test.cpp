@@ -354,3 +354,69 @@ TEST_F(WorkerQueueTest, PendingHashClearedAfterExecution) {
     // Should be able to enqueue again as it was successfully executed and cleared
     EXPECT_TRUE(worker_queue_try_enqueue_lookup(q_.get(), job));
 }
+
+TEST_F(WorkerQueueTest, WorkerQueueOwnershipInvariants) {
+    // Case 1: worker_count = 1
+    {
+        WorkerQueueConfig cfg;
+        cfg.worker_count = 1;
+        ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
+
+        EXPECT_EQ(q_->worker_owned_shard_count[0], kRuntimeShardCount);
+        for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
+            EXPECT_EQ(q_->worker_owned_shards[0][i], i);
+        }
+    }
+
+    // Case 2: worker_count = 2
+    {
+        WorkerQueueConfig cfg;
+        cfg.worker_count = 2;
+        ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
+
+        EXPECT_EQ(q_->worker_owned_shard_count[0], kRuntimeShardCount / 2);
+        EXPECT_EQ(q_->worker_owned_shard_count[1], kRuntimeShardCount / 2);
+
+        bool seen[kRuntimeShardCount] = { false };
+        for (std::size_t w = 0; w < cfg.worker_count; ++w) {
+            for (std::size_t i = 0; i < q_->worker_owned_shard_count[w]; ++i) {
+                std::size_t shard_idx = q_->worker_owned_shards[w][i];
+                ASSERT_LT(shard_idx, kRuntimeShardCount);
+                EXPECT_FALSE(seen[shard_idx]);
+                seen[shard_idx] = true;
+                EXPECT_EQ(shard_idx % cfg.worker_count, w);
+            }
+        }
+
+        for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
+            EXPECT_TRUE(seen[i]);
+        }
+    }
+
+    // Case 3: worker_count = kWorkerQueueMaxWorkers
+    {
+        WorkerQueueConfig cfg;
+        cfg.worker_count = kWorkerQueueMaxWorkers;
+        ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
+
+        bool seen[kRuntimeShardCount] = { false };
+        std::size_t total_count = 0;
+        for (std::size_t w = 0; w < cfg.worker_count; ++w) {
+            std::size_t count = q_->worker_owned_shard_count[w];
+            total_count += count;
+            EXPECT_EQ(count, kRuntimeShardCount / kWorkerQueueMaxWorkers);
+            for (std::size_t i = 0; i < count; ++i) {
+                std::size_t shard_idx = q_->worker_owned_shards[w][i];
+                ASSERT_LT(shard_idx, kRuntimeShardCount);
+                EXPECT_FALSE(seen[shard_idx]);
+                seen[shard_idx] = true;
+                EXPECT_EQ(shard_idx % cfg.worker_count, w);
+            }
+        }
+
+        EXPECT_EQ(total_count, kRuntimeShardCount);
+        for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
+            EXPECT_TRUE(seen[i]);
+        }
+    }
+}

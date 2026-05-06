@@ -30,6 +30,7 @@ static constexpr std::size_t kRuntimeShardCount = 256;
 static constexpr std::size_t kRuntimeQueueSlotsPerShard = 4; // 256 * 4 = 1024 total slots
 static constexpr std::size_t kRuntimePendingSlotsPerShard = 16;
 static constexpr std::size_t kWorkerQueueMaxWorkers = 8;
+static constexpr std::size_t kRuntimeMaxShardsPerWorker = kRuntimeShardCount;
 
 struct L2LookupJob {
     char key[cache::kCacheKeyMaxLen] = {};
@@ -92,6 +93,8 @@ struct WorkerQueue {
     std::atomic<bool> running{ false };
     std::thread workers[kWorkerQueueMaxWorkers];
     std::size_t worker_count = 0;
+    std::size_t worker_owned_shards[kWorkerQueueMaxWorkers][kRuntimeMaxShardsPerWorker] = {};
+    std::size_t worker_owned_shard_count[kWorkerQueueMaxWorkers] = {};
     WorkerQueueResources resources{};
 };
 

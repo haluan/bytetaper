@@ -53,9 +53,13 @@ TEST_F(RuntimePartitionedQueueTest, RuntimeQueueMapsShardToStableWorker) {
     cfg.worker_count = 4;
     worker_queue_init(q_.get(), cfg);
 
-    for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
-        std::size_t expected_worker = i % 4;
-        EXPECT_EQ(i % q_->worker_count, expected_worker);
+    for (std::size_t w = 0; w < cfg.worker_count; ++w) {
+        std::size_t count = q_->worker_owned_shard_count[w];
+        EXPECT_EQ(count, kRuntimeShardCount / cfg.worker_count);
+        for (std::size_t i = 0; i < count; ++i) {
+            std::size_t shard_idx = q_->worker_owned_shards[w][i];
+            EXPECT_EQ(shard_idx % cfg.worker_count, w);
+        }
     }
 }
 
