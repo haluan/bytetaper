@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-only OR LicenseRef-Commercial
 
 #include "metrics/runtime_metrics.h"
+#include "runtime/worker_queue.h"
 
 #include <cstring>
 #include <gtest/gtest.h>
@@ -62,9 +63,11 @@ TEST_F(RuntimeMetricsTest, PromotionEvents) {
 }
 
 TEST_F(RuntimeMetricsTest, RenderPrometheusFormat) {
+    const std::size_t capacity = runtime::kRuntimeShardCount * runtime::kRuntimeQueueSlotsPerShard;
+
     metrics.worker_enqueue_total.store(10);
     metrics.worker_queue_depth.store(5);
-    metrics.worker_queue_capacity.store(1024);
+    metrics.worker_queue_capacity.store(capacity);
     metrics.l2_async_lookup_hit_total.store(7);
 
     char buf[4096];
@@ -73,7 +76,10 @@ TEST_F(RuntimeMetricsTest, RenderPrometheusFormat) {
 
     EXPECT_NE(std::strstr(buf, "bytetaper_runtime_worker_enqueue_total 10"), nullptr);
     EXPECT_NE(std::strstr(buf, "bytetaper_runtime_worker_queue_depth 5"), nullptr);
-    EXPECT_NE(std::strstr(buf, "bytetaper_runtime_worker_queue_capacity 1024"), nullptr);
+
+    std::string expected_capacity_str =
+        "bytetaper_runtime_worker_queue_capacity " + std::to_string(capacity);
+    EXPECT_NE(std::strstr(buf, expected_capacity_str.c_str()), nullptr);
     EXPECT_NE(std::strstr(buf, "bytetaper_runtime_l2_async_lookup_hit_total 7"), nullptr);
 
     // Check HELP/TYPE lines

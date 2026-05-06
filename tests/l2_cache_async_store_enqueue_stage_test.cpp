@@ -106,7 +106,7 @@ TEST_F(L2CacheAsyncStoreEnqueueStageTest, L2StoreQueueFullDoesNotFailResponse) {
     std::uint32_t shard_idx = hash % runtime::kRuntimeShardCount;
 
     // Directly saturate store queue for that shard
-    worker_queue.shards[shard_idx].store_count = 4;
+    worker_queue.shards[shard_idx].store_count = runtime::kRuntimeQueueSlotsPerShard;
 
     cache_key_prepare_stage(ctx);
     auto output = l2_cache_async_store_enqueue_stage(ctx);

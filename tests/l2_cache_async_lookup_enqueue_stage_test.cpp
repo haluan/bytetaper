@@ -137,7 +137,7 @@ TEST_F(L2CacheAsyncLookupEnqueueStageTest, QueueFullContinuesPendingCleared) {
     std::uint32_t shard_idx = hash % runtime::kRuntimeShardCount;
 
     // Directly saturate lookup queue for that shard
-    worker_queue.shards[shard_idx].lookup_count = 4;
+    worker_queue.shards[shard_idx].lookup_count = runtime::kRuntimeQueueSlotsPerShard;
 
     cache_key_prepare_stage(ctx);
     auto output = l2_cache_async_lookup_enqueue_stage(ctx);

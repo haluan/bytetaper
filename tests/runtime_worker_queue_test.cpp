@@ -70,8 +70,8 @@ TEST_F(WorkerQueueTest, QueueFullReturnsFalse) {
     job.entry.body = "data";
     job.body_len = 4;
 
-    // shard capacity is kRuntimeQueueSlotsPerShard (4)
-    for (int i = 0; i < 4; ++i) {
+    // shard capacity is kRuntimeQueueSlotsPerShard
+    for (std::size_t i = 0; i < kRuntimeQueueSlotsPerShard; ++i) {
         EXPECT_TRUE(worker_queue_try_enqueue_store(q_.get(), job)) << "Failed at index " << i;
     }
 
@@ -231,7 +231,7 @@ TEST_F(WorkerQueueTest, RuntimeQueueShardFullDoesNotAffectOtherShard) {
     ASSERT_NE(shardA, shardB);
 
     // Fill shard A
-    for (int i = 0; i < 4; i++) {
+    for (std::size_t i = 0; i < kRuntimeQueueSlotsPerShard; i++) {
         EXPECT_TRUE(worker_queue_try_enqueue_store(q_.get(), jobA));
     }
     EXPECT_FALSE(worker_queue_try_enqueue_store(q_.get(), jobA)); // Shard A full
