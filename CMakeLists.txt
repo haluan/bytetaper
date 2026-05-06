@@ -2503,5 +2503,19 @@ if(BUILD_TESTING)
       NAME extproc_worker_lifecycle_cleanup_test
       COMMAND extproc_worker_lifecycle_cleanup_test
     )
+
+    add_executable(json_filter_benchmark
+      benchmarks/json_filter_benchmark.cpp
+    )
+    target_include_directories(json_filter_benchmark
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${BYTETAPER_GENERATED_PROTO_DIR}
+    )
+    target_link_libraries(json_filter_benchmark
+      PRIVATE
+        bytetaper_extproc_grpc_server
+        bytetaper_extproc_grpc
+    )
   endif()
 endif()

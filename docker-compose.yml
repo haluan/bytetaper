@@ -296,6 +296,20 @@ services:
         set -eu
         sh ./tests/integration/coalescing_e2e_test.sh
 
+  bytetaper-json-benchmark:
+    image: bytetaper-dev:latest
+    working_dir: /workspace
+    volumes:
+      - ./:/workspace
+    command:
+      - /bin/bash
+      - -lc
+      - |
+        set -eu
+        cmake -S . -B build -G Ninja -DBYTETAPER_ENABLE_INTEGRATION_TESTS=ON -DBYTETAPER_ENABLE_GTEST_TESTS=OFF
+        cmake --build build --target json_filter_benchmark
+        ./build/json_filter_benchmark
+
   bytetaper-benchmark:
     build:
       context: .
