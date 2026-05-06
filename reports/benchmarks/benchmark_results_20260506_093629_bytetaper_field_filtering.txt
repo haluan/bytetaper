@@ -1,0 +1,82 @@
+=== ByteTaper Benchmark Execution ===
+Scenario: bytetaper_field_filtering
+Time: Wed May  6 09:36:29 UTC 2026
+Target Host: http://envoy-bytetaper-field-filtering:10000
+
+=== System Information ===
+OS: Linux 9c29889b88d5 6.11.3-200.fc40.aarch64 aarch64 Linux
+CPU cores: 2
+Memory Total: 3617.73 MB
+
+--------------------------------------------------
+Leg 1: Medium Payload Field Filtering (?fields=id,name,price)
+--------------------------------------------------
+Original Size: 8071 bytes
+Optimized Size: 56 bytes
+Bytes Saved: 8015 bytes
+Reduction Ratio: 99.31%
+
+Running 10s test @ http://envoy-bytetaper-field-filtering:10000/medium-json?fields=id,name,price
+  2 threads and 10 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     4.35ms    4.88ms  86.25ms   93.52%
+    Req/Sec     1.40k   463.88     1.91k    82.50%
+  Latency Distribution
+     50%    3.11ms
+     75%    4.05ms
+     90%    6.83ms
+     99%   27.12ms
+  27895 requests in 10.01s, 15.87MB read
+  Non-2xx or 3xx responses: 47
+Requests/sec:   2786.03
+Transfer/sec:      1.58MB
+--------------------------------------------------
+Leg 2: Large Payload Field Filtering (?fields=id,name,price)
+--------------------------------------------------
+Original Size: 127268 bytes
+Optimized Size: 54 bytes
+Bytes Saved: 127214 bytes
+Reduction Ratio: 99.96%
+
+Running 10s test @ http://envoy-bytetaper-field-filtering:10000/large-json?fields=id,name,price
+  2 threads and 10 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     8.54ms    5.42ms  69.77ms   89.40%
+    Req/Sec   629.03    161.63   838.00     80.50%
+  Latency Distribution
+     50%    7.41ms
+     75%    9.49ms
+     90%   12.76ms
+     99%   32.56ms
+  12532 requests in 10.01s, 7.16MB read
+  Non-2xx or 3xx responses: 24
+Requests/sec:   1251.50
+Transfer/sec:    732.43KB
+
+=== Parsed Scenario Metrics ===
+Leg 1 (Medium JSON) Requests: 27895
+Leg 1 Success Count: 27848
+Leg 1 Latency p50: 3.11ms
+Leg 1 Latency p99: 27.12ms
+Leg 1 Bytes Saved: 8015 bytes
+Leg 1 Reduction Ratio: 99.31%
+
+Leg 2 (Large JSON) Requests: 12532
+Leg 2 Success Count: 12508
+Leg 2 Latency p50: 7.41ms
+Leg 2 Latency p99: 32.56ms
+Leg 2 Bytes Saved: 127214 bytes
+Leg 2 Reduction Ratio: 99.96%
+
+=== Baseline Comparison ===
+Baseline Scenario (envoy_only) File: benchmark_results_20260506_083659_envoy_only.txt
+Total Requests: 486
+Success Count: 455
+Latency p50: 202.03ms
+Latency p99: 412.46ms
+
+Observe Scenario (bytetaper_observe) File: benchmark_results_20260506_091444_bytetaper_observe.txt
+Total Requests: 443
+Success Count: 437
+Latency p50: 241.56ms
+Latency p99: 464.99ms

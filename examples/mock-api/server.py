@@ -5,7 +5,7 @@
 import time
 import json
 import os
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer, ThreadingHTTPServer
 from urllib.parse import urlsplit
 
 HOST = "0.0.0.0"
@@ -209,6 +209,6 @@ class Handler(BaseHTTPRequestHandler):
         return
 
 if __name__ == "__main__":
-    server = HTTPServer((HOST, PORT), Handler)
+    server = ThreadingHTTPServer((HOST, PORT), Handler)
     print(f"Mock API listening on {HOST}:{PORT}")
     server.serve_forever()

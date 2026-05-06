@@ -1,0 +1,12 @@
+routes:
+  - id: "medium-filtering"
+    match:
+      kind: exact
+      prefix: /medium-json
+    mutation: full
+
+  - id: "large-filtering"
+    match:
+      kind: exact
+      prefix: /large-json
+    mutation: full
