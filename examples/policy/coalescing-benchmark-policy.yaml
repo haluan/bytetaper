@@ -1,0 +1,17 @@
+routes:
+  - id: "products-coalescing-benchmark"
+    match:
+      kind: prefix
+      prefix: /products/
+    method: get
+    mutation: full
+    max_response_bytes: 2097152
+    coalescing:
+      enabled: true
+      wait_window_ms: 50
+      max_waiters_per_key: 128
+      require_cache_enabled: true
+      allow_authenticated: false
+    cache:
+      behavior: store
+      ttl_seconds: 300

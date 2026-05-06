@@ -14,39 +14,49 @@
 namespace bytetaper::stages {
 
 apg::StageOutput l1_cache_store_stage(apg::ApgTransformContext& context) {
+    std::printf("[L1 STORE] Entering store stage...\n");
     if (context.matched_policy == nullptr) {
+        std::printf("[L1 STORE] Failed: no-policy\n");
         return { apg::StageResult::Continue, "no-policy" };
     }
 
     if (context.matched_policy->cache.behavior != policy::CacheBehavior::Store) {
+        std::printf("[L1 STORE] Failed: cache-disabled\n");
         return { apg::StageResult::Continue, "cache-disabled" };
     }
 
     if (context.request_method != policy::HttpMethod::Get) {
+        std::printf("[L1 STORE] Failed: non-get\n");
         return { apg::StageResult::Continue, "non-get" };
     }
 
     if (context.response_status_code < 200 || context.response_status_code >= 300) {
+        std::printf("[L1 STORE] Failed: non-2xx status=%d\n", context.response_status_code);
         return { apg::StageResult::Continue, "non-2xx" };
     }
 
     if (context.response_body == nullptr || context.response_body_len == 0) {
+        std::printf("[L1 STORE] Failed: no-body\n");
         return { apg::StageResult::Continue, "no-body" };
     }
 
     if (context.matched_policy->cache.ttl_seconds == 0) {
+        std::printf("[L1 STORE] Failed: no-ttl\n");
         return { apg::StageResult::Continue, "no-ttl" };
     }
 
     if (context.l1_cache == nullptr) {
+        std::printf("[L1 STORE] Failed: no-l1-cache\n");
         return { apg::StageResult::Continue, "no-l1-cache" };
     }
 
     if (context.response_body_len > cache::kL1MaxBodySize) {
+        std::printf("[L1 STORE] Failed: body-too-large size=%zu\n", context.response_body_len);
         return { apg::StageResult::Continue, "body-too-large-for-l1" };
     }
 
     if (!context.cache_key_ready) {
+        std::printf("[L1 STORE] Failed: key-not-ready\n");
         return { apg::StageResult::Continue, "key-not-ready" };
     }
 

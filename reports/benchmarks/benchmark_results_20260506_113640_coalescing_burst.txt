@@ -1,0 +1,33 @@
+=== ByteTaper Benchmark Execution ===
+Scenario: coalescing_burst
+Time: Wed May  6 11:36:40 UTC 2026
+Target Envoy: http://envoy-bytetaper-coalescing:10000
+Metrics Host: http://bytetaper-extproc-coalescing:18081
+
+=== System Information ===
+OS: Linux de6659b7ff50 6.11.3-200.fc40.aarch64 aarch64 Linux
+CPU cores: 2
+Memory Total: 3617.73 MB
+
+--------------------------------------------------
+Leg A: Successful Request Coalescing Burst (fast path)
+--------------------------------------------------
+Client Requests Sent: 50
+Upstream Mock Calls: 50
+Delta Leaders: 3
+Delta Followers: 47
+Delta Follower Cache Hits: 0
+Delta Fallbacks: 47
+Delta Bypasses: 0
+
+--------------------------------------------------
+Leg B: Request Coalescing Timeout Fallback (slow path)
+--------------------------------------------------
+Client Requests Sent: 50
+Upstream Mock Calls: 50
+Delta Leaders: 2
+Delta Followers: 48
+Delta Follower Cache Hits: 0
+Delta Fallbacks: 48
+Delta Bypasses: 0
+
