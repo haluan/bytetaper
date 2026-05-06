@@ -17,6 +17,9 @@ namespace {
 static bool worker_ready_try_push(WorkerQueue* q, std::size_t worker_id, std::size_t shard_id);
 static bool worker_ready_try_pop(WorkerQueue* q, std::size_t worker_id, std::size_t* shard_id_out);
 static bool worker_ready_wait_pop(WorkerQueue* q, std::size_t worker_id, std::size_t* shard_id_out);
+static bool shard_try_pop_one_job(WorkerQueue* q, std::size_t shard_idx,
+                                  DequeuedRuntimeJob* job_out);
+static void shard_requeue_or_clear(WorkerQueue* q, std::size_t shard_idx);
 
 static std::uint32_t hash_key(const char* key) {
     if (key == nullptr)
@@ -38,20 +41,20 @@ static std::size_t shard_owner(std::size_t shard_idx, std::size_t worker_count) 
     return shard_idx % worker_count;
 }
 
-static void notify_worker_for_shard(WorkerQueue* q, std::size_t shard_idx) {
-    if (q == nullptr || q->worker_count == 0) {
-        return;
+static bool worker_has_no_remaining_work(WorkerQueue* q, std::size_t worker_id) {
+    if (q == nullptr || worker_id >= q->worker_count) {
+        return true;
     }
-    std::size_t owner = shard_owner(shard_idx, q->worker_count);
-    if (owner >= kWorkerQueueMaxWorkers) {
-        return;
+    const std::size_t owned_count = q->worker_owned_shard_count[worker_id];
+    for (std::size_t i = 0; i < owned_count; ++i) {
+        const std::size_t s_idx = q->worker_owned_shards[worker_id][i];
+        RuntimeShard& shard = q->shards[s_idx];
+        std::scoped_lock lock(shard.mu);
+        if (shard.lookup_count > 0 || shard.store_count > 0) {
+            return false;
+        }
     }
-    WorkerWakeState& wake = q->worker_wakes[owner];
-    {
-        std::lock_guard<std::mutex> lock(wake.mu);
-        wake.signaled = true;
-    }
-    wake.cv.notify_one();
+    return true;
 }
 
 static bool shard_pending_try_mark(RuntimeShard* s, const char* key, std::uint32_t hash) {
@@ -163,91 +166,51 @@ static void execute_store_job(WorkerQueue* q, RuntimeShard* shard, L2StoreJob& j
 }
 
 static void worker_loop(WorkerQueue* q, std::size_t worker_id) {
-    const std::size_t owned_count = q->worker_owned_shard_count[worker_id];
-
     while (true) {
-        bool found_work = false;
-        L2LookupJob lookup_job;
-        L2StoreJob store_job;
-        bool is_lookup = false;
-        RuntimeShard* selected_shard = nullptr;
+        std::size_t shard_idx = 0;
+        bool got_shard = worker_ready_wait_pop(q, worker_id, &shard_idx);
 
-        // Round-robin or fixed-assignment across shards owned by this worker.
-        for (std::size_t i = 0; i < owned_count; ++i) {
-            const std::size_t s_idx = q->worker_owned_shards[worker_id][i];
-            RuntimeShard& shard = q->shards[s_idx];
-            std::unique_lock<std::mutex> lock(shard.mu, std::try_to_lock);
-            if (!lock.owns_lock()) {
+        if (!got_shard) {
+            // Wait pop failed. If we are shutting down, drain remaining work.
+            if (!q->running.load(std::memory_order_acquire)) {
+                bool worked = false;
+                const std::size_t owned_count = q->worker_owned_shard_count[worker_id];
+                for (std::size_t i = 0; i < owned_count; ++i) {
+                    const std::size_t s_idx = q->worker_owned_shards[worker_id][i];
+                    DequeuedRuntimeJob job;
+                    if (shard_try_pop_one_job(q, s_idx, &job)) {
+                        worked = true;
+                        if (job.kind == DequeuedJobKind::Lookup) {
+                            execute_lookup_job(q, &q->shards[s_idx], job.lookup_job,
+                                               q->worker_scratch[worker_id].l2_lookup_body,
+                                               kAsyncL2MaxBodySize);
+                        } else if (job.kind == DequeuedJobKind::Store) {
+                            execute_store_job(q, &q->shards[s_idx], job.store_job);
+                        }
+                    }
+                }
+                if (!worked) {
+                    return; // No remaining work across any owned shards, safe to exit.
+                }
                 continue;
-            }
-
-            // Priority 1: Check L2LookupJobs
-            if (shard.lookup_count > 0) {
-                lookup_job = shard.lookup_slots[shard.lookup_head];
-                shard.lookup_head = (shard.lookup_head + 1) % kRuntimeQueueSlotsPerShard;
-                shard.lookup_count--;
-                found_work = true;
-                is_lookup = true;
-                selected_shard = &shard;
-
-                if (q->resources.runtime_metrics != nullptr) {
-                    q->resources.runtime_metrics->worker_queue_depth.fetch_sub(
-                        1, std::memory_order_relaxed);
-                }
-                break; // Process lookup job immediately
-            }
-
-            // Priority 2: Check L2StoreJobs
-            if (shard.store_count > 0) {
-                store_job = shard.store_slots[shard.store_head];
-                shard.store_head = (shard.store_head + 1) % kRuntimeQueueSlotsPerShard;
-                shard.store_count--;
-                found_work = true;
-                is_lookup = false;
-                selected_shard = &shard;
-
-                if (q->resources.runtime_metrics != nullptr) {
-                    q->resources.runtime_metrics->worker_queue_depth.fetch_sub(
-                        1, std::memory_order_relaxed);
-                }
-                break; // Process store job
-            }
-        }
-
-        if (found_work) {
-            if (is_lookup) {
-                execute_lookup_job(q, selected_shard, lookup_job,
-                                   q->worker_scratch[worker_id].l2_lookup_body,
-                                   kAsyncL2MaxBodySize);
-            } else {
-                execute_store_job(q, selected_shard, store_job);
             }
             continue;
         }
 
-        // No work found in any owned shard. Wait on the worker's own wake CV.
-        WorkerWakeState& wake = q->worker_wakes[worker_id];
-        std::unique_lock<std::mutex> lock(wake.mu);
-        wake.cv.wait(lock, [q, worker_id] {
-            return q->worker_wakes[worker_id].signaled ||
-                   !q->running.load(std::memory_order_acquire);
-        });
-        wake.signaled = false;
-
-        if (!q->running.load(std::memory_order_acquire)) {
-            // Check if ALL shards assigned to this worker are empty before exiting.
-            bool all_empty = true;
-            for (std::size_t i = 0; i < owned_count; ++i) {
-                const std::size_t s_idx = q->worker_owned_shards[worker_id][i];
-                if (q->shards[s_idx].lookup_count > 0 || q->shards[s_idx].store_count > 0) {
-                    all_empty = false;
-                    break;
-                }
-            }
-            if (all_empty) {
-                return;
+        // We popped a shard! Process up to kRuntimeShardBatchQuota (which is 1) jobs.
+        DequeuedRuntimeJob job;
+        if (shard_try_pop_one_job(q, shard_idx, &job)) {
+            if (job.kind == DequeuedJobKind::Lookup) {
+                execute_lookup_job(q, &q->shards[shard_idx], job.lookup_job,
+                                   q->worker_scratch[worker_id].l2_lookup_body,
+                                   kAsyncL2MaxBodySize);
+            } else if (job.kind == DequeuedJobKind::Store) {
+                execute_store_job(q, &q->shards[shard_idx], job.store_job);
             }
         }
+
+        // Requeue or clear the shard's enqueued status
+        shard_requeue_or_clear(q, shard_idx);
     }
 }
 
@@ -377,10 +340,9 @@ const char* worker_queue_init(WorkerQueue* q, const WorkerQueueConfig& config) {
     q->worker_count = config.worker_count;
     q->running.store(false, std::memory_order_release);
 
-    // Reset ownership arrays, worker wakes, and worker ready queues
+    // Reset ownership arrays and worker ready queues
     for (std::size_t w = 0; w < kWorkerQueueMaxWorkers; ++w) {
         q->worker_owned_shard_count[w] = 0;
-        q->worker_wakes[w].signaled = false;
         for (std::size_t s = 0; s < kRuntimeMaxShardsPerWorker; ++s) {
             q->worker_owned_shards[w][s] = 0;
         }
@@ -486,7 +448,6 @@ bool worker_queue_try_enqueue_lookup(WorkerQueue* q, const L2LookupJob& job) {
         std::size_t owner_w = shard_idx % q->worker_count;
         worker_ready_try_push(q, owner_w, shard_idx);
     }
-    notify_worker_for_shard(q, shard_idx);
 
     return true;
 }
@@ -562,7 +523,6 @@ bool worker_queue_try_enqueue_store(WorkerQueue* q, const L2StoreJob& job) {
         std::size_t owner_w = shard_idx % q->worker_count;
         worker_ready_try_push(q, owner_w, shard_idx);
     }
-    notify_worker_for_shard(q, shard_idx);
 
     return true;
 }
@@ -575,12 +535,11 @@ void worker_queue_shutdown(WorkerQueue* q) {
     q->running.store(false, std::memory_order_release);
 
     for (std::size_t i = 0; i < q->worker_count; ++i) {
-        WorkerWakeState& wake = q->worker_wakes[i];
+        auto& rq = q->worker_ready[i];
         {
-            std::lock_guard<std::mutex> lock(wake.mu);
-            wake.signaled = true;
+            std::lock_guard<std::mutex> lock(rq.mu);
         }
-        wake.cv.notify_all();
+        rq.cv.notify_all();
     }
 
     for (std::size_t i = 0; i < q->worker_count; ++i) {

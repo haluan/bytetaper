@@ -49,12 +49,6 @@ struct StoreBodyPool {
     bool occupied[kRuntimeQueueSlotsPerShard] = {};
 };
 
-struct WorkerWakeState {
-    std::mutex mu;
-    std::condition_variable cv;
-    bool signaled = false;
-};
-
 struct WorkerScratch {
     char l2_lookup_body[kAsyncL2MaxBodySize] = {};
 };
@@ -67,6 +61,8 @@ struct WorkerReadyQueue {
     std::size_t tail = 0;
     std::size_t count = 0;
 };
+
+static constexpr std::size_t kRuntimeShardBatchQuota = 1;
 
 struct WorkerQueueConfig {
     std::size_t worker_count = 2; // >= 1, <= kWorkerQueueMaxWorkers
@@ -82,7 +78,6 @@ struct WorkerQueueResources {
 // Each worker owns multiple shards based on its index.
 struct RuntimeShard {
     alignas(64) std::mutex mu;
-    std::condition_variable cv;
 
     // Inline pending lookup dedup — shard-local, no external mutex.
     char pending_keys[kRuntimePendingSlotsPerShard][cache::kCacheKeyMaxLen] = {};
@@ -124,7 +119,6 @@ struct WorkerQueue {
     std::size_t worker_count = 0;
     std::size_t worker_owned_shards[kWorkerQueueMaxWorkers][kRuntimeMaxShardsPerWorker] = {};
     std::size_t worker_owned_shard_count[kWorkerQueueMaxWorkers] = {};
-    WorkerWakeState worker_wakes[kWorkerQueueMaxWorkers];
     WorkerScratch worker_scratch[kWorkerQueueMaxWorkers];
     WorkerReadyQueue worker_ready[kWorkerQueueMaxWorkers];
     WorkerQueueResources resources{};

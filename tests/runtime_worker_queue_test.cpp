@@ -664,3 +664,47 @@ TEST_F(WorkerQueueTest, RequeueAndClearSemantics) {
     EXPECT_FALSE(q_->shards[shard_idx].ready_enqueued);
     EXPECT_EQ(q_->worker_ready[0].count, 0u);
 }
+
+TEST_F(WorkerQueueTest, ShutdownDrainsPendingJobs) {
+    WorkerQueueConfig cfg;
+    cfg.worker_count = 1;
+    ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
+
+    // Seed mock L1 to allow successful execution
+    auto l1 = std::make_unique<bytetaper::cache::L1Cache>();
+    bytetaper::cache::l1_init(l1.get());
+    q_->resources.l1_cache = l1.get();
+
+    WorkerQueueResources res{};
+    res.runtime_metrics = &metrics_;
+    res.l1_cache = l1.get();
+    ASSERT_EQ(worker_queue_start(q_.get(), res), nullptr);
+
+    // Enqueue 5 store jobs to the same shard
+    std::string key_base = "drain-test-key-";
+    std::size_t target_shard = 0; // We'll map them to shard 0
+    int enqueued_count = 0;
+
+    for (int i = 0; i < 1000 && enqueued_count < 5; ++i) {
+        std::string candidate = key_base + std::to_string(i);
+        std::uint32_t hash = 5381;
+        for (char c : candidate) {
+            hash = ((hash << 5) + hash) + static_cast<std::uint32_t>(c);
+        }
+        if (hash % kRuntimeShardCount == target_shard) {
+            L2StoreJob job;
+            std::strcpy(job.key, candidate.c_str());
+            job.body_len = 0;
+            if (worker_queue_try_enqueue_store(q_.get(), job)) {
+                enqueued_count++;
+            }
+        }
+    }
+    ASSERT_EQ(enqueued_count, 5);
+
+    // Shutdown immediately. This will trigger the worker shutdown draining path.
+    worker_queue_shutdown(q_.get());
+
+    // Verify that all 5 store jobs were drained and processed from shard 0 during shutdown
+    EXPECT_EQ(q_->shards[target_shard].store_count, 0u);
+}
