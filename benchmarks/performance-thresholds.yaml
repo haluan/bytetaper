@@ -35,3 +35,9 @@ envoy_only:
   max_p95_overhead_ms: 100.0
   max_error_rate: 0.05
   min_payload_reduction_ratio: 0.00
+
+performance_smoke:
+  max_p95_overhead_ms: 160.0
+  max_error_rate: 0.05
+  min_payload_reduction_ratio: 0.00
+

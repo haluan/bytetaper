@@ -1,0 +1,46 @@
+name: ByteTaper Performance Smoke Test
+
+on:
+  push:
+    branches: [ main, master, dev ]
+  pull_request:
+    branches: [ main, master, dev ]
+
+jobs:
+  performance_smoke:
+    name: Rapid Performance Smoke Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Start Docker Compose Environment
+        run: |
+          docker compose up -d --build
+
+      - name: Wait for Envoy & Extproc Services to be Healthy
+        run: |
+          echo "Waiting for services to spin up and health checks to pass..."
+          sleep 15
+          docker compose ps
+
+      - name: Run Performance Smoke Benchmark
+        run: |
+          docker compose run --rm bytetaper-benchmark ./benchmarks/scenarios/performance_smoke.sh
+
+      - name: Upload Performance Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-reports
+          path: reports/benchmarks/
+          retention-days: 14
+
+      - name: Shutdown Compose Environment
+        if: always()
+        run: |
+          docker compose down -v
