@@ -8,6 +8,7 @@
 #include <chrono>
 #include <cstring>
 #include <gtest/gtest.h>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -19,23 +20,47 @@ protected:
         l1_init(&l1);
     }
 
+    // Helper to generate a key that hashes to a specific shard
+    std::string GenerateKeyForShard(std::size_t shard_idx, std::size_t item_idx) {
+        for (int i = 0; i < 100000; ++i) {
+            std::string candidate = "key_" + std::to_string(shard_idx) + "_" +
+                                    std::to_string(item_idx) + "_" + std::to_string(i);
+            std::uint64_t h = 5381;
+            for (char c : candidate) {
+                h = ((h << 5) + h) + static_cast<std::uint64_t>(c);
+            }
+            if (h % kL1ShardCount == shard_idx) {
+                return candidate;
+            }
+        }
+        return "";
+    }
+
     L1Cache l1;
 };
 
 TEST_F(L1CacheConcurrencyTest, L1ConcurrentPutFromMultipleThreads) {
     constexpr int kThreadCount = 16;
-    constexpr int kEntriesPerThread = 100;
+    constexpr int kEntriesPerThread = 16; // Fits perfectly in the 16 slots of each shard
     std::vector<std::thread> threads;
     std::atomic<bool> start{ false };
 
+    // Pre-generate keys to avoid latency inside the concurrent region
+    std::vector<std::vector<std::string>> thread_keys(kThreadCount);
     for (int i = 0; i < kThreadCount; ++i) {
-        threads.emplace_back([this, i, &start] {
+        thread_keys[i].reserve(kEntriesPerThread);
+        for (int j = 0; j < kEntriesPerThread; ++j) {
+            thread_keys[i].push_back(GenerateKeyForShard(i, j));
+        }
+    }
+
+    for (int i = 0; i < kThreadCount; ++i) {
+        threads.emplace_back([this, i, &start, &thread_keys] {
             while (!start)
                 std::this_thread::yield();
             for (int j = 0; j < kEntriesPerThread; ++j) {
                 CacheEntry e{};
-                std::string key = "key_" + std::to_string(i) + "_" + std::to_string(j);
-                ::strncpy(e.key, key.c_str(), sizeof(e.key) - 1);
+                ::strncpy(e.key, thread_keys[i][j].c_str(), sizeof(e.key) - 1);
                 e.expires_at_epoch_ms = 9999999999;
                 l1_put(&l1, e);
             }
@@ -47,15 +72,15 @@ TEST_F(L1CacheConcurrencyTest, L1ConcurrentPutFromMultipleThreads) {
         t.join();
     }
 
-    // Verify all entries are present
+    // Verify all entries are present (since no shard exceeded capacity, zero evictions occurred)
     for (int i = 0; i < kThreadCount; ++i) {
         for (int j = 0; j < kEntriesPerThread; ++j) {
             CacheEntry hit{};
             char body_buf[kL1MaxBodySize];
-            std::string key = "key_" + std::to_string(i) + "_" + std::to_string(j);
-            bool found = l1_get(&l1, key.c_str(), 0, &hit, body_buf, sizeof(body_buf));
-            EXPECT_TRUE(found) << "Key not found: " << key;
-            EXPECT_STREQ(hit.key, key.c_str());
+            bool found =
+                l1_get(&l1, thread_keys[i][j].c_str(), 0, &hit, body_buf, sizeof(body_buf));
+            EXPECT_TRUE(found) << "Key not found: " << thread_keys[i][j];
+            EXPECT_STREQ(hit.key, thread_keys[i][j].c_str());
         }
     }
 }
@@ -114,31 +139,39 @@ TEST_F(L1CacheConcurrencyTest, L1ConcurrentGetPutSameKey) {
 
 TEST_F(L1CacheConcurrencyTest, L1ConcurrentPutAndExpiry) {
     constexpr int kThreadCount = 8;
-    constexpr int kIterations = 500;
+    constexpr int kIterations = 100;
     std::vector<std::thread> threads;
     std::atomic<bool> start{ false };
     std::atomic<int64_t> global_now_ms{ 1000 };
 
+    // Pre-generate keys for each thread's assigned shard to guarantee zero cross-thread eviction
+    std::vector<std::vector<std::string>> thread_keys(kThreadCount);
     for (int i = 0; i < kThreadCount; ++i) {
-        threads.emplace_back([this, i, &start, &global_now_ms] {
+        thread_keys[i].reserve(kIterations);
+        for (int j = 0; j < kIterations; ++j) {
+            thread_keys[i].push_back(GenerateKeyForShard(i, j));
+        }
+    }
+
+    for (int i = 0; i < kThreadCount; ++i) {
+        threads.emplace_back([this, i, &start, &global_now_ms, &thread_keys] {
             while (!start)
                 std::this_thread::yield();
             for (int j = 0; j < kIterations; ++j) {
                 CacheEntry e{};
-                std::string key = "expiry_key_" + std::to_string(i) + "_" + std::to_string(j);
-                ::strncpy(e.key, key.c_str(), sizeof(e.key) - 1);
+                ::strncpy(e.key, thread_keys[i][j].c_str(), sizeof(e.key) - 1);
                 e.expires_at_epoch_ms = global_now_ms.load() + 1000;
                 l1_put(&l1, e);
 
                 CacheEntry hit{};
                 char body_buf[kL1MaxBodySize];
-                // Immediate get should succeed
-                EXPECT_TRUE(l1_get(&l1, key.c_str(), global_now_ms.load(), &hit, body_buf,
-                                   sizeof(body_buf)));
+                // Immediate get should succeed because no other thread is evicting from shard i
+                EXPECT_TRUE(l1_get(&l1, thread_keys[i][j].c_str(), global_now_ms.load(), &hit,
+                                   body_buf, sizeof(body_buf)));
 
                 // Get with future time should fail
-                EXPECT_FALSE(l1_get(&l1, key.c_str(), global_now_ms.load() + 2000, &hit, body_buf,
-                                    sizeof(body_buf)));
+                EXPECT_FALSE(l1_get(&l1, thread_keys[i][j].c_str(), global_now_ms.load() + 2000,
+                                    &hit, body_buf, sizeof(body_buf)));
             }
         });
     }

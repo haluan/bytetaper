@@ -49,6 +49,12 @@ struct StoreBodyPool {
     bool occupied[kRuntimeQueueSlotsPerShard] = {};
 };
 
+struct WorkerWakeState {
+    std::mutex mu;
+    std::condition_variable cv;
+    bool signaled = false;
+};
+
 struct WorkerQueueConfig {
     std::size_t worker_count = 2; // >= 1, <= kWorkerQueueMaxWorkers
 };
@@ -95,6 +101,7 @@ struct WorkerQueue {
     std::size_t worker_count = 0;
     std::size_t worker_owned_shards[kWorkerQueueMaxWorkers][kRuntimeMaxShardsPerWorker] = {};
     std::size_t worker_owned_shard_count[kWorkerQueueMaxWorkers] = {};
+    WorkerWakeState worker_wakes[kWorkerQueueMaxWorkers];
     WorkerQueueResources resources{};
 };
 

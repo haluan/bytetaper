@@ -420,3 +420,52 @@ TEST_F(WorkerQueueTest, WorkerQueueOwnershipInvariants) {
         }
     }
 }
+
+TEST_F(WorkerQueueTest, DeterministicWakeupOnNonPrimaryShard) {
+    WorkerQueueConfig cfg;
+    cfg.worker_count = 1;
+    ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
+
+    // Seed mock L1 to allow successful execution
+    auto l1 = std::make_unique<bytetaper::cache::L1Cache>();
+    bytetaper::cache::l1_init(l1.get());
+    q_->resources.l1_cache = l1.get();
+
+    // Start queue
+    WorkerQueueResources res{};
+    res.runtime_metrics = &metrics_;
+    res.l1_cache = l1.get();
+    ASSERT_EQ(worker_queue_start(q_.get(), res), nullptr);
+
+    // Find key for non-primary shard (shard 1)
+    std::string key;
+    for (int i = 0; i < 1000; ++i) {
+        std::string candidate = "test-key-" + std::to_string(i);
+        std::uint32_t hash = 5381;
+        for (char c : candidate) {
+            hash = ((hash << 5) + hash) + static_cast<std::uint32_t>(c);
+        }
+        if (hash % kRuntimeShardCount == 1) {
+            key = candidate;
+            break;
+        }
+    }
+    ASSERT_FALSE(key.empty());
+
+    L2LookupJob job;
+    std::strcpy(job.key, key.c_str());
+
+    // Initially shard 1 is empty and worker wake state is unsignaled
+    EXPECT_EQ(q_->shards[1].lookup_count, 0u);
+
+    // Enqueue
+    EXPECT_TRUE(worker_queue_try_enqueue_lookup(q_.get(), job));
+
+    // Wait a brief moment for worker to execute without relying on 10ms timeout
+    std::this_thread::sleep_for(std::chrono::milliseconds(2));
+
+    // Verify that the job was processed and shard 1 is empty
+    EXPECT_EQ(q_->shards[1].lookup_count, 0u);
+
+    worker_queue_shutdown(q_.get());
+}

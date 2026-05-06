@@ -30,6 +30,26 @@ static std::uint32_t hash_key_to_shard(const char* key) {
     return hash_key(key) % kRuntimeShardCount;
 }
 
+static std::size_t shard_owner(std::size_t shard_idx, std::size_t worker_count) {
+    return shard_idx % worker_count;
+}
+
+static void notify_worker_for_shard(WorkerQueue* q, std::size_t shard_idx) {
+    if (q == nullptr || q->worker_count == 0) {
+        return;
+    }
+    std::size_t owner = shard_owner(shard_idx, q->worker_count);
+    if (owner >= kWorkerQueueMaxWorkers) {
+        return;
+    }
+    WorkerWakeState& wake = q->worker_wakes[owner];
+    {
+        std::lock_guard<std::mutex> lock(wake.mu);
+        wake.signaled = true;
+    }
+    wake.cv.notify_one();
+}
+
 static bool shard_pending_try_mark(RuntimeShard* s, const char* key, std::uint32_t hash) {
     for (std::size_t i = 0; i < kRuntimePendingSlotsPerShard; i++) {
         if (s->pending_occupied[i] && s->pending_hashes[i] == hash &&
@@ -199,14 +219,14 @@ static void worker_loop(WorkerQueue* q, std::size_t worker_id) {
             continue;
         }
 
-        // No work found in any owned shard. Wait on the first owned shard's CV as a proxy.
-        std::size_t first_shard_idx = q->worker_owned_shards[worker_id][0];
-        RuntimeShard& primary = q->shards[first_shard_idx];
-        std::unique_lock<std::mutex> lock(primary.mu);
-        primary.cv.wait_for(lock, std::chrono::milliseconds(10), [q, &primary] {
-            return primary.lookup_count > 0 || primary.store_count > 0 ||
+        // No work found in any owned shard. Wait on the worker's own wake CV.
+        WorkerWakeState& wake = q->worker_wakes[worker_id];
+        std::unique_lock<std::mutex> lock(wake.mu);
+        wake.cv.wait(lock, [q, worker_id] {
+            return q->worker_wakes[worker_id].signaled ||
                    !q->running.load(std::memory_order_acquire);
         });
+        wake.signaled = false;
 
         if (!q->running.load(std::memory_order_acquire)) {
             // Check if ALL shards assigned to this worker are empty before exiting.
@@ -239,9 +259,10 @@ const char* worker_queue_init(WorkerQueue* q, const WorkerQueueConfig& config) {
     q->worker_count = config.worker_count;
     q->running.store(false, std::memory_order_release);
 
-    // Reset ownership arrays
+    // Reset ownership arrays and worker wakes
     for (std::size_t w = 0; w < kWorkerQueueMaxWorkers; ++w) {
         q->worker_owned_shard_count[w] = 0;
+        q->worker_wakes[w].signaled = false;
         for (std::size_t s = 0; s < kRuntimeMaxShardsPerWorker; ++s) {
             q->worker_owned_shards[w][s] = 0;
         }
@@ -330,7 +351,7 @@ bool worker_queue_try_enqueue_lookup(WorkerQueue* q, const L2LookupJob& job) {
         shard.lookup_slots[shard.lookup_tail] = mutable_job;
         shard.lookup_tail = (shard.lookup_tail + 1) % kRuntimeQueueSlotsPerShard;
         shard.lookup_count++;
-        shard.cv.notify_one();
+        notify_worker_for_shard(q, shard_idx);
     }
 
     return true;
@@ -395,7 +416,7 @@ bool worker_queue_try_enqueue_store(WorkerQueue* q, const L2StoreJob& job) {
 
         shard.store_tail = (shard.store_tail + 1) % kRuntimeQueueSlotsPerShard;
         shard.store_count++;
-        shard.cv.notify_one();
+        notify_worker_for_shard(q, shard_idx);
     }
 
     return true;
@@ -408,8 +429,13 @@ void worker_queue_shutdown(WorkerQueue* q) {
 
     q->running.store(false, std::memory_order_release);
 
-    for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
-        q->shards[i].cv.notify_all();
+    for (std::size_t i = 0; i < q->worker_count; ++i) {
+        WorkerWakeState& wake = q->worker_wakes[i];
+        {
+            std::lock_guard<std::mutex> lock(wake.mu);
+            wake.signaled = true;
+        }
+        wake.cv.notify_all();
     }
 
     for (std::size_t i = 0; i < q->worker_count; ++i) {
