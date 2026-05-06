@@ -206,10 +206,11 @@ static void worker_loop(WorkerQueue* q, std::size_t worker_id) {
         RuntimeShard& primary = q->shards[first_shard_idx];
         std::unique_lock<std::mutex> lock(primary.mu);
         primary.cv.wait_for(lock, std::chrono::milliseconds(10), [q, &primary] {
-            return primary.lookup_count > 0 || primary.store_count > 0 || !q->running;
+            return primary.lookup_count > 0 || primary.store_count > 0 ||
+                   !q->running.load(std::memory_order_acquire);
         });
 
-        if (!q->running) {
+        if (!q->running.load(std::memory_order_acquire)) {
             // Check if ALL shards assigned to this worker are empty before exiting.
             bool all_empty = true;
             for (std::size_t s_idx = 0; s_idx < kRuntimeShardCount; ++s_idx) {
@@ -239,7 +240,7 @@ const char* worker_queue_init(WorkerQueue* q, const WorkerQueueConfig& config) {
     }
 
     q->worker_count = config.worker_count;
-    q->running = false;
+    q->running.store(false, std::memory_order_release);
 
     for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
         q->shards[i].lookup_head = 0;
@@ -265,11 +266,11 @@ const char* worker_queue_start(WorkerQueue* q, const WorkerQueueResources& res) 
         return "queue pointer is null";
     }
 
-    if (q->running) {
+    if (q->running.load(std::memory_order_acquire)) {
         return "queue already running";
     }
 
-    q->running = true;
+    q->running.store(true, std::memory_order_release);
     q->resources = res;
     if (res.runtime_metrics != nullptr) {
         res.runtime_metrics->worker_queue_capacity.store(
@@ -283,7 +284,7 @@ const char* worker_queue_start(WorkerQueue* q, const WorkerQueueResources& res) 
 }
 
 bool worker_queue_try_enqueue_lookup(WorkerQueue* q, const L2LookupJob& job) {
-    if (q == nullptr || !q->running) {
+    if (q == nullptr || !q->running.load(std::memory_order_acquire)) {
         return false;
     }
 
@@ -324,7 +325,7 @@ bool worker_queue_try_enqueue_lookup(WorkerQueue* q, const L2LookupJob& job) {
 }
 
 bool worker_queue_try_enqueue_store(WorkerQueue* q, const L2StoreJob& job) {
-    if (q == nullptr || !q->running) {
+    if (q == nullptr || !q->running.load(std::memory_order_acquire)) {
         return false;
     }
 
@@ -393,7 +394,7 @@ void worker_queue_shutdown(WorkerQueue* q) {
         return;
     }
 
-    q->running = false;
+    q->running.store(false, std::memory_order_release);
 
     for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
         q->shards[i].cv.notify_all();

@@ -89,7 +89,7 @@ struct RuntimeShard {
 // Fixed-capacity worker queue with sharding. Must not be copied or moved after init.
 struct WorkerQueue {
     RuntimeShard shards[kRuntimeShardCount];
-    bool running = false;
+    std::atomic<bool> running{ false };
     std::thread workers[kWorkerQueueMaxWorkers];
     std::size_t worker_count = 0;
     WorkerQueueResources resources{};

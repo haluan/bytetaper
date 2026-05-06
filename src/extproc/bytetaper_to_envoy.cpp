@@ -3,8 +3,11 @@
 
 #include "extproc/bytetaper_to_envoy.h"
 
+#include "compression/compression_decision.h"
 #include "extproc/reporting_headers.h"
+#include "stages/compression_decision_stage.h"
 
+#include <cstring>
 #include <envoy/config/core/v3/base.pb.h>
 #include <envoy/type/v3/http_status.pb.h>
 #include <string>
@@ -38,8 +41,7 @@ static void add_header(envoy::service::ext_proc::v3::ImmediateResponse* imm, con
 }
 
 bool map_cache_hit_to_immediate_response(
-    const apg::ApgTransformContext& ctx,
-    envoy::service::ext_proc::v3::ProcessingResponse* response) {
+    apg::ApgTransformContext& ctx, envoy::service::ext_proc::v3::ProcessingResponse* response) {
 
     if (!ctx.should_return_immediate_response) {
         return false;
@@ -62,6 +64,37 @@ bool map_cache_hit_to_immediate_response(
 
     if (ctx.cache_layer != nullptr) {
         add_header(imm, kCacheLayerHeader, ctx.cache_layer);
+    }
+
+    if (ctx.matched_policy != nullptr && ctx.matched_policy->compression.enabled) {
+        ctx.response_status_code = entry.status_code;
+        std::strncpy(ctx.response_content_type, entry.content_type,
+                     sizeof(ctx.response_content_type) - 1);
+        ctx.response_content_type[sizeof(ctx.response_content_type) - 1] = '\0';
+        ctx.response_body_len = entry.body_len;
+        ctx.response_body_size_known = true;
+
+        stages::compression_decision_stage(ctx);
+
+        if (ctx.compression_decision.evaluated) {
+            add_header(imm, kCompressionCandidateHeader,
+                       ctx.compression_decision.candidate ? kTrueValue : kFalseValue);
+            const char* reason_str = compression::compression_skip_reason_to_string(
+                ctx.compression_decision.skip_reason);
+            if (reason_str != nullptr) {
+                add_header(imm, kCompressionReasonHeader, reason_str);
+            }
+            if (ctx.compression_decision.candidate) {
+                const auto alg = ctx.compression_decision.algorithm_hint;
+                const char* alg_str = (alg == policy::CompressionAlgorithm::Brotli) ? "br"
+                                      : (alg == policy::CompressionAlgorithm::Zstd) ? "zstd"
+                                      : (alg == policy::CompressionAlgorithm::Gzip) ? "gzip"
+                                                                                    : nullptr;
+                if (alg_str != nullptr) {
+                    add_header(imm, kCompressionAlgorithmHeader, alg_str);
+                }
+            }
+        }
     }
 
     return true;

@@ -13,8 +13,7 @@ namespace bytetaper::extproc {
 // Returns true if ctx.should_return_immediate_response is set; false otherwise.
 // Safe to call unconditionally — caller skips upstream processing on true.
 bool map_cache_hit_to_immediate_response(
-    const apg::ApgTransformContext& ctx,
-    envoy::service::ext_proc::v3::ProcessingResponse* response);
+    apg::ApgTransformContext& ctx, envoy::service::ext_proc::v3::ProcessingResponse* response);
 
 // Writes pagination diagnostic headers to common when context.request_mutation.applied.
 // No-op when mutation was not applied (headers absent = no mutation, per contract).
