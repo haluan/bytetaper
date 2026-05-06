@@ -81,7 +81,8 @@ static void shard_pending_clear(RuntimeShard* s, const char* key, std::uint32_t 
     }
 }
 
-static void execute_lookup_job(WorkerQueue* q, RuntimeShard* shard, L2LookupJob& job) {
+static void execute_lookup_job(WorkerQueue* q, RuntimeShard* shard, L2LookupJob& job,
+                               char* scratch_buf, std::size_t scratch_len) {
     ::bytetaper::metrics::record_runtime_event(
         q->resources.runtime_metrics, ::bytetaper::metrics::RuntimeMetricEvent::JobExecuted);
 
@@ -95,8 +96,7 @@ static void execute_lookup_job(WorkerQueue* q, RuntimeShard* shard, L2LookupJob&
                                         std::chrono::system_clock::now().time_since_epoch())
                                         .count();
 
-        char body_buf[kAsyncL2MaxBodySize];
-        bool found = cache::l2_get(l2, job.key, now_ms, &hit, body_buf, kAsyncL2MaxBodySize);
+        bool found = cache::l2_get(l2, job.key, now_ms, &hit, scratch_buf, scratch_len);
         if (found) {
             ::bytetaper::metrics::record_runtime_event(
                 m, ::bytetaper::metrics::RuntimeMetricEvent::L2LookupHit);
@@ -212,7 +212,9 @@ static void worker_loop(WorkerQueue* q, std::size_t worker_id) {
 
         if (found_work) {
             if (is_lookup) {
-                execute_lookup_job(q, selected_shard, lookup_job);
+                execute_lookup_job(q, selected_shard, lookup_job,
+                                   q->worker_scratch[worker_id].l2_lookup_body,
+                                   kAsyncL2MaxBodySize);
             } else {
                 execute_store_job(q, selected_shard, store_job);
             }
@@ -466,7 +468,8 @@ bool worker_queue_execute_one_for_test(WorkerQueue* q) {
             }
 
             lock.unlock(); // Release lock before executing I/O
-            execute_lookup_job(q, &shard, job);
+            execute_lookup_job(q, &shard, job, q->worker_scratch[0].l2_lookup_body,
+                               kAsyncL2MaxBodySize);
             return true;
         }
 

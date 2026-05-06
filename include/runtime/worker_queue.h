@@ -55,6 +55,10 @@ struct WorkerWakeState {
     bool signaled = false;
 };
 
+struct WorkerScratch {
+    char l2_lookup_body[kAsyncL2MaxBodySize] = {};
+};
+
 struct WorkerQueueConfig {
     std::size_t worker_count = 2; // >= 1, <= kWorkerQueueMaxWorkers
 };
@@ -102,6 +106,7 @@ struct WorkerQueue {
     std::size_t worker_owned_shards[kWorkerQueueMaxWorkers][kRuntimeMaxShardsPerWorker] = {};
     std::size_t worker_owned_shard_count[kWorkerQueueMaxWorkers] = {};
     WorkerWakeState worker_wakes[kWorkerQueueMaxWorkers];
+    WorkerScratch worker_scratch[kWorkerQueueMaxWorkers];
     WorkerQueueResources resources{};
 };
 
