@@ -4,6 +4,7 @@
 
 import time
 import json
+import os
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from urllib.parse import urlsplit
 
@@ -13,6 +14,22 @@ PORT = 8080
 # Global call counter
 g_call_count = 0
 
+# Determine fixtures directory
+FIXTURES_DIR = os.environ.get("BYTETAPER_FIXTURES_DIR", "/workspace/benchmarks/fixtures")
+if not os.path.isdir(FIXTURES_DIR):
+    FIXTURES_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "benchmarks", "fixtures"))
+
+# Cache of fixtures loaded at startup
+FIXTURES = {}
+for name in ["small-json", "medium-json", "large-json", "huge-json", "products-by-id", "orders-list"]:
+    path = os.path.join(FIXTURES_DIR, f"{name}.json")
+    try:
+        with open(path, "rb") as f:
+            FIXTURES[name] = f.read()
+    except Exception as e:
+        print(f"Warning: Failed to load fixture {name} from {path}: {e}")
+        FIXTURES[name] = b'{"error":"fixture_not_found"}'
+
 def build_payload(size=1024, scenario="default", sentinel="bt-001", version=1):
     base_object = {
         "service": "mock-api",
@@ -21,7 +38,6 @@ def build_payload(size=1024, scenario="default", sentinel="bt-001", version=1):
         "version": version,
         "payload": "x" * size,
     }
-    # Use separators to match the test's json.dumps output
     return json.dumps(base_object, separators=(",", ":"), sort_keys=True).encode("utf-8")
 
 DEFAULT_PAYLOAD = build_payload(1024)
@@ -63,15 +79,65 @@ class Handler(BaseHTTPRequestHandler):
             query = urlsplit(self.path).query
             params = {k: v for k, v in [q.split("=") for q in query.split("&") if "=" in q]}
             limit = params.get("limit", None)
-            response_body = json.dumps({
-                "data": [],
-                "received_limit": limit,
-            }, separators=(",", ":")).encode("utf-8")
+            
+            try:
+                data_dict = json.loads(FIXTURES["orders-list"])
+            except Exception:
+                data_dict = {"data": []}
+            data_dict["received_limit"] = limit
+            
+            response_body = json.dumps(data_dict, separators=(",", ":"), sort_keys=True).encode("utf-8")
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
             self.send_header("Content-Length", str(len(response_body)))
             self.end_headers()
             self.wfile.write(response_body)
+            return
+
+        # Serve benchmark endpoints
+        if path == "/small-json":
+            g_call_count += 1
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(FIXTURES["small-json"])))
+            self.end_headers()
+            self.wfile.write(FIXTURES["small-json"])
+            return
+
+        if path == "/medium-json":
+            g_call_count += 1
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(FIXTURES["medium-json"])))
+            self.end_headers()
+            self.wfile.write(FIXTURES["medium-json"])
+            return
+
+        if path == "/large-json":
+            g_call_count += 1
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(FIXTURES["large-json"])))
+            self.end_headers()
+            self.wfile.write(FIXTURES["large-json"])
+            return
+
+        if path == "/huge-json":
+            g_call_count += 1
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(FIXTURES["huge-json"])))
+            self.end_headers()
+            self.wfile.write(FIXTURES["huge-json"])
+            return
+
+        if path.startswith("/products/"):
+            g_call_count += 1
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(FIXTURES["products-by-id"])))
+            self.end_headers()
+            self.wfile.write(FIXTURES["products-by-id"])
             return
 
         # Increment counter for any other GET request
