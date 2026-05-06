@@ -9,8 +9,7 @@
 #include "cache/l1_cache.h"
 #include "cache/l2_disk_cache.h"
 #include "coalescing/coalescing_decision.h"
-#include "compression/accept_encoding.h"
-#include "compression/content_encoding.h"
+#include "compression/compression_decision.h"
 #include "metrics/cache_metrics.h"
 #include "metrics/coalescing_metrics.h"
 #include "metrics/compression_metrics.h"
@@ -18,6 +17,7 @@
 #include "metrics/runtime_metrics.h"
 #include "policy/field_filter_policy.h"
 #include "policy/route_policy.h"
+#include "runtime/worker_queue.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -39,7 +39,7 @@ struct RequestMutationOutput {
 struct CompressionDecisionOutput {
     bool evaluated = false;
     bool candidate = false;
-    const char* reason = nullptr;
+    compression::CompressionSkipReason skip_reason = compression::CompressionSkipReason::None;
     policy::CompressionAlgorithm algorithm_hint = policy::CompressionAlgorithm::None;
 };
 

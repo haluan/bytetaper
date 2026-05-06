@@ -36,7 +36,7 @@ TEST(CompressionDecisionTest, EligibleResponse_Candidate) {
     auto in = make_eligible_input(&pol);
     auto d = make_compression_decision(in);
     EXPECT_TRUE(d.candidate);
-    EXPECT_EQ(d.reason, nullptr);
+    EXPECT_EQ(d.skip_reason, CompressionSkipReason::None);
     EXPECT_EQ(d.selected_algorithm_hint, policy::CompressionAlgorithm::Brotli);
 }
 
@@ -46,7 +46,8 @@ TEST(CompressionDecisionTest, PolicyDisabled_NotCandidate) {
     auto in = make_eligible_input(&pol);
     auto d = make_compression_decision(in);
     EXPECT_FALSE(d.candidate);
-    EXPECT_STREQ(d.reason, "policy_disabled");
+    EXPECT_EQ(d.skip_reason, CompressionSkipReason::PolicyDisabled);
+    EXPECT_STREQ(compression_skip_reason_to_string(d.skip_reason), "policy_disabled");
 }
 
 TEST(CompressionDecisionTest, NoClientSupport_NotCandidate) {
@@ -55,7 +56,8 @@ TEST(CompressionDecisionTest, NoClientSupport_NotCandidate) {
     in.client_encoding = {}; // all false
     auto d = make_compression_decision(in);
     EXPECT_FALSE(d.candidate);
-    EXPECT_STREQ(d.reason, "no_client_support");
+    EXPECT_EQ(d.skip_reason, CompressionSkipReason::NoClientSupport);
+    EXPECT_STREQ(compression_skip_reason_to_string(d.skip_reason), "no_client_support");
 }
 
 TEST(CompressionDecisionTest, AlreadyEncoded_NotCandidate) {
@@ -64,7 +66,8 @@ TEST(CompressionDecisionTest, AlreadyEncoded_NotCandidate) {
     in.response_encoding.already_encoded = true;
     auto d = make_compression_decision(in);
     EXPECT_FALSE(d.candidate);
-    EXPECT_STREQ(d.reason, "already_encoded");
+    EXPECT_EQ(d.skip_reason, CompressionSkipReason::AlreadyEncoded);
+    EXPECT_STREQ(compression_skip_reason_to_string(d.skip_reason), "already_encoded");
 }
 
 TEST(CompressionDecisionTest, Non2xx_NotCandidate) {
@@ -73,7 +76,8 @@ TEST(CompressionDecisionTest, Non2xx_NotCandidate) {
     in.status_code = 404;
     auto d = make_compression_decision(in);
     EXPECT_FALSE(d.candidate);
-    EXPECT_STREQ(d.reason, "non_2xx_status");
+    EXPECT_EQ(d.skip_reason, CompressionSkipReason::Non2xxStatus);
+    EXPECT_STREQ(compression_skip_reason_to_string(d.skip_reason), "non_2xx_status");
 }
 
 TEST(CompressionDecisionTest, ContentTypeNotEligible_NotCandidate) {
@@ -83,7 +87,8 @@ TEST(CompressionDecisionTest, ContentTypeNotEligible_NotCandidate) {
     in.content_type_len = std::strlen("image/png");
     auto d = make_compression_decision(in);
     EXPECT_FALSE(d.candidate);
-    EXPECT_STREQ(d.reason, "content_type_not_eligible");
+    EXPECT_EQ(d.skip_reason, CompressionSkipReason::ContentTypeNotEligible);
+    EXPECT_STREQ(compression_skip_reason_to_string(d.skip_reason), "content_type_not_eligible");
 }
 
 TEST(CompressionDecisionTest, TooSmall_NotCandidate) {
@@ -92,7 +97,18 @@ TEST(CompressionDecisionTest, TooSmall_NotCandidate) {
     in.body_len = 100; // below min_size_bytes=512
     auto d = make_compression_decision(in);
     EXPECT_FALSE(d.candidate);
-    EXPECT_STREQ(d.reason, "below_minimum");
+    EXPECT_EQ(d.skip_reason, CompressionSkipReason::BelowMinimum);
+    EXPECT_STREQ(compression_skip_reason_to_string(d.skip_reason), "below_minimum");
+}
+
+TEST(CompressionDecisionTest, SizeUnknown_NotCandidate) {
+    auto pol = make_policy();
+    auto in = make_eligible_input(&pol);
+    in.body_size_known = false;
+    auto d = make_compression_decision(in);
+    EXPECT_FALSE(d.candidate);
+    EXPECT_EQ(d.skip_reason, CompressionSkipReason::SizeUnknown);
+    EXPECT_STREQ(compression_skip_reason_to_string(d.skip_reason), "size_unknown");
 }
 
 TEST(CompressionDecisionTest, ReasonsStable) {
@@ -101,7 +117,7 @@ TEST(CompressionDecisionTest, ReasonsStable) {
     auto in = make_eligible_input(&pol);
     auto d1 = make_compression_decision(in);
     auto d2 = make_compression_decision(in);
-    EXPECT_STREQ(d1.reason, d2.reason);
+    EXPECT_EQ(d1.skip_reason, d2.skip_reason);
 }
 
 } // namespace bytetaper::compression

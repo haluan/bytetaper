@@ -95,8 +95,10 @@ void apply_compression_response_headers(const apg::ApgTransformContext& ctx,
     }
     add_common_header(common, kCompressionCandidateHeader,
                       ctx.compression_decision.candidate ? kTrueValue : kFalseValue);
-    if (ctx.compression_decision.reason != nullptr) {
-        add_common_header(common, kCompressionReasonHeader, ctx.compression_decision.reason);
+    const char* reason_str =
+        compression::compression_skip_reason_to_string(ctx.compression_decision.skip_reason);
+    if (reason_str != nullptr) {
+        add_common_header(common, kCompressionReasonHeader, reason_str);
     }
     if (ctx.compression_decision.candidate) {
         const auto alg = ctx.compression_decision.algorithm_hint;

@@ -37,38 +37,54 @@ apg::StageOutput compression_decision_stage(apg::ApgTransformContext& context) {
 
     context.compression_decision.evaluated = true;
     context.compression_decision.candidate = decision.candidate;
-    context.compression_decision.reason = decision.reason;
+    context.compression_decision.skip_reason = decision.skip_reason;
     context.compression_decision.algorithm_hint = decision.selected_algorithm_hint;
 
     if (context.compression_metrics != nullptr) {
         if (decision.candidate) {
             metrics::record_compression_event(context.compression_metrics,
                                               metrics::CompressionMetricEvent::Candidate);
-        } else if (decision.reason != nullptr) {
-            if (std::strcmp(decision.reason, "no_client_support") == 0) {
+        } else {
+            switch (decision.skip_reason) {
+            case compression::CompressionSkipReason::PolicyDisabled:
+                metrics::record_compression_event(
+                    context.compression_metrics,
+                    metrics::CompressionMetricEvent::SkipPolicyDisabled);
+                break;
+            case compression::CompressionSkipReason::NoClientSupport:
                 metrics::record_compression_event(
                     context.compression_metrics,
                     metrics::CompressionMetricEvent::SkipClientUnsupported);
-            } else if (std::strcmp(decision.reason, "already_encoded") == 0) {
+                break;
+            case compression::CompressionSkipReason::AlreadyEncoded:
                 metrics::record_compression_event(
                     context.compression_metrics,
                     metrics::CompressionMetricEvent::SkipAlreadyEncoded);
-            } else if (std::strcmp(decision.reason, "content_type_not_eligible") == 0) {
+                break;
+            case compression::CompressionSkipReason::ContentTypeNotEligible:
                 metrics::record_compression_event(context.compression_metrics,
                                                   metrics::CompressionMetricEvent::SkipContentType);
-            } else if (std::strcmp(decision.reason, "response_too_small") == 0) {
+                break;
+            case compression::CompressionSkipReason::BelowMinimum:
+            case compression::CompressionSkipReason::SizeUnknown:
                 metrics::record_compression_event(
                     context.compression_metrics,
                     metrics::CompressionMetricEvent::SkipResponseTooSmall);
-            } else if (std::strcmp(decision.reason, "non_2xx_status") == 0) {
+                break;
+            case compression::CompressionSkipReason::Non2xxStatus:
                 metrics::record_compression_event(context.compression_metrics,
                                                   metrics::CompressionMetricEvent::SkipNon2xx);
+                break;
+            default:
+                break;
             }
         }
     }
 
     return { apg::StageResult::Continue,
-             decision.candidate ? "compression-candidate" : decision.reason };
+             decision.candidate
+                 ? "compression-candidate"
+                 : compression::compression_skip_reason_to_string(decision.skip_reason) };
 }
 
 } // namespace bytetaper::stages

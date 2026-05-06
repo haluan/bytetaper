@@ -6,7 +6,31 @@
 #include "compression/compression_eligibility.h"
 #include "compression/compression_size.h"
 
+#include <cstring>
+
 namespace bytetaper::compression {
+
+const char* compression_skip_reason_to_string(CompressionSkipReason reason) {
+    switch (reason) {
+    case CompressionSkipReason::None:
+        return nullptr;
+    case CompressionSkipReason::PolicyDisabled:
+        return "policy_disabled";
+    case CompressionSkipReason::NoClientSupport:
+        return "no_client_support";
+    case CompressionSkipReason::AlreadyEncoded:
+        return "already_encoded";
+    case CompressionSkipReason::ContentTypeNotEligible:
+        return "content_type_not_eligible";
+    case CompressionSkipReason::Non2xxStatus:
+        return "non_2xx_status";
+    case CompressionSkipReason::BelowMinimum:
+        return "below_minimum";
+    case CompressionSkipReason::SizeUnknown:
+        return "size_unknown";
+    }
+    return nullptr;
+}
 
 namespace {
 
@@ -39,36 +63,39 @@ static policy::CompressionAlgorithm pick_algorithm(const policy::CompressionPoli
 
 CompressionDecision make_compression_decision(const CompressionDecisionInput& input) {
     if (input.compression_policy == nullptr || !input.compression_policy->enabled) {
-        return { false, "policy_disabled" };
+        return { false, CompressionSkipReason::PolicyDisabled };
     }
 
     const auto& policy = *input.compression_policy;
     const auto& client = input.client_encoding;
 
     if (!client.supports_gzip && !client.supports_br && !client.supports_zstd) {
-        return { false, "no_client_support" };
+        return { false, CompressionSkipReason::NoClientSupport };
     }
 
     if (input.status_code < 200 || input.status_code >= 300) {
-        return { false, "non_2xx_status" };
+        return { false, CompressionSkipReason::Non2xxStatus };
     }
 
     if (input.response_encoding.already_encoded) {
-        return { false, "already_encoded" };
+        return { false, CompressionSkipReason::AlreadyEncoded };
     }
 
     if (!is_content_type_eligible(policy, input.content_type, input.content_type_len)) {
-        return { false, "content_type_not_eligible" };
+        return { false, CompressionSkipReason::ContentTypeNotEligible };
     }
 
     const auto size_result = check_compression_size_eligibility(
         policy.min_size_bytes, input.body_len, input.body_size_known);
     if (!size_result.eligible) {
-        return { false, size_result.reason };
+        if (size_result.reason != nullptr && std::strcmp(size_result.reason, "size_unknown") == 0) {
+            return { false, CompressionSkipReason::SizeUnknown };
+        }
+        return { false, CompressionSkipReason::BelowMinimum };
     }
 
     const auto alg = pick_algorithm(policy, client);
-    return { true, nullptr, alg };
+    return { true, CompressionSkipReason::None, alg };
 }
 
 } // namespace bytetaper::compression

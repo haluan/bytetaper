@@ -12,6 +12,19 @@
 
 namespace bytetaper::compression {
 
+enum class CompressionSkipReason : std::uint8_t {
+    None,
+    PolicyDisabled,
+    NoClientSupport,
+    AlreadyEncoded,
+    ContentTypeNotEligible,
+    Non2xxStatus,
+    BelowMinimum,
+    SizeUnknown
+};
+
+const char* compression_skip_reason_to_string(CompressionSkipReason reason);
+
 struct CompressionDecisionInput {
     const policy::CompressionPolicy* compression_policy = nullptr; // required
     AcceptEncoding client_encoding{};          // parsed from request Accept-Encoding
@@ -25,11 +38,7 @@ struct CompressionDecisionInput {
 
 struct CompressionDecision {
     bool candidate = false;
-    // Static reason string, or nullptr when candidate=true.
-    // Values: "policy_disabled", "no_client_support", "non_2xx_status",
-    //         "already_encoded", "content_type_not_eligible",
-    //         "below_minimum", "size_unknown"
-    const char* reason = nullptr;
+    CompressionSkipReason skip_reason = CompressionSkipReason::None;
     // Suggested algorithm for Envoy; None when candidate=false or no match found.
     policy::CompressionAlgorithm selected_algorithm_hint = policy::CompressionAlgorithm::None;
 };
