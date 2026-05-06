@@ -247,6 +247,59 @@ static void worker_loop(WorkerQueue* q, std::size_t worker_id) {
     }
 }
 
+// Primitives for managing the Ready Shard Queues.
+// Lock-ordering convention: never hold RuntimeShard::mu while acquiring WorkerReadyQueue::mu.
+[[maybe_unused]] static bool worker_ready_try_push(WorkerQueue* q, std::size_t worker_id,
+                                                   std::size_t shard_id) {
+    if (q == nullptr || worker_id >= q->worker_count) {
+        return false;
+    }
+    auto& rq = q->worker_ready[worker_id];
+    std::scoped_lock lock(rq.mu);
+    if (rq.count >= kRuntimeShardCount) {
+        return false; // full
+    }
+    rq.shard_ids[rq.tail] = shard_id;
+    rq.tail = (rq.tail + 1) % kRuntimeShardCount;
+    rq.count++;
+    rq.cv.notify_one();
+    return true;
+}
+
+[[maybe_unused]] static bool worker_ready_try_pop(WorkerQueue* q, std::size_t worker_id,
+                                                  std::size_t* shard_id_out) {
+    if (q == nullptr || worker_id >= q->worker_count || shard_id_out == nullptr) {
+        return false;
+    }
+    auto& rq = q->worker_ready[worker_id];
+    std::scoped_lock lock(rq.mu);
+    if (rq.count == 0) {
+        return false;
+    }
+    *shard_id_out = rq.shard_ids[rq.head];
+    rq.head = (rq.head + 1) % kRuntimeShardCount;
+    rq.count--;
+    return true;
+}
+
+[[maybe_unused]] static bool worker_ready_wait_pop(WorkerQueue* q, std::size_t worker_id,
+                                                   std::size_t* shard_id_out) {
+    if (q == nullptr || worker_id >= q->worker_count || shard_id_out == nullptr) {
+        return false;
+    }
+    auto& rq = q->worker_ready[worker_id];
+    std::unique_lock<std::mutex> lock(rq.mu);
+    rq.cv.wait(lock,
+               [q, &rq] { return rq.count > 0 || !q->running.load(std::memory_order_acquire); });
+    if (rq.count == 0) {
+        return false; // running was set to false or queue shutdown
+    }
+    *shard_id_out = rq.shard_ids[rq.head];
+    rq.head = (rq.head + 1) % kRuntimeShardCount;
+    rq.count--;
+    return true;
+}
+
 } // namespace
 
 const char* worker_queue_init(WorkerQueue* q, const WorkerQueueConfig& config) {
@@ -261,13 +314,17 @@ const char* worker_queue_init(WorkerQueue* q, const WorkerQueueConfig& config) {
     q->worker_count = config.worker_count;
     q->running.store(false, std::memory_order_release);
 
-    // Reset ownership arrays and worker wakes
+    // Reset ownership arrays, worker wakes, and worker ready queues
     for (std::size_t w = 0; w < kWorkerQueueMaxWorkers; ++w) {
         q->worker_owned_shard_count[w] = 0;
         q->worker_wakes[w].signaled = false;
         for (std::size_t s = 0; s < kRuntimeMaxShardsPerWorker; ++s) {
             q->worker_owned_shards[w][s] = 0;
         }
+        q->worker_ready[w].head = 0;
+        q->worker_ready[w].tail = 0;
+        q->worker_ready[w].count = 0;
+        std::memset(q->worker_ready[w].shard_ids, 0, sizeof(q->worker_ready[w].shard_ids));
     }
 
     // Populate ownership arrays
@@ -291,6 +348,7 @@ const char* worker_queue_init(WorkerQueue* q, const WorkerQueueConfig& config) {
         for (std::size_t j = 0; j < kRuntimeQueueSlotsPerShard; j++) {
             q->shards[i].body_pool.occupied[j] = false;
         }
+        q->shards[i].ready_enqueued = false;
     }
 
     return nullptr;

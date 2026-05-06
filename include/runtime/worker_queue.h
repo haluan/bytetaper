@@ -59,6 +59,15 @@ struct WorkerScratch {
     char l2_lookup_body[kAsyncL2MaxBodySize] = {};
 };
 
+struct WorkerReadyQueue {
+    std::mutex mu;
+    std::condition_variable cv;
+    std::size_t shard_ids[kRuntimeShardCount] = {};
+    std::size_t head = 0;
+    std::size_t tail = 0;
+    std::size_t count = 0;
+};
+
 struct WorkerQueueConfig {
     std::size_t worker_count = 2; // >= 1, <= kWorkerQueueMaxWorkers
 };
@@ -95,6 +104,8 @@ struct RuntimeShard {
 
     // Shard-local store body pool.
     StoreBodyPool body_pool = {};
+
+    bool ready_enqueued = false;
 };
 
 // Fixed-capacity worker queue with sharding. Must not be copied or moved after init.
@@ -107,6 +118,7 @@ struct WorkerQueue {
     std::size_t worker_owned_shard_count[kWorkerQueueMaxWorkers] = {};
     WorkerWakeState worker_wakes[kWorkerQueueMaxWorkers];
     WorkerScratch worker_scratch[kWorkerQueueMaxWorkers];
+    WorkerReadyQueue worker_ready[kWorkerQueueMaxWorkers];
     WorkerQueueResources resources{};
 };
 

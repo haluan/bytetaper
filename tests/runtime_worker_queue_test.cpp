@@ -469,3 +469,19 @@ TEST_F(WorkerQueueTest, DeterministicWakeupOnNonPrimaryShard) {
 
     worker_queue_shutdown(q_.get());
 }
+
+TEST_F(WorkerQueueTest, ReadyQueueInitialState) {
+    WorkerQueueConfig cfg;
+    cfg.worker_count = 4;
+    ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
+
+    for (std::size_t w = 0; w < cfg.worker_count; ++w) {
+        EXPECT_EQ(q_->worker_ready[w].head, 0u);
+        EXPECT_EQ(q_->worker_ready[w].tail, 0u);
+        EXPECT_EQ(q_->worker_ready[w].count, 0u);
+    }
+
+    for (std::size_t s = 0; s < kRuntimeShardCount; ++s) {
+        EXPECT_FALSE(q_->shards[s].ready_enqueued);
+    }
+}
