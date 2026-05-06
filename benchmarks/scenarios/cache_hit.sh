@@ -302,6 +302,9 @@ else
     # Compile JSON report
     ./benchmarks/report/generate_json_report.sh "$REPORT_FILE"
 
+    # Compile Markdown report
+    ./benchmarks/report/generate_markdown_report.sh "${REPORT_FILE%.txt}.json"
+
     echo ""
     echo "=================================================="
     echo "PHASE 2 COMPLETE. REPORT GENERATED SUCCESSFULLY."

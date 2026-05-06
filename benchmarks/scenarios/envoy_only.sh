@@ -107,6 +107,9 @@ rm -f "$WRK_OUT"
 # Compile JSON report
 ./benchmarks/report/generate_json_report.sh "$REPORT_FILE"
 
+# Compile Markdown report
+./benchmarks/report/generate_markdown_report.sh "${REPORT_FILE%.txt}.json"
+
 echo ""
 echo "Benchmark complete."
 echo "Results saved to: $REPORT_FILE"
