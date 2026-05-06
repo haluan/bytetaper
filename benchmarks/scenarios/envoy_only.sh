@@ -110,6 +110,9 @@ rm -f "$WRK_OUT"
 # Compile Markdown report
 ./benchmarks/report/generate_markdown_report.sh "${REPORT_FILE%.txt}.json"
 
+# Validate performance thresholds
+./benchmarks/report/check_thresholds.sh "${REPORT_FILE%.txt}.json"
+
 echo ""
 echo "Benchmark complete."
 echo "Results saved to: $REPORT_FILE"

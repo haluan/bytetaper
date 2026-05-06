@@ -305,6 +305,9 @@ else
     # Compile Markdown report
     ./benchmarks/report/generate_markdown_report.sh "${REPORT_FILE%.txt}.json"
 
+    # Validate performance thresholds
+    ./benchmarks/report/check_thresholds.sh "${REPORT_FILE%.txt}.json"
+
     echo ""
     echo "=================================================="
     echo "PHASE 2 COMPLETE. REPORT GENERATED SUCCESSFULLY."
