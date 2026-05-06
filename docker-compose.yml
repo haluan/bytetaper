@@ -231,6 +231,32 @@ services:
       retries: 20
       start_period: 2s
 
+  envoy-baseline:
+    build:
+      context: .
+      dockerfile: docker/envoy.Dockerfile
+    depends_on:
+      mock-api:
+        condition: service_healthy
+    volumes:
+      - ./examples/envoy:/etc/envoy:ro
+    command:
+      - /usr/local/bin/envoy
+      - -c
+      - /etc/envoy/envoy-baseline.yaml
+    healthcheck:
+      test:
+        - CMD
+        - /usr/local/bin/envoy
+        - --mode
+        - validate
+        - -c
+        - /etc/envoy/envoy-baseline.yaml
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 2s
+
   bytetaper-compression-test:
     image: bytetaper-dev:latest
     working_dir: /workspace
@@ -325,6 +351,8 @@ services:
       bytetaper-extproc:
         condition: service_healthy
       envoy:
+        condition: service_healthy
+      envoy-baseline:
         condition: service_healthy
 
 volumes:
