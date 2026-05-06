@@ -74,12 +74,17 @@ success_count=$((total_reqs - non_2xx_3xx))
 bytes_read=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_OUT" | awk -F', ' '{print $2}')
 transfer_rate=$(grep -E "^Transfer/sec:" "$WRK_OUT" | awk '{print $2}')
 
+# Extract throughput JSON
+echo "Extracting throughput JSON..."
+JSON_THROUGHPUT=$(./benchmarks/lib/throughput_parser.sh "$WRK_OUT")
+
 {
     echo "Total Requests: $total_reqs"
     echo "Success Count: $success_count"
     echo "Bytes Read: $bytes_read"
     echo "Transfer Rate: $transfer_rate"
     echo "Latency JSON: $JSON_LATENCY"
+    echo "Throughput JSON: $JSON_THROUGHPUT"
 } >> "$REPORT_FILE"
 
 # Cleanup
@@ -91,4 +96,4 @@ rm -f "$WRK_OUT"
 echo ""
 echo "Benchmark complete."
 echo "Results saved to: $REPORT_FILE"
-cat "$REPORT_FILE" | tail -n 12
+cat "$REPORT_FILE" | tail -n 14

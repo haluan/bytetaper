@@ -76,9 +76,11 @@ WRK_MED_OUT=$(mktemp)
 wrk -t2 -c10 -d10s -s benchmarks/lib/latency_reporter.lua --latency "${MED_URL}" | tee "$WRK_MED_OUT"
 cat "$WRK_MED_OUT" >> "$REPORT_FILE"
 
-# Extract JSON latency metrics for Leg 1
+# Extract JSON latency and throughput metrics for Leg 1
 echo "Extracting JSON latency metrics for Leg 1..."
 JSON_MED_LATENCY=$(./benchmarks/lib/latency_parser.sh "$WRK_MED_OUT")
+echo "Extracting JSON throughput metrics for Leg 1..."
+JSON_MED_THROUGHPUT=$(./benchmarks/lib/throughput_parser.sh "$WRK_MED_OUT")
 
 # Leg 2: Large Payload Field Filtering
 echo "--------------------------------------------------" | tee -a "$REPORT_FILE"
@@ -111,9 +113,11 @@ WRK_LARGE_OUT=$(mktemp)
 wrk -t2 -c10 -d10s -s benchmarks/lib/latency_reporter.lua --latency "${LARGE_URL}" | tee "$WRK_LARGE_OUT"
 cat "$WRK_LARGE_OUT" >> "$REPORT_FILE"
 
-# Extract JSON latency metrics for Leg 2
+# Extract JSON latency and throughput metrics for Leg 2
 echo "Extracting JSON latency metrics for Leg 2..."
 JSON_LARGE_LATENCY=$(./benchmarks/lib/latency_parser.sh "$WRK_LARGE_OUT")
+echo "Extracting JSON throughput metrics for Leg 2..."
+JSON_LARGE_THROUGHPUT=$(./benchmarks/lib/throughput_parser.sh "$WRK_LARGE_OUT")
 
 # Parse metrics for Leg 1
 med_total_reqs=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_MED_OUT" | awk '{print $1}' || echo "0")
@@ -136,12 +140,14 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg 1 Bytes Saved: ${med_saved} bytes"
     echo "Leg 1 Reduction Ratio: ${med_ratio}"
     echo "Leg 1 Latency JSON: ${JSON_MED_LATENCY}"
+    echo "Leg 1 Throughput JSON: ${JSON_MED_THROUGHPUT}"
     echo ""
     echo "Leg 2 (Large JSON) Requests: ${large_total_reqs}"
     echo "Leg 2 Success Count: ${large_success}"
     echo "Leg 2 Bytes Saved: ${large_saved} bytes"
     echo "Leg 2 Reduction Ratio: ${large_ratio}"
     echo "Leg 2 Latency JSON: ${JSON_LARGE_LATENCY}"
+    echo "Leg 2 Throughput JSON: ${JSON_LARGE_THROUGHPUT}"
 } >> "$REPORT_FILE"
 
 # Baseline Comparison Section

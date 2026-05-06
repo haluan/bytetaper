@@ -77,9 +77,11 @@ WRK_LEGA_OUT=$(mktemp)
 wrk -t2 -c10 -d10s -H "Accept-Encoding: gzip" -s benchmarks/lib/latency_reporter.lua --latency "${LEGA_URL}" | tee "$WRK_LEGA_OUT"
 cat "$WRK_LEGA_OUT" >> "$REPORT_FILE"
 
-# Extract JSON latency metrics for Leg A
+# Extract JSON latency and throughput metrics for Leg A
 echo "Extracting JSON latency metrics for Leg A..."
 JSON_LEGA_LATENCY=$(./benchmarks/lib/latency_parser.sh "$WRK_LEGA_OUT")
+echo "Extracting JSON throughput metrics for Leg A..."
+JSON_LEGA_THROUGHPUT=$(./benchmarks/lib/throughput_parser.sh "$WRK_LEGA_OUT")
 
 # Sleep 3 seconds to let connections cool down and socket pool reset
 echo "Cooling down socket pools..."
@@ -127,9 +129,11 @@ WRK_LEGB_OUT=$(mktemp)
 wrk -t2 -c10 -d10s -H "Accept-Encoding: gzip" -s benchmarks/lib/latency_reporter.lua --latency "${LEGB_URL}" | tee "$WRK_LEGB_OUT"
 cat "$WRK_LEGB_OUT" >> "$REPORT_FILE"
 
-# Extract JSON latency metrics for Leg B
+# Extract JSON latency and throughput metrics for Leg B
 echo "Extracting JSON latency metrics for Leg B..."
 JSON_LEGB_LATENCY=$(./benchmarks/lib/latency_parser.sh "$WRK_LEGB_OUT")
+echo "Extracting JSON throughput metrics for Leg B..."
+JSON_LEGB_THROUGHPUT=$(./benchmarks/lib/throughput_parser.sh "$WRK_LEGB_OUT")
 
 # Sleep 3 seconds to let connections cool down and socket pool reset
 echo "Cooling down socket pools..."
@@ -179,9 +183,11 @@ WRK_LEGC_OUT=$(mktemp)
 wrk -t2 -c10 -d10s -H "Accept-Encoding: gzip" -s benchmarks/lib/latency_reporter.lua --latency "${LEGC_URL}" | tee "$WRK_LEGC_OUT"
 cat "$WRK_LEGC_OUT" >> "$REPORT_FILE"
 
-# Extract JSON latency metrics for Leg C
+# Extract JSON latency and throughput metrics for Leg C
 echo "Extracting JSON latency metrics for Leg C..."
 JSON_LEGC_LATENCY=$(./benchmarks/lib/latency_parser.sh "$WRK_LEGC_OUT")
+echo "Extracting JSON throughput metrics for Leg C..."
+JSON_LEGC_THROUGHPUT=$(./benchmarks/lib/throughput_parser.sh "$WRK_LEGC_OUT")
 
 # --------------------------------------------------
 # Report Parsing & Compilation
@@ -217,6 +223,7 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg A Successful Requests: ${lega_success}"
     echo "Leg A Transfer Rate: ${lega_transfer}"
     echo "Leg A Latency JSON: ${JSON_LEGA_LATENCY}"
+    echo "Leg A Throughput JSON: ${JSON_LEGA_THROUGHPUT}"
     echo ""
     echo "Leg B (Envoy + ByteTaper Decision) - Payload Size: ${legb_bytes} bytes"
     echo "Leg B Content-Encoding: ${legb_encoding}"
@@ -225,6 +232,7 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg B Successful Requests: ${legb_success}"
     echo "Leg B Transfer Rate: ${legb_transfer}"
     echo "Leg B Latency JSON: ${JSON_LEGB_LATENCY}"
+    echo "Leg B Throughput JSON: ${JSON_LEGB_THROUGHPUT}"
     echo ""
     echo "Leg C (Small Response - Not Candidate) - Payload Size: ${legc_bytes} bytes"
     echo "Leg C Content-Encoding: ${legc_encoding}"
@@ -234,6 +242,7 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg C Successful Requests: ${legc_success}"
     echo "Leg C Transfer Rate: ${legc_transfer}"
     echo "Leg C Latency JSON: ${JSON_LEGC_LATENCY}"
+    echo "Leg C Throughput JSON: ${JSON_LEGC_THROUGHPUT}"
 } >> "$REPORT_FILE"
 
 # Cleanup

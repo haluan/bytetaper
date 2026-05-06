@@ -54,7 +54,55 @@ validate_report_file() {
         return 1
     fi
 
-    echo "Report $file is fully VALID (all percentiles present)."
+    # Find all JSON throughput blocks within the report file
+    # We look for lines containing "Throughput JSON" (e.g., "Throughput JSON: { ... }", "Leg A Throughput JSON: { ... }")
+    local tp_found=0
+    while IFS= read -r line; do
+        if [[ "$line" =~ Throughput\ JSON:[[:space:]]*(.*) ]]; then
+            tp_found=1
+            local json_str="${BASH_REMATCH[1]}"
+            echo "Checking throughput JSON: $json_str"
+
+            # Parse using jq and assert fields exist
+            local rps
+            local total
+            local success
+            local failed
+            rps=$(echo "$json_str" | jq -e '.throughput.requests_per_second' 2>/dev/null || true)
+            total=$(echo "$json_str" | jq -e '.total_requests' 2>/dev/null || true)
+            success=$(echo "$json_str" | jq -e '.successful_requests' 2>/dev/null || true)
+            failed=$(echo "$json_str" | jq -e '.failed_requests' 2>/dev/null || true)
+
+            if [ -z "$rps" ] || [ "$rps" = "null" ]; then
+                echo "ERROR: Missing 'throughput.requests_per_second' in report $file" >&2
+                return 1
+            fi
+            if [ -z "$total" ] || [ "$total" = "null" ]; then
+                echo "ERROR: Missing 'total_requests' in report $file" >&2
+                return 1
+            fi
+            if [ -z "$success" ] || [ "$success" = "null" ]; then
+                echo "ERROR: Missing 'successful_requests' in report $file" >&2
+                return 1
+            fi
+            if [ -z "$failed" ] || [ "$failed" = "null" ]; then
+                echo "ERROR: Missing 'failed_requests' in report $file" >&2
+                return 1
+            fi
+
+            echo "  - Requests per second: $rps"
+            echo "  - Total requests: $total"
+            echo "  - Successful requests: $success"
+            echo "  - Failed requests: $failed"
+        fi
+    done < <(grep -E "Throughput JSON" "$file" || true)
+
+    if [ $tp_found -eq 0 ]; then
+        echo "ERROR: No throughput JSON blocks found in report $file" >&2
+        return 1
+    fi
+
+    echo "Report $file is fully VALID (all percentiles and throughput metrics present)."
     return 0
 }
 

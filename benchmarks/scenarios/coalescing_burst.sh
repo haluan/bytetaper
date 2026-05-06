@@ -185,6 +185,7 @@ echo "Running wrk latency check on slow path..."
 WRK_COAL_B=$(mktemp)
 wrk -t2 -c5 -d3s -s benchmarks/lib/latency_reporter.lua --latency "${ENVOY_HOST}/products/slow/123" | tee "$WRK_COAL_B"
 JSON_COAL_B=$(./benchmarks/lib/latency_parser.sh "$WRK_COAL_B")
+JSON_COAL_TP_B=$(./benchmarks/lib/throughput_parser.sh "$WRK_COAL_B")
 rm -f "$WRK_COAL_B"
 
 {
@@ -196,6 +197,7 @@ rm -f "$WRK_COAL_B"
     echo "Delta Fallbacks: $delta_fallback"
     echo "Delta Bypasses: $delta_bypass"
     echo "Leg B Latency JSON: $JSON_COAL_B"
+    echo "Leg B Throughput JSON: $JSON_COAL_TP_B"
     echo ""
 } | tee -a "$REPORT_FILE"
 
