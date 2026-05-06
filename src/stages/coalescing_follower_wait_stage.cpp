@@ -56,7 +56,9 @@ apg::StageOutput coalescing_follower_wait_stage(apg::ApgTransformContext& contex
         return l1_res;
     }
 
-    // Step 2: Block until leader completes or timeout
+    // Step 2: Block until leader completes or timeout.
+    // This uses a non-polling, notification-aware wait strategy via std::condition_variable
+    // inside registry_wait_for_completion, avoiding any sleep-based polling loops.
     const coalescing::RegistryWaitResult wait_result = coalescing::registry_wait_for_completion(
         context.coalescing_registry, context.coalescing_decision.key, wait_window_ms);
 
