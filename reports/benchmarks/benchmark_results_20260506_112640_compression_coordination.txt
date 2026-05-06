@@ -1,0 +1,109 @@
+=== ByteTaper Benchmark Execution ===
+Scenario: compression_coordination
+Time: Wed May  6 11:26:40 UTC 2026
+Target Host: http://envoy-compression:10000
+
+=== System Information ===
+OS: Linux 85b734dae599 6.11.3-200.fc40.aarch64 aarch64 Linux
+CPU cores: 2
+Memory Total: 3617.73 MB
+
+--------------------------------------------------
+Leg A: Envoy Compression Only (Baseline)
+--------------------------------------------------
+Content-Encoding: gzip
+ByteTaper Candidate Header: None
+Response Payload Size (Compressed): 116 bytes
+
+Running 10s test @ http://envoy-compression:10000/api/v1/baseline-compress
+  2 threads and 10 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     4.78ms    8.50ms 130.06ms   93.52%
+    Req/Sec     1.63k   819.68     3.34k    67.50%
+  Latency Distribution
+     50%    2.43ms
+     75%    3.97ms
+     90%    8.57ms
+     99%   41.01ms
+  32512 requests in 10.03s, 10.67MB read
+Requests/sec:   3242.99
+Transfer/sec:      1.06MB
+
+--------------------------------------------------
+Leg B: Envoy Compression + ByteTaper Decision
+--------------------------------------------------
+Content-Encoding: gzip
+ByteTaper Candidate Header: true
+ByteTaper Skip Reason Header: None
+ByteTaper Algorithm Hint Header: gzip
+Response Payload Size (Compressed): 110 bytes
+
+Running 10s test @ http://envoy-compression:10000/api/v1/large
+  2 threads and 10 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     9.18ms   17.05ms 198.98ms   94.93%
+    Req/Sec   849.08    446.85     1.53k    55.50%
+  Latency Distribution
+     50%    4.46ms
+     75%    8.06ms
+     90%   15.39ms
+     99%  103.52ms
+  16928 requests in 10.05s, 13.98MB read
+Requests/sec:   1684.10
+Transfer/sec:      1.39MB
+
+--------------------------------------------------
+Leg C: Small Response - Not Candidate (GET /api/v1/small)
+--------------------------------------------------
+Content-Encoding: None
+ByteTaper Candidate Header: false
+ByteTaper Skip Reason Header: below_minimum
+Response Payload Size (Uncompressed): 603 bytes
+
+Running 10s test @ http://envoy-compression:10000/api/v1/small
+  2 threads and 10 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     6.16ms    6.74ms  95.57ms   91.80%
+    Req/Sec     1.00k   453.34     1.60k    57.00%
+  Latency Distribution
+     50%    4.00ms
+     75%    6.22ms
+     90%   11.54ms
+     99%   34.75ms
+  19907 requests in 10.02s, 24.53MB read
+Requests/sec:   1986.74
+Transfer/sec:      2.45MB
+
+=== Parsed Scenario Metrics ===
+Leg A (Envoy Compression Only) - Payload Size: 116 bytes
+Leg A Content-Encoding: gzip
+Leg A Total Requests (10s): 32512
+Leg A Successful Requests: 32512
+Leg A Latency p50: 2.43ms
+Leg A Latency p75: 3.97ms
+Leg A Latency p90: 8.57ms
+Leg A Latency p99: 41.01ms
+Leg A Transfer Rate: 1.06MB 
+
+Leg B (Envoy + ByteTaper Decision) - Payload Size: 110 bytes
+Leg B Content-Encoding: gzip
+Leg B Candidate: true
+Leg B Total Requests (10s): 16928
+Leg B Successful Requests: 16928
+Leg B Latency p50: 4.46ms
+Leg B Latency p75: 8.06ms
+Leg B Latency p90: 15.39ms
+Leg B Latency p99: 103.52ms
+Leg B Transfer Rate: 1.39MB 
+
+Leg C (Small Response - Not Candidate) - Payload Size: 603 bytes
+Leg C Content-Encoding: None
+Leg C Candidate: false
+Leg C Decision Reason: below_minimum
+Leg C Total Requests (10s): 19907
+Leg C Successful Requests: 19907
+Leg C Latency p50: 4.00ms
+Leg C Latency p75: 6.22ms
+Leg C Latency p90: 11.54ms
+Leg C Latency p99: 34.75ms
+Leg C Transfer Rate: 2.45MB 

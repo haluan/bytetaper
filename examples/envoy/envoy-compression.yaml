@@ -29,6 +29,15 @@ static_resources:
               domains: ["*"]
               routes:
               - match:
+                  prefix: "/api/v1/baseline-compress"
+                route:
+                  cluster: mock_api_cluster
+                  prefix_rewrite: "/api/v1/large"
+                typed_per_filter_config:
+                  envoy.filters.http.ext_proc:
+                    "@type": type.googleapis.com/envoy.extensions.filters.http.ext_proc.v3.ExtProcPerRoute
+                    disabled: true
+              - match:
                   prefix: "/"
                 route:
                   cluster: mock_api_cluster
@@ -97,5 +106,5 @@ static_resources:
         - endpoint:
             address:
               socket_address:
-                address: bytetaper-extproc
+                address: bytetaper-extproc-compression
                 port_value: 18080
