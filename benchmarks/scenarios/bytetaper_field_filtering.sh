@@ -136,6 +136,11 @@ echo "Extracting container stats..."
 JSON_MED_STATS=$(./benchmarks/lib/container_stats.sh all)
 JSON_LARGE_STATS=$(./benchmarks/lib/container_stats.sh all)
 
+# Extract response payload savings
+echo "Extracting payload savings..."
+JSON_MED_SAVINGS=$(./benchmarks/lib/payload_savings_parser.sh "$med_orig" "$med_opt")
+JSON_LARGE_SAVINGS=$(./benchmarks/lib/payload_savings_parser.sh "$large_orig" "$large_opt")
+
 # Write parsed metrics
 echo "" >> "$REPORT_FILE"
 echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
@@ -147,6 +152,7 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg 1 Latency JSON: ${JSON_MED_LATENCY}"
     echo "Leg 1 Throughput JSON: ${JSON_MED_THROUGHPUT}"
     echo "Leg 1 Container Stats JSON: ${JSON_MED_STATS}"
+    echo "Leg 1 Payload Savings JSON: ${JSON_MED_SAVINGS}"
     echo ""
     echo "Leg 2 (Large JSON) Requests: ${large_total_reqs}"
     echo "Leg 2 Success Count: ${large_success}"
@@ -155,6 +161,7 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg 2 Latency JSON: ${JSON_LARGE_LATENCY}"
     echo "Leg 2 Throughput JSON: ${JSON_LARGE_THROUGHPUT}"
     echo "Leg 2 Container Stats JSON: ${JSON_LARGE_STATS}"
+    echo "Leg 2 Payload Savings JSON: ${JSON_LARGE_SAVINGS}"
 } >> "$REPORT_FILE"
 
 # Baseline Comparison Section

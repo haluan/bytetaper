@@ -138,7 +138,55 @@ validate_report_file() {
         return 1
     fi
 
-    echo "Report $file is fully VALID (all percentiles, throughput, and container stats metrics present)."
+    # Find all JSON payload savings blocks within the report file
+    # We look for lines containing "Payload Savings JSON" (e.g., "Payload Savings JSON: { ... }", "Leg A Payload Savings JSON: { ... }")
+    local savings_found=0
+    while IFS= read -r line; do
+        if [[ "$line" =~ Payload\ Savings\ JSON:[[:space:]]*(.*) ]]; then
+            savings_found=1
+            local json_str="${BASH_REMATCH[1]}"
+            echo "Checking payload savings JSON: $json_str"
+
+            # Parse using jq and assert fields exist
+            local orig
+            local opt
+            local saved
+            local ratio
+            orig=$(echo "$json_str" | jq -r '.original_bytes_avg' 2>/dev/null || true)
+            opt=$(echo "$json_str" | jq -r '.optimized_bytes_avg' 2>/dev/null || true)
+            saved=$(echo "$json_str" | jq -r '.bytes_saved_avg' 2>/dev/null || true)
+            ratio=$(echo "$json_str" | jq -r '.reduction_ratio' 2>/dev/null || true)
+
+            if [ -z "$orig" ] || [ "$orig" = "null" ]; then
+                echo "ERROR: Missing 'original_bytes_avg' in report $file" >&2
+                return 1
+            fi
+            if [ -z "$opt" ] || [ "$opt" = "null" ]; then
+                echo "ERROR: Missing 'optimized_bytes_avg' in report $file" >&2
+                return 1
+            fi
+            if [ -z "$saved" ] || [ "$saved" = "null" ]; then
+                echo "ERROR: Missing 'bytes_saved_avg' in report $file" >&2
+                return 1
+            fi
+            if [ -z "$ratio" ] || [ "$ratio" = "null" ]; then
+                echo "ERROR: Missing 'reduction_ratio' in report $file" >&2
+                return 1
+            fi
+
+            echo "  - Original bytes: $orig"
+            echo "  - Optimized bytes: $opt"
+            echo "  - Bytes saved: $saved"
+            echo "  - Reduction ratio: $ratio"
+        fi
+    done < <(grep -E "Payload Savings JSON" "$file" || true)
+
+    if [ $savings_found -eq 0 ]; then
+        echo "ERROR: No payload savings JSON blocks found in report $file" >&2
+        return 1
+    fi
+
+    echo "Report $file is fully VALID (all percentiles, throughput, container stats, and payload savings metrics present)."
     return 0
 }
 

@@ -192,6 +192,11 @@ rm -f "$WRK_COAL_B"
 echo "Extracting container stats for Leg B..."
 JSON_COAL_STATS_B=$(./benchmarks/lib/container_stats.sh all)
 
+# Extract response payload savings for Leg B
+echo "Extracting payload savings for Leg B..."
+coal_b_size=$(curl -s -o /dev/null -w "%{size_download}" "${ENVOY_HOST}/products/slow/123" || echo "0")
+JSON_COAL_SAVINGS_B=$(./benchmarks/lib/payload_savings_parser.sh "$coal_b_size" "$coal_b_size")
+
 {
     echo "Client Requests Sent: $N"
     echo "Upstream Mock Calls: $mock_calls"
@@ -203,6 +208,7 @@ JSON_COAL_STATS_B=$(./benchmarks/lib/container_stats.sh all)
     echo "Leg B Latency JSON: $JSON_COAL_B"
     echo "Leg B Throughput JSON: $JSON_COAL_TP_B"
     echo "Leg B Container Stats JSON: $JSON_COAL_STATS_B"
+    echo "Leg B Payload Savings JSON: $JSON_COAL_SAVINGS_B"
     echo ""
 } | tee -a "$REPORT_FILE"
 

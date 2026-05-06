@@ -1,0 +1,35 @@
+=== ByteTaper Benchmark Execution ===
+Scenario: bytetaper_observe
+Time: Wed May  6 14:17:16 UTC 2026
+Target: http://envoy-bytetaper-observe:10000/api/v1/cached/fast/bench
+
+=== System Information ===
+OS: Linux b8c79cdb622c 6.11.3-200.fc40.aarch64 aarch64 Linux
+CPU cores: 2
+Memory Total: 3617.73 MB
+
+Running 10s test @ http://envoy-bytetaper-observe:10000/api/v1/cached/fast/bench
+  2 threads and 10 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   117.27ms   30.01ms 155.93ms   90.45%
+    Req/Sec    43.32     16.18    60.00     55.61%
+  Latency Distribution
+     50%  125.38ms
+     75%  128.64ms
+     90%  131.40ms
+     99%  143.99ms
+  848 requests in 10.04s, 1.38MB read
+Requests/sec:     84.44
+Transfer/sec:    140.76KB
+LATENCY_PERCENTILES: p50=125.375 ms, p95=132.998 ms, p99=143.992 ms
+
+=== Parsed Scenario Metrics ===
+Total Requests: 848
+Success Count: 848
+Bytes Read: 1.38MB read
+Transfer Rate: 140.76KB
+Body Equivalence Match: YES
+Latency JSON: {"latency_ms":{"p50":125.375,"p95":132.998,"p99":143.992}}
+Throughput JSON: {"throughput":{"requests_per_second":84.44,"total_requests":848,"successful_requests":848,"failed_requests":0},"total_requests":848,"successful_requests":848,"failed_requests":0}
+Container Stats JSON: {"envoy":{"cpu_percent":"unavailable","peak_memory_mb":"unavailable"},"bytetaper-extproc":{"cpu_percent":"unavailable","peak_memory_mb":"unavailable"},"mock-api":{"cpu_percent":"unavailable","peak_memory_mb":"unavailable"}}
+Payload Savings JSON: {"original_bytes_avg":1112,"optimized_bytes_avg":1112,"bytes_saved_avg":0,"reduction_ratio":"0.00%"}

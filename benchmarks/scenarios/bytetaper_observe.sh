@@ -104,6 +104,11 @@ JSON_THROUGHPUT=$(./benchmarks/lib/throughput_parser.sh "$WRK_OUT")
 echo "Extracting container stats..."
 JSON_STATS=$(./benchmarks/lib/container_stats.sh all)
 
+# Extract response payload savings
+echo "Extracting payload savings..."
+resp_size=$(curl -s -o /dev/null -w "%{size_download}" "$TARGET_URL" || echo "0")
+JSON_SAVINGS=$(./benchmarks/lib/payload_savings_parser.sh "$resp_size" "$resp_size")
+
 {
     echo "Total Requests: $total_reqs"
     echo "Success Count: $success_count"
@@ -113,6 +118,7 @@ JSON_STATS=$(./benchmarks/lib/container_stats.sh all)
     echo "Latency JSON: $JSON_LATENCY"
     echo "Throughput JSON: $JSON_THROUGHPUT"
     echo "Container Stats JSON: $JSON_STATS"
+    echo "Payload Savings JSON: $JSON_SAVINGS"
 } >> "$REPORT_FILE"
 
 # Cleanup

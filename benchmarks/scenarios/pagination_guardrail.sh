@@ -170,6 +170,11 @@ echo "Extracting container stats..."
 JSON_LEGA_STATS=$(./benchmarks/lib/container_stats.sh all)
 JSON_LEGB_STATS=$(./benchmarks/lib/container_stats.sh all)
 
+# Extract response payload savings for Leg A and Leg B
+echo "Extracting payload savings..."
+JSON_LEGA_SAVINGS=$(./benchmarks/lib/payload_savings_parser.sh "$lega_bytes" "$lega_bytes")
+JSON_LEGB_SAVINGS=$(./benchmarks/lib/payload_savings_parser.sh "$legb_bytes" "$legb_bytes")
+
 echo "" >> "$REPORT_FILE"
 echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
 {
@@ -183,6 +188,7 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg A Latency JSON: ${JSON_LEGA_LATENCY}"
     echo "Leg A Throughput JSON: ${JSON_LEGA_THROUGHPUT}"
     echo "Leg A Container Stats JSON: ${JSON_LEGA_STATS}"
+    echo "Leg A Payload Savings JSON: ${JSON_LEGA_SAVINGS}"
     echo ""
     echo "Leg B (Excessive Limit) - Expected Mutated Limit: 500"
     echo "Leg B Upstream Received Limit: ${legb_received_limit}"
@@ -194,6 +200,7 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg B Latency JSON: ${JSON_LEGB_LATENCY}"
     echo "Leg B Throughput JSON: ${JSON_LEGB_THROUGHPUT}"
     echo "Leg B Container Stats JSON: ${JSON_LEGB_STATS}"
+    echo "Leg B Payload Savings JSON: ${JSON_LEGB_SAVINGS}"
 } >> "$REPORT_FILE"
 
 # Baseline Comparison Section
