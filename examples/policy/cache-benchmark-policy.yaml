@@ -1,0 +1,10 @@
+routes:
+  - id: "cache-products"
+    match:
+      kind: prefix
+      prefix: /products/
+    mutation: full
+    cache:
+      enabled: true
+      behavior: store
+      ttl_seconds: 3600

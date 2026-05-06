@@ -1,0 +1,22 @@
+=== ByteTaper Benchmark Execution ===
+Time: Wed May  6 10:22:42 UTC 2026
+Target: http://envoy:10000/api/v1/cached/fast/bench
+
+=== System Information ===
+OS: Linux 7a388500fe4d 6.11.3-200.fc40.aarch64 aarch64 Linux
+CPU cores: 2
+Memory Total: 3617.73 MB
+
+Running 10s test @ http://envoy:10000/api/v1/cached/fast/bench
+  2 threads and 10 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency     3.00ms    4.32ms  80.49ms   92.76%
+    Req/Sec     2.33k     1.12k    5.40k    64.00%
+  Latency Distribution
+     50%    1.79ms
+     75%    3.21ms
+     90%    5.97ms
+     99%   22.77ms
+  46440 requests in 10.04s, 57.62MB read
+Requests/sec:   4625.71
+Transfer/sec:      5.74MB

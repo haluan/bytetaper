@@ -1,0 +1,28 @@
+=== ByteTaper Benchmark Execution ===
+Scenario: cache_hit
+Time: Wed May  6 10:38:34 UTC 2026
+Target Host: http://envoy-bytetaper-cache-a:10000
+
+=== System Information ===
+OS: Linux 661c2dcc325c 6.11.3-200.fc40.aarch64 aarch64 Linux
+CPU cores: 2
+Memory Total: 3617.73 MB
+
+=== Parsed Cache Hit Scenario Metrics ===
+Cache Miss Total Requests (10s): 125746
+Cache Miss Latency p50: 705.00us
+Cache Miss Latency p99: 5.57ms
+Cache Miss Upstream Call Delta: 1
+Cache Miss Cache-Layer Signal: None
+
+L1 Cache Hit Total Requests (10s): 126103
+L1 Cache Hit Latency p50: 706.00us
+L1 Cache Hit Latency p99: 4.96ms
+L1 Cache Hit Upstream Call Delta: 0
+L1 Cache Hit Cache-Layer Signal: L1 Header
+
+L2 Shared Hit Total Requests (10s): 111568
+L2 Shared Hit Latency p50: 808.00us
+L2 Shared Hit Latency p99: 7.15ms
+L2 Shared Hit Upstream Call Delta: 1 (Async Lookup first request bypass)
+L2 Shared Hit Cache-Layer Signal: L2 Metric Delta (+1)
