@@ -212,7 +212,8 @@ bool build_filtered_body_response(const envoy::service::ext_proc::v3::Processing
     }
     const char* reason_err = nullptr;
     if (!policy::validate_route_policy(*state.matched_policy, &reason_err)) {
-        std::printf("[BODY RESP] Failed: invalid policy reason=%s\n", reason_err ? reason_err : "unknown");
+        std::printf("[BODY RESP] Failed: invalid policy reason=%s\n",
+                    reason_err ? reason_err : "unknown");
         if (out_reason != nullptr) {
             *out_reason = safety::FailOpenReason::InvalidPolicy;
         }
