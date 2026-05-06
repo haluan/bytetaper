@@ -123,6 +123,10 @@ void apply_request_headers_selection(const envoy::service::ext_proc::v3::Process
     if (!field_selection::extract_raw_path_and_query(view.path, &state->context)) {
         return;
     }
+    apg::parse_query_view(state->context.raw_query, state->context.raw_query_length,
+                          &state->context.request_query_view);
+    state->context.request_query_view_ready = true;
+
     if (!field_selection::parse_and_store_selected_fields(&state->context)) {
         return;
     }

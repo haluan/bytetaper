@@ -54,16 +54,12 @@ std::size_t bounded_query_length(const apg::ApgTransformContext& context) {
     return length;
 }
 
-bool query_key_is_fields(const char* query, std::size_t start, std::size_t end) {
-    if (end < start) {
+bool query_key_is_fields(const char* key, std::size_t key_length) {
+    if (key == nullptr || key_length != 6) {
         return false;
     }
-    const std::size_t key_length = end - start;
-    if (key_length != 6) {
-        return false;
-    }
-    return query[start + 0] == 'f' && query[start + 1] == 'i' && query[start + 2] == 'e' &&
-           query[start + 3] == 'l' && query[start + 4] == 'd' && query[start + 5] == 's';
+    return key[0] == 'f' && key[1] == 'i' && key[2] == 'e' && key[3] == 'l' && key[4] == 'd' &&
+           key[5] == 's';
 }
 
 void parse_fields_value(const char* value, std::size_t value_length,
@@ -133,45 +129,37 @@ bool extract_raw_path_and_query(const char* request_target, apg::ApgTransformCon
     return true;
 }
 
-bool parse_fields_query_parameter(const apg::ApgTransformContext& context,
+bool parse_fields_query_parameter(const apg::RequestQueryView& query_view,
                                   ParsedFieldsQuery* parsed_fields) {
     if (parsed_fields == nullptr) {
         return false;
     }
 
     *parsed_fields = ParsedFieldsQuery{};
-    const std::size_t query_length = bounded_query_length(context);
-    const char* query = context.raw_query;
-    std::size_t segment_start = 0;
-
-    while (segment_start <= query_length) {
-        std::size_t segment_end = segment_start;
-        while (segment_end < query_length && query[segment_end] != '&') {
-            segment_end += 1;
-        }
-
-        std::size_t separator_index = segment_start;
-        while (separator_index < segment_end && query[separator_index] != '=') {
-            separator_index += 1;
-        }
-
-        if (query_key_is_fields(query, segment_start, separator_index)) {
-            if (separator_index == segment_end) {
+    for (std::uint8_t i = 0; i < query_view.count; ++i) {
+        const auto& param = query_view.params[i];
+        if (query_key_is_fields(param.key, param.key_len)) {
+            if (param.value == nullptr) {
                 return true;
             }
-            const char* value = query + separator_index + 1;
-            const std::size_t value_length = segment_end - (separator_index + 1);
-            parse_fields_value(value, value_length, parsed_fields);
+            parse_fields_value(param.value, param.value_len, parsed_fields);
             return true;
         }
-
-        if (segment_end >= query_length) {
-            return true;
-        }
-        segment_start = segment_end + 1;
     }
-
     return true;
+}
+
+bool parse_fields_query_parameter(const apg::ApgTransformContext& context,
+                                  ParsedFieldsQuery* parsed_fields) {
+    if (parsed_fields == nullptr) {
+        return false;
+    }
+    if (context.request_query_view_ready) {
+        return parse_fields_query_parameter(context.request_query_view, parsed_fields);
+    }
+    apg::RequestQueryView temp{};
+    apg::parse_query_view(context.raw_query, context.raw_query_length, &temp);
+    return parse_fields_query_parameter(temp, parsed_fields);
 }
 
 bool parse_and_store_selected_fields(apg::ApgTransformContext* context) {

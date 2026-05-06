@@ -25,8 +25,14 @@ apg::StageOutput pagination_request_mutation_stage(apg::ApgTransformContext& con
         return { apg::StageResult::Continue, validate_err };
     }
 
-    pagination::PaginationQueryResult qr = pagination::parse_pagination_query(
-        context.raw_query, context.raw_query_length, pag.limit_param, pag.offset_param, pag.mode);
+    pagination::PaginationQueryResult qr;
+    if (context.request_query_view_ready) {
+        qr = pagination::parse_pagination_query(context.request_query_view, pag.limit_param,
+                                                pag.offset_param, pag.mode);
+    } else {
+        qr = pagination::parse_pagination_query(context.raw_query, context.raw_query_length,
+                                                pag.limit_param, pag.offset_param, pag.mode);
+    }
 
     pagination::PaginationDecision decision = pagination::make_pagination_decision(pag, qr);
 

@@ -224,6 +224,7 @@ if(BYTETAPER_ENABLE_INTEGRATION_TESTS)
     src/extproc/bytetaper_to_envoy.cpp
     src/extproc/default_pipelines.cpp
     src/apg/pipeline.cpp
+    src/apg/query_view.cpp
     src/stages/l1_cache_lookup_stage.cpp
     src/stages/l1_cache_store_stage.cpp
     src/stages/l2_cache_lookup_stage.cpp
@@ -392,6 +393,7 @@ if(BUILD_TESTING)
     add_executable(field_selection_test
       tests/field_selection_test.cpp
       src/field_selection/request_target.cpp
+      src/apg/query_view.cpp
     )
     target_include_directories(field_selection_test
       PRIVATE
@@ -405,6 +407,24 @@ if(BUILD_TESTING)
     add_test(
       NAME field_selection_test
       COMMAND field_selection_test
+    )
+
+    add_executable(apg_query_view_test
+      tests/apg_query_view_test.cpp
+      src/apg/query_view.cpp
+    )
+    target_include_directories(apg_query_view_test
+      PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    target_link_libraries(apg_query_view_test
+      PRIVATE
+        gtest_main
+    )
+
+    add_test(
+      NAME apg_query_view_test
+      COMMAND apg_query_view_test
     )
 
     add_executable(l1_cache_test
@@ -1883,6 +1903,7 @@ if(BUILD_TESTING)
     add_executable(pagination_query_test
       tests/pagination_query_test.cpp
       src/pagination/pagination_query.cpp
+      src/apg/query_view.cpp
     )
     target_include_directories(pagination_query_test
       PRIVATE
@@ -1904,6 +1925,7 @@ if(BUILD_TESTING)
       src/pagination/pagination_query.cpp
       src/policy/pagination_policy.cpp
       src/policy/compression_policy.cpp
+      src/apg/query_view.cpp
     )
     target_include_directories(missing_limit_decision_test
       PRIVATE
@@ -1926,6 +1948,7 @@ if(BUILD_TESTING)
       src/pagination/pagination_query.cpp
       src/policy/pagination_policy.cpp
       src/policy/compression_policy.cpp
+      src/apg/query_view.cpp
     )
     target_include_directories(default_limit_mutation_test
       PRIVATE
@@ -1948,6 +1971,7 @@ if(BUILD_TESTING)
       src/pagination/pagination_query.cpp
       src/policy/pagination_policy.cpp
       src/policy/compression_policy.cpp
+      src/apg/query_view.cpp
     )
     target_include_directories(max_limit_enforcement_test
       PRIVATE
@@ -1970,6 +1994,7 @@ if(BUILD_TESTING)
       src/pagination/pagination_query.cpp
       src/policy/pagination_policy.cpp
       src/policy/compression_policy.cpp
+      src/apg/query_view.cpp
     )
     target_include_directories(preserve_valid_limit_test
       PRIVATE
@@ -1988,6 +2013,7 @@ if(BUILD_TESTING)
     add_executable(offset_query_test
       tests/offset_query_test.cpp
       src/pagination/pagination_query.cpp
+      src/apg/query_view.cpp
     )
     target_include_directories(offset_query_test
       PRIVATE
@@ -2030,6 +2056,7 @@ if(BUILD_TESTING)
       src/pagination/pagination_query.cpp
       src/policy/pagination_policy.cpp
       src/policy/compression_policy.cpp
+      src/apg/query_view.cpp
     )
     target_include_directories(pagination_request_mutation_stage_test
       PRIVATE

@@ -367,4 +367,98 @@ TEST(FieldSelectionPolicyTest, ReturnsFalseForNullContext) {
     EXPECT_FALSE(enforce_selected_fields_policy(nullptr, filter));
 }
 
+TEST(CompiledFieldSelectionTest, CompileExactPath) {
+    apg::ApgTransformContext context{};
+    std::strcpy(context.selected_fields[0], "id");
+    context.selected_field_count = 1;
+
+    CompiledFieldSelection sel{};
+    compile_field_selection(context, &sel);
+
+    EXPECT_EQ(sel.exact_count, 1u);
+    EXPECT_STREQ(sel.exact_paths[0], "id");
+    EXPECT_EQ(sel.exact_lens[0], 2u);
+    EXPECT_EQ(sel.exact_hashes[0], field_hash("id"));
+
+    EXPECT_EQ(sel.descendant_count, 1u);
+    EXPECT_STREQ(sel.descendant_paths[0], "id");
+    EXPECT_EQ(sel.descendant_lens[0], 2u);
+    EXPECT_EQ(sel.descendant_hashes[0], field_hash("id"));
+}
+
+TEST(CompiledFieldSelectionTest, CompileMultipleFields) {
+    apg::ApgTransformContext context{};
+    std::strcpy(context.selected_fields[0], "id");
+    std::strcpy(context.selected_fields[1], "meta.created");
+    context.selected_field_count = 2;
+
+    CompiledFieldSelection sel{};
+    compile_field_selection(context, &sel);
+
+    EXPECT_EQ(sel.exact_count, 2u);
+    EXPECT_STREQ(sel.exact_paths[1], "meta.created");
+    EXPECT_EQ(sel.exact_lens[1], 12u);
+    EXPECT_EQ(sel.exact_hashes[1], field_hash("meta.created"));
+}
+
+TEST(CompiledFieldSelectionTest, MatchExactPath) {
+    apg::ApgTransformContext context{};
+    std::strcpy(context.selected_fields[0], "id");
+    std::strcpy(context.selected_fields[1], "name");
+    context.selected_field_count = 2;
+
+    CompiledFieldSelection sel{};
+    compile_field_selection(context, &sel);
+
+    SelectionMatchResult res = match_selection_compiled(sel, "id");
+    EXPECT_TRUE(res.exact_selected);
+    EXPECT_FALSE(res.has_selected_descendant);
+
+    SelectionMatchResult res2 = match_selection_compiled(sel, "name");
+    EXPECT_TRUE(res2.exact_selected);
+    EXPECT_FALSE(res2.has_selected_descendant);
+}
+
+TEST(CompiledFieldSelectionTest, MatchDescendantPath) {
+    apg::ApgTransformContext context{};
+    std::strcpy(context.selected_fields[0], "meta.created");
+    std::strcpy(context.selected_fields[1], "items[]");
+    context.selected_field_count = 2;
+
+    CompiledFieldSelection sel{};
+    compile_field_selection(context, &sel);
+
+    SelectionMatchResult res = match_selection_compiled(sel, "meta");
+    EXPECT_FALSE(res.exact_selected);
+    EXPECT_TRUE(res.has_selected_descendant);
+
+    SelectionMatchResult res2 = match_selection_compiled(sel, "items");
+    EXPECT_FALSE(res2.exact_selected);
+    EXPECT_TRUE(res2.has_selected_descendant);
+}
+
+TEST(CompiledFieldSelectionTest, NoMatchForUnrelatedPath) {
+    apg::ApgTransformContext context{};
+    std::strcpy(context.selected_fields[0], "id");
+    context.selected_field_count = 1;
+
+    CompiledFieldSelection sel{};
+    compile_field_selection(context, &sel);
+
+    SelectionMatchResult res = match_selection_compiled(sel, "name");
+    EXPECT_FALSE(res.exact_selected);
+    EXPECT_FALSE(res.has_selected_descendant);
+
+    SelectionMatchResult res2 = match_selection_compiled(sel, "identity");
+    EXPECT_FALSE(res2.exact_selected);
+    EXPECT_FALSE(res2.has_selected_descendant);
+}
+
+TEST(CompiledFieldSelectionTest, NullPathSafe) {
+    CompiledFieldSelection sel{};
+    SelectionMatchResult res = match_selection_compiled(sel, nullptr);
+    EXPECT_FALSE(res.exact_selected);
+    EXPECT_FALSE(res.has_selected_descendant);
+}
+
 } // namespace bytetaper::field_selection

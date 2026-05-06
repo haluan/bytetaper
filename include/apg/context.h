@@ -4,6 +4,7 @@
 #ifndef BYTETAPER_APG_CONTEXT_H
 #define BYTETAPER_APG_CONTEXT_H
 
+#include "apg/query_view.h"
 #include "cache/cache_entry.h"
 #include "cache/l1_cache.h"
 #include "cache/l2_disk_cache.h"
@@ -54,6 +55,8 @@ struct ApgTransformContext {
     std::size_t raw_path_length = 0;
     char raw_query[kRawQueryBufferSize] = {};
     std::size_t raw_query_length = 0;
+    RequestQueryView request_query_view = {};
+    bool request_query_view_ready = false;
     char selected_fields[policy::kMaxFields][policy::kMaxFieldNameLen] = {};
     // Canonical API-intelligence metric.
     // This count represents selected fields after policy filtering.

@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "apg/query_view.h"
 #include "policy/pagination_policy.h"
 
 #include <cstddef>
@@ -17,6 +18,11 @@ struct PaginationQueryResult {
     bool parse_error = false;
     const char* error_param = nullptr; // "limit" or "offset" — static string
 };
+
+// Parses limit and offset from a RequestQueryView.
+PaginationQueryResult parse_pagination_query(const apg::RequestQueryView& query_view,
+                                             const char* limit_param, const char* offset_param,
+                                             policy::PaginationMode mode);
 
 // Parses limit and offset from a raw query string (e.g., "limit=100&offset=20&fields=id").
 // limit_param and offset_param must be non-null; raw_query may be null (treated as empty).
