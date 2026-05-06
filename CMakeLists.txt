@@ -735,6 +735,18 @@ if(BUILD_TESTING)
     )
     add_test(NAME default_pipeline_order_test COMMAND default_pipeline_order_test)
 
+    add_executable(compiled_route_runtime_test
+      tests/compiled_route_runtime_test.cpp
+    )
+    target_link_libraries(compiled_route_runtime_test
+      PRIVATE
+        gtest_main
+        bytetaper_extproc_grpc_server
+        RocksDB::RocksDB
+        bytetaper_prometheus_registry
+    )
+    add_test(NAME compiled_route_runtime_test COMMAND compiled_route_runtime_test)
+
     add_executable(cache_hot_path_tail_regression_test
       tests/cache_hot_path_tail_regression_test.cpp
     )

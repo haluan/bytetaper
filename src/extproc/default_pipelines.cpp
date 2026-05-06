@@ -7,6 +7,7 @@
 #include "stages/coalescing_decision_stage.h"
 #include "stages/coalescing_follower_wait_stage.h"
 #include "stages/coalescing_leader_completion_stage.h"
+#include "stages/compression_decision_stage.h"
 #include "stages/l1_cache_lookup_stage.h"
 #include "stages/l1_cache_store_stage.h"
 #include "stages/l2_cache_async_lookup_enqueue_stage.h"
@@ -54,5 +55,79 @@ const apg::ApgStage kStoreStages[] = {
     stages::coalescing_leader_completion_stage,
 };
 const std::size_t kStoreStageCount = std::size(kStoreStages);
+
+void compile_route_runtime(const policy::RoutePolicy& policy, CompiledRouteRuntime* runtime) {
+    if (runtime == nullptr) {
+        return;
+    }
+
+    *runtime = CompiledRouteRuntime{};
+    runtime->policy = &policy;
+
+    // 1. Lookup stages (preserving default relative ordering)
+    if (policy.cache.behavior == policy::CacheBehavior::Store) {
+        runtime->lookup_stages[runtime->lookup_count++] = stages::cache_key_prepare_stage;
+        runtime->lookup_stages[runtime->lookup_count++] = stages::l1_cache_lookup_stage;
+    }
+    if (policy.coalescing.enabled) {
+        runtime->lookup_stages[runtime->lookup_count++] = stages::coalescing_decision_stage;
+        runtime->lookup_stages[runtime->lookup_count++] = stages::coalescing_follower_wait_stage;
+    }
+    if (policy.cache.behavior == policy::CacheBehavior::Store) {
+        runtime->lookup_stages[runtime->lookup_count++] =
+            stages::l2_cache_async_lookup_enqueue_stage;
+    }
+    if (policy.pagination.enabled) {
+        runtime->lookup_stages[runtime->lookup_count++] = stages::pagination_request_mutation_stage;
+    }
+
+    // 2. Store stages (preserving default relative ordering)
+    if (policy.cache.behavior == policy::CacheBehavior::Store) {
+        runtime->store_stages[runtime->store_count++] = stages::l1_cache_store_stage;
+        runtime->store_stages[runtime->store_count++] = stages::l2_cache_async_store_enqueue_stage;
+    }
+    if (policy.coalescing.enabled) {
+        runtime->store_stages[runtime->store_count++] = stages::coalescing_leader_completion_stage;
+    }
+
+    // 3. Response stages
+    runtime->response_stages[runtime->response_count++] = stages::compression_decision_stage;
+}
+
+void compile_route_runtime_table(const policy::RoutePolicy* policies, std::size_t policy_count,
+                                 CompiledRouteRuntimeTable* table) {
+    if (table == nullptr) {
+        return;
+    }
+
+    table->count = 0;
+    if (policies == nullptr || policy_count == 0) {
+        return;
+    }
+
+    std::size_t limit = policy_count;
+    if (limit > kMaxCompiledRoutesCapacity) {
+        limit = kMaxCompiledRoutesCapacity;
+    }
+
+    for (std::size_t i = 0; i < limit; ++i) {
+        compile_route_runtime(policies[i], &table->entries[i]);
+    }
+    table->count = limit;
+}
+
+const CompiledRouteRuntime* find_compiled_route_runtime(const CompiledRouteRuntimeTable& table,
+                                                        const policy::RoutePolicy* policy) {
+    if (policy == nullptr) {
+        return nullptr;
+    }
+
+    for (std::size_t i = 0; i < table.count; ++i) {
+        if (table.entries[i].policy == policy) {
+            return &table.entries[i];
+        }
+    }
+    return nullptr;
+}
 
 } // namespace bytetaper::extproc

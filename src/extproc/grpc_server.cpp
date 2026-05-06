@@ -311,6 +311,7 @@ class ExternalProcessorSkeletonService final
 public:
     const policy::RoutePolicy* policies = nullptr;
     std::size_t policy_count = 0;
+    CompiledRouteRuntimeTable route_runtimes{};
     cache::L1Cache* l1_cache = nullptr;
     cache::L2DiskCache* l2_cache = nullptr;
     metrics::MetricsRegistry* metrics_registry = nullptr;
@@ -370,8 +371,15 @@ public:
                         filter_state.context.runtime_metrics = &metrics_registry->runtime_metrics;
                     }
                     filter_state.context.worker_queue = &worker_queue;
-                    apg::run_pipeline(extproc::kLookupStages, extproc::kLookupStageCount,
-                                      filter_state.context);
+                    const auto* route_runtime =
+                        find_compiled_route_runtime(route_runtimes, filter_state.matched_policy);
+                    if (route_runtime != nullptr) {
+                        apg::run_pipeline(route_runtime->lookup_stages, route_runtime->lookup_count,
+                                          filter_state.context);
+                    } else {
+                        apg::run_pipeline(extproc::kLookupStages, extproc::kLookupStageCount,
+                                          filter_state.context);
+                    }
                 }
 
                 if (bytetaper::extproc::map_cache_hit_to_immediate_response(filter_state.context,
@@ -405,10 +413,17 @@ public:
                 // Run compression decision pipeline during headers for early signaling (handles
                 // HEAD etc)
                 if (filter_state.matched_policy != nullptr) {
-                    static constexpr apg::ApgStage kCompressionStages[] = {
-                        stages::compression_decision_stage
-                    };
-                    apg::run_pipeline(kCompressionStages, 1, filter_state.context);
+                    const auto* route_runtime =
+                        find_compiled_route_runtime(route_runtimes, filter_state.matched_policy);
+                    if (route_runtime != nullptr) {
+                        apg::run_pipeline(route_runtime->response_stages,
+                                          route_runtime->response_count, filter_state.context);
+                    } else {
+                        static constexpr apg::ApgStage kCompressionStages[] = {
+                            stages::compression_decision_stage
+                        };
+                        apg::run_pipeline(kCompressionStages, 1, filter_state.context);
+                    }
                     apply_compression_response_headers(filter_state.context, common_response);
                 }
 
@@ -465,8 +480,15 @@ public:
 
                         // Execution boundary: hot-path only. See
                         // docs/runtime/RUNTIME_BOUNDARIES.md.
-                        apg::run_pipeline(extproc::kStoreStages, extproc::kStoreStageCount,
-                                          filter_state.context);
+                        const auto* route_runtime = find_compiled_route_runtime(
+                            route_runtimes, filter_state.matched_policy);
+                        if (route_runtime != nullptr) {
+                            apg::run_pipeline(route_runtime->store_stages,
+                                              route_runtime->store_count, filter_state.context);
+                        } else {
+                            apg::run_pipeline(extproc::kStoreStages, extproc::kStoreStageCount,
+                                              filter_state.context);
+                        }
                     }
                 }
 
@@ -478,10 +500,17 @@ public:
                             request.response_body().body().size();
                         filter_state.context.response_body_size_known = true;
                     }
-                    static constexpr apg::ApgStage kCompressionStages[] = {
-                        stages::compression_decision_stage
-                    };
-                    apg::run_pipeline(kCompressionStages, 1, filter_state.context);
+                    const auto* route_runtime =
+                        find_compiled_route_runtime(route_runtimes, filter_state.matched_policy);
+                    if (route_runtime != nullptr) {
+                        apg::run_pipeline(route_runtime->response_stages,
+                                          route_runtime->response_count, filter_state.context);
+                    } else {
+                        static constexpr apg::ApgStage kCompressionStages[] = {
+                            stages::compression_decision_stage
+                        };
+                        apg::run_pipeline(kCompressionStages, 1, filter_state.context);
+                    }
 
                     if (response.has_response_body()) {
                         apply_compression_response_headers(
@@ -549,6 +578,8 @@ bool start_grpc_server(const GrpcServerConfig& config, GrpcServerHandle* handle)
 
     impl->service.policies = config.policies;
     impl->service.policy_count = config.policy_count;
+    compile_route_runtime_table(config.policies, config.policy_count,
+                                &impl->service.route_runtimes);
     impl->service.l1_cache = config.l1_cache;
     impl->service.l2_cache = config.l2_cache;
     impl->service.metrics_registry = config.metrics_registry;
