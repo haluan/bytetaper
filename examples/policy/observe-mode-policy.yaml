@@ -1,0 +1,50 @@
+routes:
+  - id: "api-v1-observe-cached"
+    match:
+      kind: prefix
+      prefix: /api/v1/cached/
+    mutation: disabled
+    cache:
+      behavior: store
+      enabled: true
+      ttl_seconds: 300
+      layers:
+        l1:
+          enabled: true
+          capacity_entries: 8
+    coalescing:
+      enabled: true
+      wait_window_ms: 100
+      max_waiters_per_key: 128
+
+  - id: "api-v1-observe-proxy"
+    match:
+      kind: prefix
+      prefix: /api/v1/
+    method: get
+    mutation: disabled
+    max_response_bytes: 2097152
+    compression:
+      enabled: true
+      min_size_bytes: 1024
+      eligible_content_types:
+        - application/json
+      preferred_algorithms:
+        - gzip
+    cache:
+      behavior: store
+      ttl_seconds: 300
+
+  - id: "orders-observe-paginated"
+    match:
+      kind: prefix
+      prefix: /orders
+    mutation: disabled
+    pagination:
+      enabled: true
+      mode: limit_offset
+      default_limit: 50
+      max_limit: 500
+      limit_param: limit
+      offset_param: offset
+      upstream_supports_pagination: true

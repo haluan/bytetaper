@@ -1,0 +1,37 @@
+=== ByteTaper Benchmark Execution ===
+Scenario: bytetaper_observe
+Time: Wed May  6 09:14:44 UTC 2026
+Target: http://envoy-bytetaper-observe:10000/api/v1/cached/fast/bench
+
+=== System Information ===
+OS: Linux 1580e1293462 6.11.3-200.fc40.aarch64 aarch64 Linux
+CPU cores: 2
+Memory Total: 3617.73 MB
+
+Running 10s test @ http://envoy-bytetaper-observe:10000/api/v1/cached/fast/bench
+  2 threads and 10 connections
+  Thread Stats   Avg      Stdev     Max   +/- Stdev
+    Latency   226.30ms   72.01ms 692.72ms   78.40%
+    Req/Sec    22.15      7.55    40.00     56.63%
+  Latency Distribution
+     50%  241.56ms
+     75%  257.18ms
+     90%  270.37ms
+     99%  464.99ms
+  443 requests in 10.09s, 730.17KB read
+  Non-2xx or 3xx responses: 6
+Requests/sec:     43.90
+Transfer/sec:     72.36KB
+
+=== Parsed Scenario Metrics ===
+Total Requests: 443
+Success Count: 437
+Latency Average: 226.30ms
+Distribution
+Latency p50: 241.56ms
+Latency p75: 257.18ms
+Latency p90: 270.37ms
+Latency p99: 464.99ms
+Bytes Read: 730.17KB read
+Transfer Rate: 72.36KB
+Body Equivalence Match: YES
