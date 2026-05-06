@@ -128,6 +128,12 @@ if [ ! -f "$CHECKPOINT_FILE" ]; then
     # Parse L1 stats
     l1_total_reqs=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_L1_OUT" | awk '{print $1}' || echo "0")
 
+    # Extract container stats for Miss and L1 Hit
+    echo "Extracting container stats for Miss..."
+    miss_stats_json=$(./benchmarks/lib/container_stats.sh all)
+    echo "Extracting container stats for L1 Hit..."
+    l1_stats_json=$(./benchmarks/lib/container_stats.sh all)
+
     # Write checkpoint
     jq -n \
       --arg ts "$TIMESTAMP" \
@@ -135,12 +141,14 @@ if [ ! -f "$CHECKPOINT_FILE" ]; then
       --arg m_tr "$miss_total_reqs" \
       --arg m_lat "$miss_latency_json" \
       --arg m_tp "$miss_throughput_json" \
+      --arg m_st "$miss_stats_json" \
       --arg m_c "$miss_calls" \
       --arg l1_tr "$l1_total_reqs" \
       --arg l1_lat "$l1_latency_json" \
       --arg l1_tp "$l1_throughput_json" \
+      --arg l1_st "$l1_stats_json" \
       --arg l1_c "$l1_calls" \
-      '{phase: "l2_ready", timestamp: $ts, l2_key: $l2, miss_total_reqs: $m_tr, miss_latency_json: $m_lat, miss_throughput_json: $m_tp, miss_calls: $m_c, l1_total_reqs: $l1_tr, l1_latency_json: $l1_lat, l1_throughput_json: $l1_tp, l1_calls: $l1_c}' \
+      '{phase: "l2_ready", timestamp: $ts, l2_key: $l2, miss_total_reqs: $m_tr, miss_latency_json: $m_lat, miss_throughput_json: $m_tp, miss_stats_json: $m_st, miss_calls: $m_c, l1_total_reqs: $l1_tr, l1_latency_json: $l1_lat, l1_throughput_json: $l1_tp, l1_stats_json: $l1_st, l1_calls: $l1_c}' \
       > "$CHECKPOINT_FILE"
 
     # Cleanup temp files
@@ -165,10 +173,12 @@ else
     miss_total_reqs=$(jq -r '.miss_total_reqs' "$CHECKPOINT_FILE")
     miss_latency_json=$(jq -r '.miss_latency_json' "$CHECKPOINT_FILE")
     miss_throughput_json=$(jq -r '.miss_throughput_json' "$CHECKPOINT_FILE")
+    miss_stats_json=$(jq -r '.miss_stats_json' "$CHECKPOINT_FILE")
     miss_calls=$(jq -r '.miss_calls' "$CHECKPOINT_FILE")
     l1_total_reqs=$(jq -r '.l1_total_reqs' "$CHECKPOINT_FILE")
     l1_latency_json=$(jq -r '.l1_latency_json' "$CHECKPOINT_FILE")
     l1_throughput_json=$(jq -r '.l1_throughput_json' "$CHECKPOINT_FILE")
+    l1_stats_json=$(jq -r '.l1_stats_json' "$CHECKPOINT_FILE")
     l1_calls=$(jq -r '.l1_calls' "$CHECKPOINT_FILE")
 
     REPORT_FILE="${REPORT_DIR}/benchmark_results_${TIMESTAMP}_${SCENARIO}.txt"
@@ -224,8 +234,9 @@ else
     echo "Extracting L2 Hit throughput JSON..."
     l2_throughput_json=$(./benchmarks/lib/throughput_parser.sh "$WRK_L2_OUT")
 
-    # Parse L2 stats
-    l2_total_reqs=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_L2_OUT" | awk '{print $1}' || echo "0")
+    # Extract container stats for L2 Hit
+    echo "Extracting container stats for L2 Hit..."
+    l2_stats_json=$(./benchmarks/lib/container_stats.sh all)
 
     # Compile report
     {
@@ -243,18 +254,21 @@ else
         echo "Cache Miss Total Requests (10s): ${miss_total_reqs}"
         echo "Cache Miss Latency JSON: ${miss_latency_json}"
         echo "Cache Miss Throughput JSON: ${miss_throughput_json}"
+        echo "Cache Miss Container Stats JSON: ${miss_stats_json}"
         echo "Cache Miss Upstream Call Delta: ${miss_calls}"
         echo "Cache Miss Cache-Layer Signal: None"
         echo ""
         echo "L1 Cache Hit Total Requests (10s): ${l1_total_reqs}"
         echo "L1 Cache Hit Latency JSON: ${l1_latency_json}"
         echo "L1 Cache Hit Throughput JSON: ${l1_throughput_json}"
+        echo "L1 Cache Hit Container Stats JSON: ${l1_stats_json}"
         echo "L1 Cache Hit Upstream Call Delta: ${l1_calls}"
         echo "L1 Cache Hit Cache-Layer Signal: L1 Header"
         echo ""
         echo "L2 Shared Hit Total Requests (10s): ${l2_total_reqs}"
         echo "L2 Shared Hit Latency JSON: ${l2_latency_json}"
         echo "L2 Shared Hit Throughput JSON: ${l2_throughput_json}"
+        echo "L2 Shared Hit Container Stats JSON: ${l2_stats_json}"
         echo "L2 Shared Hit Upstream Call Delta: ${l2_calls} (Async Lookup first request bypass)"
         echo "L2 Shared Hit Cache-Layer Signal: L2 Metric Delta (+${l2_metric_delta})"
     } > "$REPORT_FILE"

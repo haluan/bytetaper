@@ -165,6 +165,11 @@ if [ -z "$legb_non_2xx" ]; then legb_non_2xx=0; fi
 legb_success=$((legb_total_reqs - legb_non_2xx))
 legb_transfer=$(grep -E '^[[:space:]]*Transfer/sec:' "$WRK_LEGB_OUT" | awk '{print $2 " " $3}' || echo "N/A")
 
+# Extract container stats for Leg A and Leg B
+echo "Extracting container stats..."
+JSON_LEGA_STATS=$(./benchmarks/lib/container_stats.sh all)
+JSON_LEGB_STATS=$(./benchmarks/lib/container_stats.sh all)
+
 echo "" >> "$REPORT_FILE"
 echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
 {
@@ -177,6 +182,7 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg A Transfer Rate: ${lega_transfer}"
     echo "Leg A Latency JSON: ${JSON_LEGA_LATENCY}"
     echo "Leg A Throughput JSON: ${JSON_LEGA_THROUGHPUT}"
+    echo "Leg A Container Stats JSON: ${JSON_LEGA_STATS}"
     echo ""
     echo "Leg B (Excessive Limit) - Expected Mutated Limit: 500"
     echo "Leg B Upstream Received Limit: ${legb_received_limit}"
@@ -187,6 +193,7 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg B Transfer Rate: ${legb_transfer}"
     echo "Leg B Latency JSON: ${JSON_LEGB_LATENCY}"
     echo "Leg B Throughput JSON: ${JSON_LEGB_THROUGHPUT}"
+    echo "Leg B Container Stats JSON: ${JSON_LEGB_STATS}"
 } >> "$REPORT_FILE"
 
 # Baseline Comparison Section

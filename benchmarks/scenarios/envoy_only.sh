@@ -78,6 +78,10 @@ transfer_rate=$(grep -E "^Transfer/sec:" "$WRK_OUT" | awk '{print $2}')
 echo "Extracting throughput JSON..."
 JSON_THROUGHPUT=$(./benchmarks/lib/throughput_parser.sh "$WRK_OUT")
 
+# Extract container stats
+echo "Extracting container stats..."
+JSON_STATS=$(./benchmarks/lib/container_stats.sh all)
+
 {
     echo "Total Requests: $total_reqs"
     echo "Success Count: $success_count"
@@ -85,6 +89,7 @@ JSON_THROUGHPUT=$(./benchmarks/lib/throughput_parser.sh "$WRK_OUT")
     echo "Transfer Rate: $transfer_rate"
     echo "Latency JSON: $JSON_LATENCY"
     echo "Throughput JSON: $JSON_THROUGHPUT"
+    echo "Container Stats JSON: $JSON_STATS"
 } >> "$REPORT_FILE"
 
 # Cleanup

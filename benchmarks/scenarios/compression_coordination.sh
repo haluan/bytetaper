@@ -214,6 +214,12 @@ if [ -z "$legc_non_2xx" ]; then legc_non_2xx=0; fi
 legc_success=$((legc_total_reqs - legc_non_2xx))
 legc_transfer=$(grep -E '^[[:space:]]*Transfer/sec:' "$WRK_LEGC_OUT" | awk '{print $2 " " $3}' || echo "N/A")
 
+# Extract container stats for Leg A, Leg B, and Leg C
+echo "Extracting container stats..."
+JSON_LEGA_STATS=$(./benchmarks/lib/container_stats.sh all)
+JSON_LEGB_STATS=$(./benchmarks/lib/container_stats.sh all)
+JSON_LEGC_STATS=$(./benchmarks/lib/container_stats.sh all)
+
 echo "" >> "$REPORT_FILE"
 echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
 {
@@ -224,6 +230,7 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg A Transfer Rate: ${lega_transfer}"
     echo "Leg A Latency JSON: ${JSON_LEGA_LATENCY}"
     echo "Leg A Throughput JSON: ${JSON_LEGA_THROUGHPUT}"
+    echo "Leg A Container Stats JSON: ${JSON_LEGA_STATS}"
     echo ""
     echo "Leg B (Envoy + ByteTaper Decision) - Payload Size: ${legb_bytes} bytes"
     echo "Leg B Content-Encoding: ${legb_encoding}"
@@ -233,6 +240,7 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg B Transfer Rate: ${legb_transfer}"
     echo "Leg B Latency JSON: ${JSON_LEGB_LATENCY}"
     echo "Leg B Throughput JSON: ${JSON_LEGB_THROUGHPUT}"
+    echo "Leg B Container Stats JSON: ${JSON_LEGB_STATS}"
     echo ""
     echo "Leg C (Small Response - Not Candidate) - Payload Size: ${legc_bytes} bytes"
     echo "Leg C Content-Encoding: ${legc_encoding}"
@@ -243,6 +251,7 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg C Transfer Rate: ${legc_transfer}"
     echo "Leg C Latency JSON: ${JSON_LEGC_LATENCY}"
     echo "Leg C Throughput JSON: ${JSON_LEGC_THROUGHPUT}"
+    echo "Leg C Container Stats JSON: ${JSON_LEGC_STATS}"
 } >> "$REPORT_FILE"
 
 # Cleanup

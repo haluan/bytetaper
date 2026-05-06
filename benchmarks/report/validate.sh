@@ -102,7 +102,43 @@ validate_report_file() {
         return 1
     fi
 
-    echo "Report $file is fully VALID (all percentiles and throughput metrics present)."
+    # Find all JSON container stats blocks within the report file
+    # We look for lines containing "Container Stats JSON" (e.g., "Container Stats JSON: { ... }", "Leg A Container Stats JSON: { ... }")
+    local stats_found=0
+    while IFS= read -r line; do
+        if [[ "$line" =~ Container\ Stats\ JSON:[[:space:]]*(.*) ]]; then
+            stats_found=1
+            local json_str="${BASH_REMATCH[1]}"
+            echo "Checking container stats JSON: $json_str"
+
+            # Parse using jq and assert fields exist
+            for svc in "envoy" "bytetaper-extproc" "mock-api"; do
+                local cpu
+                local mem
+                cpu=$(echo "$json_str" | jq -r ".\"$svc\".cpu_percent" 2>/dev/null || true)
+                mem=$(echo "$json_str" | jq -r ".\"$svc\".peak_memory_mb" 2>/dev/null || true)
+
+                if [ -z "$cpu" ] || [ "$cpu" = "null" ]; then
+                    echo "ERROR: Missing '$svc.cpu_percent' in report $file" >&2
+                    return 1
+                fi
+                if [ -z "$mem" ] || [ "$mem" = "null" ]; then
+                    echo "ERROR: Missing '$svc.peak_memory_mb' in report $file" >&2
+                    return 1
+                fi
+
+                echo "  - $svc CPU: $cpu"
+                echo "  - $svc Memory: $mem"
+            done
+        fi
+    done < <(grep -E "Container Stats JSON" "$file" || true)
+
+    if [ $stats_found -eq 0 ]; then
+        echo "ERROR: No container stats JSON blocks found in report $file" >&2
+        return 1
+    fi
+
+    echo "Report $file is fully VALID (all percentiles, throughput, and container stats metrics present)."
     return 0
 }
 

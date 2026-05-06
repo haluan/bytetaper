@@ -188,6 +188,10 @@ JSON_COAL_B=$(./benchmarks/lib/latency_parser.sh "$WRK_COAL_B")
 JSON_COAL_TP_B=$(./benchmarks/lib/throughput_parser.sh "$WRK_COAL_B")
 rm -f "$WRK_COAL_B"
 
+# Extract container stats for Leg B
+echo "Extracting container stats for Leg B..."
+JSON_COAL_STATS_B=$(./benchmarks/lib/container_stats.sh all)
+
 {
     echo "Client Requests Sent: $N"
     echo "Upstream Mock Calls: $mock_calls"
@@ -198,6 +202,7 @@ rm -f "$WRK_COAL_B"
     echo "Delta Bypasses: $delta_bypass"
     echo "Leg B Latency JSON: $JSON_COAL_B"
     echo "Leg B Throughput JSON: $JSON_COAL_TP_B"
+    echo "Leg B Container Stats JSON: $JSON_COAL_STATS_B"
     echo ""
 } | tee -a "$REPORT_FILE"
 

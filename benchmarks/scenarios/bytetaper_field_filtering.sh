@@ -131,6 +131,11 @@ large_non_2xx=$(grep -E "Non-2xx or 3xx responses:" "$WRK_LARGE_OUT" | awk '{pri
 if [ -z "$large_non_2xx" ]; then large_non_2xx=0; fi
 large_success=$((large_total_reqs - large_non_2xx))
 
+# Extract container stats for Leg 1 and Leg 2
+echo "Extracting container stats..."
+JSON_MED_STATS=$(./benchmarks/lib/container_stats.sh all)
+JSON_LARGE_STATS=$(./benchmarks/lib/container_stats.sh all)
+
 # Write parsed metrics
 echo "" >> "$REPORT_FILE"
 echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
@@ -141,6 +146,7 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg 1 Reduction Ratio: ${med_ratio}"
     echo "Leg 1 Latency JSON: ${JSON_MED_LATENCY}"
     echo "Leg 1 Throughput JSON: ${JSON_MED_THROUGHPUT}"
+    echo "Leg 1 Container Stats JSON: ${JSON_MED_STATS}"
     echo ""
     echo "Leg 2 (Large JSON) Requests: ${large_total_reqs}"
     echo "Leg 2 Success Count: ${large_success}"
@@ -148,6 +154,7 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg 2 Reduction Ratio: ${large_ratio}"
     echo "Leg 2 Latency JSON: ${JSON_LARGE_LATENCY}"
     echo "Leg 2 Throughput JSON: ${JSON_LARGE_THROUGHPUT}"
+    echo "Leg 2 Container Stats JSON: ${JSON_LARGE_STATS}"
 } >> "$REPORT_FILE"
 
 # Baseline Comparison Section
