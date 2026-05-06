@@ -74,8 +74,12 @@ fi
 echo "" | tee -a "$REPORT_FILE"
 echo "Running wrk load test on Leg A (Envoy Compression Only)..."
 WRK_LEGA_OUT=$(mktemp)
-wrk -t2 -c10 -d10s -H "Accept-Encoding: gzip" --latency "${LEGA_URL}" | tee "$WRK_LEGA_OUT"
+wrk -t2 -c10 -d10s -H "Accept-Encoding: gzip" -s benchmarks/lib/latency_reporter.lua --latency "${LEGA_URL}" | tee "$WRK_LEGA_OUT"
 cat "$WRK_LEGA_OUT" >> "$REPORT_FILE"
+
+# Extract JSON latency metrics for Leg A
+echo "Extracting JSON latency metrics for Leg A..."
+JSON_LEGA_LATENCY=$(./benchmarks/lib/latency_parser.sh "$WRK_LEGA_OUT")
 
 # Sleep 3 seconds to let connections cool down and socket pool reset
 echo "Cooling down socket pools..."
@@ -120,8 +124,12 @@ fi
 echo "" | tee -a "$REPORT_FILE"
 echo "Running wrk load test on Leg B (Envoy Compression + ByteTaper Decision)..."
 WRK_LEGB_OUT=$(mktemp)
-wrk -t2 -c10 -d10s -H "Accept-Encoding: gzip" --latency "${LEGB_URL}" | tee "$WRK_LEGB_OUT"
+wrk -t2 -c10 -d10s -H "Accept-Encoding: gzip" -s benchmarks/lib/latency_reporter.lua --latency "${LEGB_URL}" | tee "$WRK_LEGB_OUT"
 cat "$WRK_LEGB_OUT" >> "$REPORT_FILE"
+
+# Extract JSON latency metrics for Leg B
+echo "Extracting JSON latency metrics for Leg B..."
+JSON_LEGB_LATENCY=$(./benchmarks/lib/latency_parser.sh "$WRK_LEGB_OUT")
 
 # Sleep 3 seconds to let connections cool down and socket pool reset
 echo "Cooling down socket pools..."
@@ -168,8 +176,12 @@ fi
 echo "" | tee -a "$REPORT_FILE"
 echo "Running wrk load test on Leg C (Small Response - Not Candidate)..."
 WRK_LEGC_OUT=$(mktemp)
-wrk -t2 -c10 -d10s -H "Accept-Encoding: gzip" --latency "${LEGC_URL}" | tee "$WRK_LEGC_OUT"
+wrk -t2 -c10 -d10s -H "Accept-Encoding: gzip" -s benchmarks/lib/latency_reporter.lua --latency "${LEGC_URL}" | tee "$WRK_LEGC_OUT"
 cat "$WRK_LEGC_OUT" >> "$REPORT_FILE"
+
+# Extract JSON latency metrics for Leg C
+echo "Extracting JSON latency metrics for Leg C..."
+JSON_LEGC_LATENCY=$(./benchmarks/lib/latency_parser.sh "$WRK_LEGC_OUT")
 
 # --------------------------------------------------
 # Report Parsing & Compilation
@@ -180,10 +192,6 @@ lega_total_reqs=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_LEGA_OUT" | aw
 lega_non_2xx=$(grep -E "Non-2xx or 3xx responses:" "$WRK_LEGA_OUT" | awk '{print $5}' || echo "0")
 if [ -z "$lega_non_2xx" ]; then lega_non_2xx=0; fi
 lega_success=$((lega_total_reqs - lega_non_2xx))
-lega_p50=$(grep -E "^[[:space:]]*50%" "$WRK_LEGA_OUT" | awk '{print $2}' || echo "N/A")
-lega_p75=$(grep -E "^[[:space:]]*75%" "$WRK_LEGA_OUT" | awk '{print $2}' || echo "N/A")
-lega_p90=$(grep -E "^[[:space:]]*90%" "$WRK_LEGA_OUT" | awk '{print $2}' || echo "N/A")
-lega_p99=$(grep -E "^[[:space:]]*99%" "$WRK_LEGA_OUT" | awk '{print $2}' || echo "N/A")
 lega_transfer=$(grep -E '^[[:space:]]*Transfer/sec:' "$WRK_LEGA_OUT" | awk '{print $2 " " $3}' || echo "N/A")
 
 # Parse Leg B wrk results
@@ -191,10 +199,6 @@ legb_total_reqs=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_LEGB_OUT" | aw
 legb_non_2xx=$(grep -E "Non-2xx or 3xx responses:" "$WRK_LEGB_OUT" | awk '{print $5}' || echo "0")
 if [ -z "$legb_non_2xx" ]; then legb_non_2xx=0; fi
 legb_success=$((legb_total_reqs - legb_non_2xx))
-legb_p50=$(grep -E "^[[:space:]]*50%" "$WRK_LEGB_OUT" | awk '{print $2}' || echo "N/A")
-legb_p75=$(grep -E "^[[:space:]]*75%" "$WRK_LEGB_OUT" | awk '{print $2}' || echo "N/A")
-legb_p90=$(grep -E "^[[:space:]]*90%" "$WRK_LEGB_OUT" | awk '{print $2}' || echo "N/A")
-legb_p99=$(grep -E "^[[:space:]]*99%" "$WRK_LEGB_OUT" | awk '{print $2}' || echo "N/A")
 legb_transfer=$(grep -E '^[[:space:]]*Transfer/sec:' "$WRK_LEGB_OUT" | awk '{print $2 " " $3}' || echo "N/A")
 
 # Parse Leg C wrk results
@@ -202,10 +206,6 @@ legc_total_reqs=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_LEGC_OUT" | aw
 legc_non_2xx=$(grep -E "Non-2xx or 3xx responses:" "$WRK_LEGC_OUT" | awk '{print $5}' || echo "0")
 if [ -z "$legc_non_2xx" ]; then legc_non_2xx=0; fi
 legc_success=$((legc_total_reqs - legc_non_2xx))
-legc_p50=$(grep -E "^[[:space:]]*50%" "$WRK_LEGC_OUT" | awk '{print $2}' || echo "N/A")
-legc_p75=$(grep -E "^[[:space:]]*75%" "$WRK_LEGC_OUT" | awk '{print $2}' || echo "N/A")
-legc_p90=$(grep -E "^[[:space:]]*90%" "$WRK_LEGC_OUT" | awk '{print $2}' || echo "N/A")
-legc_p99=$(grep -E "^[[:space:]]*99%" "$WRK_LEGC_OUT" | awk '{print $2}' || echo "N/A")
 legc_transfer=$(grep -E '^[[:space:]]*Transfer/sec:' "$WRK_LEGC_OUT" | awk '{print $2 " " $3}' || echo "N/A")
 
 echo "" >> "$REPORT_FILE"
@@ -215,22 +215,16 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg A Content-Encoding: ${lega_encoding}"
     echo "Leg A Total Requests (10s): ${lega_total_reqs}"
     echo "Leg A Successful Requests: ${lega_success}"
-    echo "Leg A Latency p50: ${lega_p50}"
-    echo "Leg A Latency p75: ${lega_p75}"
-    echo "Leg A Latency p90: ${lega_p90}"
-    echo "Leg A Latency p99: ${lega_p99}"
     echo "Leg A Transfer Rate: ${lega_transfer}"
+    echo "Leg A Latency JSON: ${JSON_LEGA_LATENCY}"
     echo ""
     echo "Leg B (Envoy + ByteTaper Decision) - Payload Size: ${legb_bytes} bytes"
     echo "Leg B Content-Encoding: ${legb_encoding}"
     echo "Leg B Candidate: ${legb_candidate}"
     echo "Leg B Total Requests (10s): ${legb_total_reqs}"
     echo "Leg B Successful Requests: ${legb_success}"
-    echo "Leg B Latency p50: ${legb_p50}"
-    echo "Leg B Latency p75: ${legb_p75}"
-    echo "Leg B Latency p90: ${legb_p90}"
-    echo "Leg B Latency p99: ${legb_p99}"
     echo "Leg B Transfer Rate: ${legb_transfer}"
+    echo "Leg B Latency JSON: ${JSON_LEGB_LATENCY}"
     echo ""
     echo "Leg C (Small Response - Not Candidate) - Payload Size: ${legc_bytes} bytes"
     echo "Leg C Content-Encoding: ${legc_encoding}"
@@ -238,15 +232,15 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg C Decision Reason: ${legc_reason}"
     echo "Leg C Total Requests (10s): ${legc_total_reqs}"
     echo "Leg C Successful Requests: ${legc_success}"
-    echo "Leg C Latency p50: ${legc_p50}"
-    echo "Leg C Latency p75: ${legc_p75}"
-    echo "Leg C Latency p90: ${legc_p90}"
-    echo "Leg C Latency p99: ${legc_p99}"
     echo "Leg C Transfer Rate: ${legc_transfer}"
+    echo "Leg C Latency JSON: ${JSON_LEGC_LATENCY}"
 } >> "$REPORT_FILE"
 
 # Cleanup
 rm -f "$WRK_LEGA_OUT" "$WRK_LEGB_OUT" "$WRK_LEGC_OUT" /tmp/lega_headers.txt /tmp/lega_body.txt /tmp/legb_headers.txt /tmp/legb_body.txt /tmp/legc_headers.txt /tmp/legc_body.txt
+
+# Validate report integrity
+./benchmarks/report/validate.sh "$REPORT_FILE"
 
 echo ""
 echo "Benchmark complete."

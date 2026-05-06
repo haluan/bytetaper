@@ -58,7 +58,11 @@ if [ ! -f "$CHECKPOINT_FILE" ]; then
 
     echo "Running wrk load test on Cache Miss (first request populates, subsequent hit)..."
     WRK_MISS_OUT=$(mktemp)
-    wrk -t2 -c10 -d10s --latency "${TARGET_HOST}/products/miss_bench_${TIMESTAMP}" | tee "$WRK_MISS_OUT"
+    wrk -t2 -c10 -d10s -s benchmarks/lib/latency_reporter.lua --latency "${TARGET_HOST}/products/miss_bench_${TIMESTAMP}" | tee "$WRK_MISS_OUT"
+
+    # Extract latency JSON for Miss
+    echo "Extracting Miss latency JSON..."
+    miss_latency_json=$(./benchmarks/lib/latency_parser.sh "$WRK_MISS_OUT")
 
     # --------------------------------------------------
     # Section 2: L1 Cache Hit
@@ -97,7 +101,11 @@ if [ ! -f "$CHECKPOINT_FILE" ]; then
 
     echo "Running wrk load test on warm L1 Cache..."
     WRK_L1_OUT=$(mktemp)
-    wrk -t2 -c10 -d10s --latency "${TARGET_HOST}/products/${L1_KEY}" | tee "$WRK_L1_OUT"
+    wrk -t2 -c10 -d10s -s benchmarks/lib/latency_reporter.lua --latency "${TARGET_HOST}/products/${L1_KEY}" | tee "$WRK_L1_OUT"
+
+    # Extract latency JSON for L1 Hit
+    echo "Extracting L1 Hit latency JSON..."
+    l1_latency_json=$(./benchmarks/lib/latency_parser.sh "$WRK_L1_OUT")
 
     # --------------------------------------------------
     # Warm up L2 (Populate entry that survives restart)
@@ -112,27 +120,21 @@ if [ ! -f "$CHECKPOINT_FILE" ]; then
 
     # Parse Miss stats
     miss_total_reqs=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_MISS_OUT" | awk '{print $1}' || echo "0")
-    miss_p50=$(grep -E "^[[:space:]]*50%" "$WRK_MISS_OUT" | awk '{print $2}' || echo "N/A")
-    miss_p99=$(grep -E "^[[:space:]]*99%" "$WRK_MISS_OUT" | awk '{print $2}' || echo "N/A")
 
     # Parse L1 stats
     l1_total_reqs=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_L1_OUT" | awk '{print $1}' || echo "0")
-    l1_p50=$(grep -E "^[[:space:]]*50%" "$WRK_L1_OUT" | awk '{print $2}' || echo "N/A")
-    l1_p99=$(grep -E "^[[:space:]]*99%" "$WRK_L1_OUT" | awk '{print $2}' || echo "N/A")
 
     # Write checkpoint
     jq -n \
       --arg ts "$TIMESTAMP" \
       --arg l2 "$L2_KEY" \
       --arg m_tr "$miss_total_reqs" \
-      --arg m_p50 "$miss_p50" \
-      --arg m_p99 "$miss_p99" \
+      --arg m_lat "$miss_latency_json" \
       --arg m_c "$miss_calls" \
       --arg l1_tr "$l1_total_reqs" \
-      --arg l1_p50 "$l1_p50" \
-      --arg l1_p99 "$l1_p99" \
+      --arg l1_lat "$l1_latency_json" \
       --arg l1_c "$l1_calls" \
-      '{phase: "l2_ready", timestamp: $ts, l2_key: $l2, miss_total_reqs: $m_tr, miss_p50: $m_p50, miss_p99: $m_p99, miss_calls: $m_c, l1_total_reqs: $l1_tr, l1_p50: $l1_p50, l1_p99: $l1_p99, l1_calls: $l1_c}' \
+      '{phase: "l2_ready", timestamp: $ts, l2_key: $l2, miss_total_reqs: $m_tr, miss_latency_json: $m_lat, miss_calls: $m_c, l1_total_reqs: $l1_tr, l1_latency_json: $l1_lat, l1_calls: $l1_c}' \
       > "$CHECKPOINT_FILE"
 
     # Cleanup temp files
@@ -155,12 +157,10 @@ else
     TIMESTAMP=$(jq -r '.timestamp' "$CHECKPOINT_FILE")
     L2_KEY=$(jq -r '.l2_key' "$CHECKPOINT_FILE")
     miss_total_reqs=$(jq -r '.miss_total_reqs' "$CHECKPOINT_FILE")
-    miss_p50=$(jq -r '.miss_p50' "$CHECKPOINT_FILE")
-    miss_p99=$(jq -r '.miss_p99' "$CHECKPOINT_FILE")
+    miss_latency_json=$(jq -r '.miss_latency_json' "$CHECKPOINT_FILE")
     miss_calls=$(jq -r '.miss_calls' "$CHECKPOINT_FILE")
     l1_total_reqs=$(jq -r '.l1_total_reqs' "$CHECKPOINT_FILE")
-    l1_p50=$(jq -r '.l1_p50' "$CHECKPOINT_FILE")
-    l1_p99=$(jq -r '.l1_p99' "$CHECKPOINT_FILE")
+    l1_latency_json=$(jq -r '.l1_latency_json' "$CHECKPOINT_FILE")
     l1_calls=$(jq -r '.l1_calls' "$CHECKPOINT_FILE")
 
     REPORT_FILE="${REPORT_DIR}/benchmark_results_${TIMESTAMP}_${SCENARIO}.txt"
@@ -208,12 +208,14 @@ else
 
     echo "Running wrk load test on restarted Server..."
     WRK_L2_OUT=$(mktemp)
-    wrk -t2 -c10 -d10s --latency "${TARGET_HOST}/products/${L2_KEY}" | tee "$WRK_L2_OUT"
+    wrk -t2 -c10 -d10s -s benchmarks/lib/latency_reporter.lua --latency "${TARGET_HOST}/products/${L2_KEY}" | tee "$WRK_L2_OUT"
+
+    # Extract latency JSON for L2 Hit
+    echo "Extracting L2 Hit latency JSON..."
+    l2_latency_json=$(./benchmarks/lib/latency_parser.sh "$WRK_L2_OUT")
 
     # Parse L2 stats
     l2_total_reqs=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_L2_OUT" | awk '{print $1}' || echo "0")
-    l2_p50=$(grep -E "^[[:space:]]*50%" "$WRK_L2_OUT" | awk '{print $2}' || echo "N/A")
-    l2_p99=$(grep -E "^[[:space:]]*99%" "$WRK_L2_OUT" | awk '{print $2}' || echo "N/A")
 
     # Compile report
     {
@@ -229,26 +231,26 @@ else
         echo ""
         echo "=== Parsed Cache Hit Scenario Metrics ==="
         echo "Cache Miss Total Requests (10s): ${miss_total_reqs}"
-        echo "Cache Miss Latency p50: ${miss_p50}"
-        echo "Cache Miss Latency p99: ${miss_p99}"
+        echo "Cache Miss Latency JSON: ${miss_latency_json}"
         echo "Cache Miss Upstream Call Delta: ${miss_calls}"
         echo "Cache Miss Cache-Layer Signal: None"
         echo ""
         echo "L1 Cache Hit Total Requests (10s): ${l1_total_reqs}"
-        echo "L1 Cache Hit Latency p50: ${l1_p50}"
-        echo "L1 Cache Hit Latency p99: ${l1_p99}"
+        echo "L1 Cache Hit Latency JSON: ${l1_latency_json}"
         echo "L1 Cache Hit Upstream Call Delta: ${l1_calls}"
         echo "L1 Cache Hit Cache-Layer Signal: L1 Header"
         echo ""
         echo "L2 Shared Hit Total Requests (10s): ${l2_total_reqs}"
-        echo "L2 Shared Hit Latency p50: ${l2_p50}"
-        echo "L2 Shared Hit Latency p99: ${l2_p99}"
+        echo "L2 Shared Hit Latency JSON: ${l2_latency_json}"
         echo "L2 Shared Hit Upstream Call Delta: ${l2_calls} (Async Lookup first request bypass)"
         echo "L2 Shared Hit Cache-Layer Signal: L2 Metric Delta (+${l2_metric_delta})"
     } > "$REPORT_FILE"
 
     # Cleanup temp files and checkpoint
     rm -f "$WRK_L2_OUT" /tmp/l2_headers.txt "$CHECKPOINT_FILE"
+
+    # Validate report integrity
+    ./benchmarks/report/validate.sh "$REPORT_FILE"
 
     echo ""
     echo "=================================================="

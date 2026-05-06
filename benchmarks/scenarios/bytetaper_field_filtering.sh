@@ -73,8 +73,12 @@ echo "" | tee -a "$REPORT_FILE"
 
 echo "Running wrk load test on Leg 1..."
 WRK_MED_OUT=$(mktemp)
-wrk -t2 -c10 -d10s --latency "${MED_URL}" | tee "$WRK_MED_OUT"
+wrk -t2 -c10 -d10s -s benchmarks/lib/latency_reporter.lua --latency "${MED_URL}" | tee "$WRK_MED_OUT"
 cat "$WRK_MED_OUT" >> "$REPORT_FILE"
+
+# Extract JSON latency metrics for Leg 1
+echo "Extracting JSON latency metrics for Leg 1..."
+JSON_MED_LATENCY=$(./benchmarks/lib/latency_parser.sh "$WRK_MED_OUT")
 
 # Leg 2: Large Payload Field Filtering
 echo "--------------------------------------------------" | tee -a "$REPORT_FILE"
@@ -104,24 +108,24 @@ echo "" | tee -a "$REPORT_FILE"
 
 echo "Running wrk load test on Leg 2..."
 WRK_LARGE_OUT=$(mktemp)
-wrk -t2 -c10 -d10s --latency "${LARGE_URL}" | tee "$WRK_LARGE_OUT"
+wrk -t2 -c10 -d10s -s benchmarks/lib/latency_reporter.lua --latency "${LARGE_URL}" | tee "$WRK_LARGE_OUT"
 cat "$WRK_LARGE_OUT" >> "$REPORT_FILE"
+
+# Extract JSON latency metrics for Leg 2
+echo "Extracting JSON latency metrics for Leg 2..."
+JSON_LARGE_LATENCY=$(./benchmarks/lib/latency_parser.sh "$WRK_LARGE_OUT")
 
 # Parse metrics for Leg 1
 med_total_reqs=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_MED_OUT" | awk '{print $1}' || echo "0")
 med_non_2xx=$(grep -E "Non-2xx or 3xx responses:" "$WRK_MED_OUT" | awk '{print $5}' || echo "0")
 if [ -z "$med_non_2xx" ]; then med_non_2xx=0; fi
 med_success=$((med_total_reqs - med_non_2xx))
-med_p50=$(grep -E "^[[:space:]]*50%" "$WRK_MED_OUT" | awk '{print $2}' || echo "N/A")
-med_p99=$(grep -E "^[[:space:]]*99%" "$WRK_MED_OUT" | awk '{print $2}' || echo "N/A")
 
 # Parse metrics for Leg 2
 large_total_reqs=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_LARGE_OUT" | awk '{print $1}' || echo "0")
 large_non_2xx=$(grep -E "Non-2xx or 3xx responses:" "$WRK_LARGE_OUT" | awk '{print $5}' || echo "0")
 if [ -z "$large_non_2xx" ]; then large_non_2xx=0; fi
 large_success=$((large_total_reqs - large_non_2xx))
-large_p50=$(grep -E "^[[:space:]]*50%" "$WRK_LARGE_OUT" | awk '{print $2}' || echo "N/A")
-large_p99=$(grep -E "^[[:space:]]*99%" "$WRK_LARGE_OUT" | awk '{print $2}' || echo "N/A")
 
 # Write parsed metrics
 echo "" >> "$REPORT_FILE"
@@ -129,17 +133,15 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
 {
     echo "Leg 1 (Medium JSON) Requests: ${med_total_reqs}"
     echo "Leg 1 Success Count: ${med_success}"
-    echo "Leg 1 Latency p50: ${med_p50}"
-    echo "Leg 1 Latency p99: ${med_p99}"
     echo "Leg 1 Bytes Saved: ${med_saved} bytes"
     echo "Leg 1 Reduction Ratio: ${med_ratio}"
+    echo "Leg 1 Latency JSON: ${JSON_MED_LATENCY}"
     echo ""
     echo "Leg 2 (Large JSON) Requests: ${large_total_reqs}"
     echo "Leg 2 Success Count: ${large_success}"
-    echo "Leg 2 Latency p50: ${large_p50}"
-    echo "Leg 2 Latency p99: ${large_p99}"
     echo "Leg 2 Bytes Saved: ${large_saved} bytes"
     echo "Leg 2 Reduction Ratio: ${large_ratio}"
+    echo "Leg 2 Latency JSON: ${JSON_LARGE_LATENCY}"
 } >> "$REPORT_FILE"
 
 # Baseline Comparison Section
@@ -167,6 +169,9 @@ fi
 
 # Cleanup
 rm -f "$WRK_MED_OUT" "$WRK_LARGE_OUT" /tmp/med_headers.txt /tmp/large_headers.txt
+
+# Validate report integrity
+./benchmarks/report/validate.sh "$REPORT_FILE"
 
 echo ""
 echo "Benchmark complete."

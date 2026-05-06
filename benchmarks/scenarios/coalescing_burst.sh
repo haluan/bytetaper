@@ -106,6 +106,12 @@ delta_cache_hit=$((new_cache_hit - base_cache_hit))
 delta_fallback=$((new_fallback - base_fallback))
 delta_bypass=$((new_bypass - base_bypass))
 
+echo "Running wrk latency check on fast path..."
+WRK_COAL_A=$(mktemp)
+wrk -t2 -c5 -d3s -s benchmarks/lib/latency_reporter.lua --latency "${ENVOY_HOST}/products/fast/123" | tee "$WRK_COAL_A"
+JSON_COAL_A=$(./benchmarks/lib/latency_parser.sh "$WRK_COAL_A")
+rm -f "$WRK_COAL_A"
+
 {
     echo "Client Requests Sent: $N"
     echo "Upstream Mock Calls: $mock_calls"
@@ -114,6 +120,7 @@ delta_bypass=$((new_bypass - base_bypass))
     echo "Delta Follower Cache Hits: $delta_cache_hit"
     echo "Delta Fallbacks: $delta_fallback"
     echo "Delta Bypasses: $delta_bypass"
+    echo "Leg A Latency JSON: $JSON_COAL_A"
     echo ""
 } | tee -a "$REPORT_FILE"
 
@@ -174,6 +181,12 @@ delta_cache_hit=$((new_cache_hit - base_cache_hit))
 delta_fallback=$((new_fallback - base_fallback))
 delta_bypass=$((new_bypass - base_bypass))
 
+echo "Running wrk latency check on slow path..."
+WRK_COAL_B=$(mktemp)
+wrk -t2 -c5 -d3s -s benchmarks/lib/latency_reporter.lua --latency "${ENVOY_HOST}/products/slow/123" | tee "$WRK_COAL_B"
+JSON_COAL_B=$(./benchmarks/lib/latency_parser.sh "$WRK_COAL_B")
+rm -f "$WRK_COAL_B"
+
 {
     echo "Client Requests Sent: $N"
     echo "Upstream Mock Calls: $mock_calls"
@@ -182,6 +195,7 @@ delta_bypass=$((new_bypass - base_bypass))
     echo "Delta Follower Cache Hits: $delta_cache_hit"
     echo "Delta Fallbacks: $delta_fallback"
     echo "Delta Bypasses: $delta_bypass"
+    echo "Leg B Latency JSON: $JSON_COAL_B"
     echo ""
 } | tee -a "$REPORT_FILE"
 
@@ -190,6 +204,9 @@ if [ "$delta_fallback" -eq 0 ]; then
     echo "ERROR: Expected at least some fallbacks due to 100ms mock delay exceeding 25ms wait window, got 0"
     exit 1
 fi
+
+# Validate report integrity
+./benchmarks/report/validate.sh "$REPORT_FILE"
 
 echo "Benchmark complete."
 echo "Results saved to: $REPORT_FILE"

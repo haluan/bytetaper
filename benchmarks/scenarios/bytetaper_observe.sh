@@ -64,23 +64,27 @@ echo "Starting wrk load test on observe target..."
 
 # Run wrk and capture raw output to a temporary file
 WRK_OUT=$(mktemp)
-wrk -t2 -c10 -d10s --latency "$TARGET_URL" | tee "$WRK_OUT"
+wrk -t2 -c10 -d10s -s benchmarks/lib/latency_reporter.lua --latency "$TARGET_URL" | tee "$WRK_OUT"
 
 # Append raw wrk output to report file
 cat "$WRK_OUT" >> "$REPORT_FILE"
+
+# Extract JSON latency percentiles
+echo "Extracting JSON latency metrics..."
+JSON_LATENCY=$(./benchmarks/lib/latency_parser.sh "$WRK_OUT")
 
 # Parse metrics
 echo "" >> "$REPORT_FILE"
 echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
 
 # Total requests
-total_reqs=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_OUT" | awk '{print $1}')
+total_reqs=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_OUT" | awk '{print $1}' || echo "0")
 if [ -z "$total_reqs" ]; then
     total_reqs=0
 fi
 
 # Non-2xx/3xx if present
-non_2xx_3xx=$(grep -E "Non-2xx or 3xx responses:" "$WRK_OUT" | awk '{print $5}')
+non_2xx_3xx=$(grep -E "Non-2xx or 3xx responses:" "$WRK_OUT" | awk '{print $5}' || echo "0")
 if [ -z "$non_2xx_3xx" ]; then
     non_2xx_3xx=0
 fi
@@ -88,32 +92,24 @@ fi
 # Success count
 success_count=$((total_reqs - non_2xx_3xx))
 
-# Latencies
-avg_latency=$(grep -E "^[[:space:]]*Latency" "$WRK_OUT" | awk '{print $2}')
-p50_latency=$(grep -E "^[[:space:]]*50%" "$WRK_OUT" | awk '{print $2}')
-p75_latency=$(grep -E "^[[:space:]]*75%" "$WRK_OUT" | awk '{print $2}')
-p90_latency=$(grep -E "^[[:space:]]*90%" "$WRK_OUT" | awk '{print $2}')
-p99_latency=$(grep -E "^[[:space:]]*99%" "$WRK_OUT" | awk '{print $2}')
-
 # Bytes read & transfer rate
-bytes_read=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_OUT" | awk -F', ' '{print $2}')
-transfer_rate=$(grep -E "^Transfer/sec:" "$WRK_OUT" | awk '{print $2}')
+bytes_read=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_OUT" | awk -F', ' '{print $2}' || echo "0")
+transfer_rate=$(grep -E "^[[:space:]]*Transfer/sec:" "$WRK_OUT" | awk '{print $2}' || echo "0")
 
 {
     echo "Total Requests: $total_reqs"
     echo "Success Count: $success_count"
-    echo "Latency Average: $avg_latency"
-    echo "Latency p50: $p50_latency"
-    echo "Latency p75: $p75_latency"
-    echo "Latency p90: $p90_latency"
-    echo "Latency p99: $p99_latency"
     echo "Bytes Read: $bytes_read"
     echo "Transfer Rate: $transfer_rate"
     echo "Body Equivalence Match: YES"
+    echo "Latency JSON: $JSON_LATENCY"
 } >> "$REPORT_FILE"
 
 # Cleanup
 rm -f "$WRK_OUT"
+
+# Validate report integrity
+./benchmarks/report/validate.sh "$REPORT_FILE"
 
 echo ""
 echo "Benchmark complete."

@@ -82,8 +82,12 @@ fi
 echo "" | tee -a "$REPORT_FILE"
 echo "Running wrk load test on Leg A (Missing Limit)..."
 WRK_LEGA_OUT=$(mktemp)
-wrk -t2 -c10 -d10s --latency "${LEGA_URL}" | tee "$WRK_LEGA_OUT"
+wrk -t2 -c10 -d10s -s benchmarks/lib/latency_reporter.lua --latency "${LEGA_URL}" | tee "$WRK_LEGA_OUT"
 cat "$WRK_LEGA_OUT" >> "$REPORT_FILE"
+
+# Extract JSON latency metrics for Leg A
+echo "Extracting JSON latency metrics for Leg A..."
+JSON_LEGA_LATENCY=$(./benchmarks/lib/latency_parser.sh "$WRK_LEGA_OUT")
 
 # Sleep 3 seconds to let connections cool down and socket pool reset
 echo "Cooling down socket pools..."
@@ -132,8 +136,12 @@ fi
 echo "" | tee -a "$REPORT_FILE"
 echo "Running wrk load test on Leg B (Excessive Limit)..."
 WRK_LEGB_OUT=$(mktemp)
-wrk -t2 -c10 -d10s --latency "${LEGB_URL}" | tee "$WRK_LEGB_OUT"
+wrk -t2 -c10 -d10s -s benchmarks/lib/latency_reporter.lua --latency "${LEGB_URL}" | tee "$WRK_LEGB_OUT"
 cat "$WRK_LEGB_OUT" >> "$REPORT_FILE"
+
+# Extract JSON latency metrics for Leg B
+echo "Extracting JSON latency metrics for Leg B..."
+JSON_LEGB_LATENCY=$(./benchmarks/lib/latency_parser.sh "$WRK_LEGB_OUT")
 
 # --------------------------------------------------
 # Report Parsing & Compilation
@@ -144,10 +152,6 @@ lega_total_reqs=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_LEGA_OUT" | aw
 lega_non_2xx=$(grep -E "Non-2xx or 3xx responses:" "$WRK_LEGA_OUT" | awk '{print $5}' || echo "0")
 if [ -z "$lega_non_2xx" ]; then lega_non_2xx=0; fi
 lega_success=$((lega_total_reqs - lega_non_2xx))
-lega_p50=$(grep -E "^[[:space:]]*50%" "$WRK_LEGA_OUT" | awk '{print $2}' || echo "N/A")
-lega_p75=$(grep -E "^[[:space:]]*75%" "$WRK_LEGA_OUT" | awk '{print $2}' || echo "N/A")
-lega_p90=$(grep -E "^[[:space:]]*90%" "$WRK_LEGA_OUT" | awk '{print $2}' || echo "N/A")
-lega_p99=$(grep -E "^[[:space:]]*99%" "$WRK_LEGA_OUT" | awk '{print $2}' || echo "N/A")
 lega_transfer=$(grep -E '^[[:space:]]*Transfer/sec:' "$WRK_LEGA_OUT" | awk '{print $2 " " $3}' || echo "N/A")
 
 # Parse Leg B wrk results
@@ -155,10 +159,6 @@ legb_total_reqs=$(grep -E '^[[:space:]]*[0-9]+ requests in' "$WRK_LEGB_OUT" | aw
 legb_non_2xx=$(grep -E "Non-2xx or 3xx responses:" "$WRK_LEGB_OUT" | awk '{print $5}' || echo "0")
 if [ -z "$legb_non_2xx" ]; then legb_non_2xx=0; fi
 legb_success=$((legb_total_reqs - legb_non_2xx))
-legb_p50=$(grep -E "^[[:space:]]*50%" "$WRK_LEGB_OUT" | awk '{print $2}' || echo "N/A")
-legb_p75=$(grep -E "^[[:space:]]*75%" "$WRK_LEGB_OUT" | awk '{print $2}' || echo "N/A")
-legb_p90=$(grep -E "^[[:space:]]*90%" "$WRK_LEGB_OUT" | awk '{print $2}' || echo "N/A")
-legb_p99=$(grep -E "^[[:space:]]*99%" "$WRK_LEGB_OUT" | awk '{print $2}' || echo "N/A")
 legb_transfer=$(grep -E '^[[:space:]]*Transfer/sec:' "$WRK_LEGB_OUT" | awk '{print $2 " " $3}' || echo "N/A")
 
 echo "" >> "$REPORT_FILE"
@@ -170,11 +170,8 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg A Payload Size: ${lega_bytes} bytes"
     echo "Leg A Total Requests (10s): ${lega_total_reqs}"
     echo "Leg A Successful Requests: ${lega_success}"
-    echo "Leg A Latency p50: ${lega_p50}"
-    echo "Leg A Latency p75: ${lega_p75}"
-    echo "Leg A Latency p90: ${lega_p90}"
-    echo "Leg A Latency p99: ${lega_p99}"
     echo "Leg A Transfer Rate: ${lega_transfer}"
+    echo "Leg A Latency JSON: ${JSON_LEGA_LATENCY}"
     echo ""
     echo "Leg B (Excessive Limit) - Expected Mutated Limit: 500"
     echo "Leg B Upstream Received Limit: ${legb_received_limit}"
@@ -182,11 +179,8 @@ echo "=== Parsed Scenario Metrics ===" >> "$REPORT_FILE"
     echo "Leg B Payload Size: ${legb_bytes} bytes"
     echo "Leg B Total Requests (10s): ${legb_total_reqs}"
     echo "Leg B Successful Requests: ${legb_success}"
-    echo "Leg B Latency p50: ${legb_p50}"
-    echo "Leg B Latency p75: ${legb_p75}"
-    echo "Leg B Latency p90: ${legb_p90}"
-    echo "Leg B Latency p99: ${legb_p99}"
     echo "Leg B Transfer Rate: ${legb_transfer}"
+    echo "Leg B Latency JSON: ${JSON_LEGB_LATENCY}"
 } >> "$REPORT_FILE"
 
 # Baseline Comparison Section
@@ -214,6 +208,9 @@ fi
 
 # Cleanup
 rm -f "$WRK_LEGA_OUT" "$WRK_LEGB_OUT" /tmp/lega_headers.txt /tmp/lega_body.txt /tmp/legb_headers.txt /tmp/legb_body.txt
+
+# Validate report integrity
+./benchmarks/report/validate.sh "$REPORT_FILE"
 
 echo ""
 echo "Benchmark complete."
