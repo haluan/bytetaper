@@ -108,6 +108,14 @@ struct RuntimeShard {
     bool ready_enqueued = false;
 };
 
+enum class DequeuedJobKind { None, Lookup, Store };
+
+struct DequeuedRuntimeJob {
+    DequeuedJobKind kind = DequeuedJobKind::None;
+    L2LookupJob lookup_job = {};
+    L2StoreJob store_job = {};
+};
+
 // Fixed-capacity worker queue with sharding. Must not be copied or moved after init.
 struct WorkerQueue {
     RuntimeShard shards[kRuntimeShardCount];
@@ -146,6 +154,13 @@ void worker_queue_shutdown(WorkerQueue* q);
  * Returns true if a job was dequeued and executed; false if queue was empty.
  */
 bool worker_queue_execute_one_for_test(WorkerQueue* q);
+
+/**
+ * Test helpers to verify internal pop and requeue/clear.
+ */
+bool worker_queue_shard_try_pop_for_test(WorkerQueue* q, std::size_t shard_idx,
+                                         DequeuedRuntimeJob* job_out);
+void worker_queue_shard_requeue_or_clear_for_test(WorkerQueue* q, std::size_t shard_idx);
 
 } // namespace bytetaper::runtime
 

@@ -485,3 +485,182 @@ TEST_F(WorkerQueueTest, ReadyQueueInitialState) {
         EXPECT_FALSE(q_->shards[s].ready_enqueued);
     }
 }
+
+TEST_F(WorkerQueueTest, SingleReadyQueuePushPerShard) {
+    WorkerQueueConfig cfg;
+    cfg.worker_count = 1;
+    ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
+    q_->running = true;
+
+    L2StoreJob job1;
+    std::strcpy(job1.key, "key-shard-a");
+    job1.body_len = 0;
+
+    // First enqueue
+    EXPECT_TRUE(worker_queue_try_enqueue_store(q_.get(), job1));
+
+    // Find which shard it went to
+    std::size_t shard_idx = 9999;
+    for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
+        if (q_->shards[i].store_count > 0) {
+            shard_idx = i;
+            break;
+        }
+    }
+    ASSERT_NE(shard_idx, 9999u);
+
+    // Expect that the ready queue for worker 0 has count == 1
+    EXPECT_EQ(q_->worker_ready[0].count, 1u);
+    EXPECT_EQ(q_->worker_ready[0].shard_ids[q_->worker_ready[0].head], shard_idx);
+
+    // Second enqueue for another key that maps to the same shard
+    L2StoreJob job2;
+    std::string key2;
+    for (int i = 0; i < 1000; ++i) {
+        std::string candidate = "test-key-collision-" + std::to_string(i);
+        std::uint32_t hash = 5381;
+        for (char c : candidate) {
+            hash = ((hash << 5) + hash) + static_cast<std::uint32_t>(c);
+        }
+        if (hash % kRuntimeShardCount == shard_idx) {
+            key2 = candidate;
+            break;
+        }
+    }
+    ASSERT_FALSE(key2.empty());
+    std::strcpy(job2.key, key2.c_str());
+    job2.body_len = 0;
+
+    EXPECT_TRUE(worker_queue_try_enqueue_store(q_.get(), job2));
+
+    // The ready queue should STILL have count == 1 (no duplicate push!)
+    EXPECT_EQ(q_->worker_ready[0].count, 1u);
+}
+
+TEST_F(WorkerQueueTest, LookupPrecedenceInTryPop) {
+    WorkerQueueConfig cfg;
+    cfg.worker_count = 1;
+    ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
+    q_->running = true;
+
+    // We will enqueue a store job and a lookup job to the same shard
+    L2StoreJob store_job;
+    std::strcpy(store_job.key, "common-shard-key");
+    store_job.body_len = 0;
+
+    EXPECT_TRUE(worker_queue_try_enqueue_store(q_.get(), store_job));
+
+    // Find the shard index
+    std::size_t shard_idx = 9999;
+    for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
+        if (q_->shards[i].store_count > 0) {
+            shard_idx = i;
+            break;
+        }
+    }
+    ASSERT_NE(shard_idx, 9999u);
+
+    // Find a key for lookup that hashes to the exact same shard
+    std::string lookup_key;
+    for (int i = 0; i < 1000; ++i) {
+        std::string candidate = "lookup-collision-" + std::to_string(i);
+        std::uint32_t hash = 5381;
+        for (char c : candidate) {
+            hash = ((hash << 5) + hash) + static_cast<std::uint32_t>(c);
+        }
+        if (hash % kRuntimeShardCount == shard_idx) {
+            lookup_key = candidate;
+            break;
+        }
+    }
+    ASSERT_FALSE(lookup_key.empty());
+
+    L2LookupJob lookup_job;
+    std::strcpy(lookup_job.key, lookup_key.c_str());
+
+    EXPECT_TRUE(worker_queue_try_enqueue_lookup(q_.get(), lookup_job));
+
+    // Now try pop. Even though store was enqueued FIRST, lookup must take precedence!
+    DequeuedRuntimeJob popped_job;
+    EXPECT_TRUE(worker_queue_shard_try_pop_for_test(q_.get(), shard_idx, &popped_job));
+    EXPECT_EQ(popped_job.kind, DequeuedJobKind::Lookup);
+    EXPECT_STREQ(popped_job.lookup_job.key, lookup_key.c_str());
+
+    // Next pop should be the store job
+    EXPECT_TRUE(worker_queue_shard_try_pop_for_test(q_.get(), shard_idx, &popped_job));
+    EXPECT_EQ(popped_job.kind, DequeuedJobKind::Store);
+    EXPECT_STREQ(popped_job.store_job.key, "common-shard-key");
+
+    // Third pop should return false (empty)
+    EXPECT_FALSE(worker_queue_shard_try_pop_for_test(q_.get(), shard_idx, &popped_job));
+}
+
+TEST_F(WorkerQueueTest, RequeueAndClearSemantics) {
+    WorkerQueueConfig cfg;
+    cfg.worker_count = 1;
+    ASSERT_EQ(worker_queue_init(q_.get(), cfg), nullptr);
+    q_->running = true;
+
+    L2StoreJob job1;
+    std::strcpy(job1.key, "common-key");
+    job1.body_len = 0;
+
+    EXPECT_TRUE(worker_queue_try_enqueue_store(q_.get(), job1));
+
+    // Find shard
+    std::size_t shard_idx = 9999;
+    for (std::size_t i = 0; i < kRuntimeShardCount; ++i) {
+        if (q_->shards[i].store_count > 0) {
+            shard_idx = i;
+            break;
+        }
+    }
+    ASSERT_NE(shard_idx, 9999u);
+
+    // Enqueue a second job to the same shard to make sure work remains after one pop
+    std::string key2;
+    for (int i = 0; i < 1000; ++i) {
+        std::string candidate = "collision-" + std::to_string(i);
+        std::uint32_t hash = 5381;
+        for (char c : candidate) {
+            hash = ((hash << 5) + hash) + static_cast<std::uint32_t>(c);
+        }
+        if (hash % kRuntimeShardCount == shard_idx) {
+            key2 = candidate;
+            break;
+        }
+    }
+    ASSERT_FALSE(key2.empty());
+    L2StoreJob job2;
+    std::strcpy(job2.key, key2.c_str());
+    job2.body_len = 0;
+    EXPECT_TRUE(worker_queue_try_enqueue_store(q_.get(), job2));
+
+    // Clear the ready queue of worker 0 so we can test requeue from a clean slate
+    q_->worker_ready[0].head = 0;
+    q_->worker_ready[0].tail = 0;
+    q_->worker_ready[0].count = 0;
+
+    // Pop the first job
+    DequeuedRuntimeJob popped_job;
+    EXPECT_TRUE(worker_queue_shard_try_pop_for_test(q_.get(), shard_idx, &popped_job));
+
+    // Requeue since 1 job remains
+    worker_queue_shard_requeue_or_clear_for_test(q_.get(), shard_idx);
+    EXPECT_TRUE(q_->shards[shard_idx].ready_enqueued);
+    EXPECT_EQ(q_->worker_ready[0].count, 1u);
+    EXPECT_EQ(q_->worker_ready[0].shard_ids[q_->worker_ready[0].head], shard_idx);
+
+    // Pop the second job (now empty)
+    EXPECT_TRUE(worker_queue_shard_try_pop_for_test(q_.get(), shard_idx, &popped_job));
+
+    // Clear ready queue count again to isolate the next check
+    q_->worker_ready[0].head = 0;
+    q_->worker_ready[0].tail = 0;
+    q_->worker_ready[0].count = 0;
+
+    // Run requeue_or_clear (should clear ready_enqueued to false and NOT requeue)
+    worker_queue_shard_requeue_or_clear_for_test(q_.get(), shard_idx);
+    EXPECT_FALSE(q_->shards[shard_idx].ready_enqueued);
+    EXPECT_EQ(q_->worker_ready[0].count, 0u);
+}

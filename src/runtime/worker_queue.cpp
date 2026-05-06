@@ -14,6 +14,10 @@ namespace bytetaper::runtime {
 
 namespace {
 
+static bool worker_ready_try_push(WorkerQueue* q, std::size_t worker_id, std::size_t shard_id);
+static bool worker_ready_try_pop(WorkerQueue* q, std::size_t worker_id, std::size_t* shard_id_out);
+static bool worker_ready_wait_pop(WorkerQueue* q, std::size_t worker_id, std::size_t* shard_id_out);
+
 static std::uint32_t hash_key(const char* key) {
     if (key == nullptr)
         return 0;
@@ -247,6 +251,65 @@ static void worker_loop(WorkerQueue* q, std::size_t worker_id) {
     }
 }
 
+[[maybe_unused]] static bool shard_try_pop_one_job(WorkerQueue* q, std::size_t shard_idx,
+                                                   DequeuedRuntimeJob* job_out) {
+    if (q == nullptr || shard_idx >= kRuntimeShardCount || job_out == nullptr) {
+        return false;
+    }
+    RuntimeShard& shard = q->shards[shard_idx];
+    std::lock_guard<std::mutex> lock(shard.mu);
+
+    if (shard.lookup_count > 0) {
+        job_out->kind = DequeuedJobKind::Lookup;
+        job_out->lookup_job = shard.lookup_slots[shard.lookup_head];
+        shard.lookup_head = (shard.lookup_head + 1) % kRuntimeQueueSlotsPerShard;
+        shard.lookup_count--;
+
+        if (q->resources.runtime_metrics != nullptr) {
+            q->resources.runtime_metrics->worker_queue_depth.fetch_sub(1,
+                                                                       std::memory_order_relaxed);
+        }
+        return true;
+    }
+
+    if (shard.store_count > 0) {
+        job_out->kind = DequeuedJobKind::Store;
+        job_out->store_job = shard.store_slots[shard.store_head];
+        shard.store_head = (shard.store_head + 1) % kRuntimeQueueSlotsPerShard;
+        shard.store_count--;
+
+        if (q->resources.runtime_metrics != nullptr) {
+            q->resources.runtime_metrics->worker_queue_depth.fetch_sub(1,
+                                                                       std::memory_order_relaxed);
+        }
+        return true;
+    }
+
+    return false;
+}
+
+[[maybe_unused]] static void shard_requeue_or_clear(WorkerQueue* q, std::size_t shard_idx) {
+    if (q == nullptr || shard_idx >= kRuntimeShardCount) {
+        return;
+    }
+    RuntimeShard& shard = q->shards[shard_idx];
+    bool should_requeue = false;
+    {
+        std::lock_guard<std::mutex> lock(shard.mu);
+        if (shard.lookup_count > 0 || shard.store_count > 0) {
+            shard.ready_enqueued = true;
+            should_requeue = true;
+        } else {
+            shard.ready_enqueued = false;
+        }
+    }
+
+    if (should_requeue) {
+        std::size_t owner_w = shard_idx % q->worker_count;
+        worker_ready_try_push(q, owner_w, shard_idx);
+    }
+}
+
 // Primitives for managing the Ready Shard Queues.
 // Lock-ordering convention: never hold RuntimeShard::mu while acquiring WorkerReadyQueue::mu.
 [[maybe_unused]] static bool worker_ready_try_push(WorkerQueue* q, std::size_t worker_id,
@@ -385,6 +448,7 @@ bool worker_queue_try_enqueue_lookup(WorkerQueue* q, const L2LookupJob& job) {
     std::uint32_t shard_idx = hash % kRuntimeShardCount;
     RuntimeShard& shard = q->shards[shard_idx];
 
+    bool should_push_ready = false;
     {
         std::lock_guard<std::mutex> lock(shard.mu);
         if (!shard_pending_try_mark(&shard, job.key, hash)) {
@@ -411,8 +475,18 @@ bool worker_queue_try_enqueue_lookup(WorkerQueue* q, const L2LookupJob& job) {
         shard.lookup_slots[shard.lookup_tail] = mutable_job;
         shard.lookup_tail = (shard.lookup_tail + 1) % kRuntimeQueueSlotsPerShard;
         shard.lookup_count++;
-        notify_worker_for_shard(q, shard_idx);
+
+        if (!shard.ready_enqueued) {
+            shard.ready_enqueued = true;
+            should_push_ready = true;
+        }
     }
+
+    if (should_push_ready) {
+        std::size_t owner_w = shard_idx % q->worker_count;
+        worker_ready_try_push(q, owner_w, shard_idx);
+    }
+    notify_worker_for_shard(q, shard_idx);
 
     return true;
 }
@@ -425,6 +499,7 @@ bool worker_queue_try_enqueue_store(WorkerQueue* q, const L2StoreJob& job) {
     std::uint32_t shard_idx = hash_key_to_shard(job.key);
     RuntimeShard& shard = q->shards[shard_idx];
 
+    bool should_push_ready = false;
     {
         std::lock_guard<std::mutex> lock(shard.mu);
         if (shard.store_count >= kRuntimeQueueSlotsPerShard) {
@@ -476,8 +551,18 @@ bool worker_queue_try_enqueue_store(WorkerQueue* q, const L2StoreJob& job) {
 
         shard.store_tail = (shard.store_tail + 1) % kRuntimeQueueSlotsPerShard;
         shard.store_count++;
-        notify_worker_for_shard(q, shard_idx);
+
+        if (!shard.ready_enqueued) {
+            shard.ready_enqueued = true;
+            should_push_ready = true;
+        }
     }
+
+    if (should_push_ready) {
+        std::size_t owner_w = shard_idx % q->worker_count;
+        worker_ready_try_push(q, owner_w, shard_idx);
+    }
+    notify_worker_for_shard(q, shard_idx);
 
     return true;
 }
@@ -549,6 +634,15 @@ bool worker_queue_execute_one_for_test(WorkerQueue* q) {
     }
 
     return false;
+}
+
+bool worker_queue_shard_try_pop_for_test(WorkerQueue* q, std::size_t shard_idx,
+                                         DequeuedRuntimeJob* job_out) {
+    return shard_try_pop_one_job(q, shard_idx, job_out);
+}
+
+void worker_queue_shard_requeue_or_clear_for_test(WorkerQueue* q, std::size_t shard_idx) {
+    shard_requeue_or_clear(q, shard_idx);
 }
 
 } // namespace bytetaper::runtime
