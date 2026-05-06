@@ -232,6 +232,9 @@ rm -f "$WRK_LEGA_OUT" "$WRK_LEGB_OUT" /tmp/lega_headers.txt /tmp/lega_body.txt /
 # Validate report integrity
 ./benchmarks/report/validate.sh "$REPORT_FILE"
 
+# Compile JSON report
+./benchmarks/report/generate_json_report.sh "$REPORT_FILE"
+
 echo ""
 echo "Benchmark complete."
 echo "Results saved to: $REPORT_FILE"

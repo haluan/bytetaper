@@ -1,0 +1,57 @@
+{
+  "benchmark_version": "1.0.0",
+  "scenario": "bytetaper_observe",
+  "timestamp": "Wed May  6 14:17:16 UTC 2026",
+  "latency_ms": {
+    "main": {
+      "latency_ms": {
+        "p50": 125.375,
+        "p95": 132.998,
+        "p99": 143.992
+      }
+    }
+  },
+  "throughput": {
+    "main": {
+      "throughput": {
+        "requests_per_second": 84.44,
+        "total_requests": 848,
+        "successful_requests": 848,
+        "failed_requests": 0
+      },
+      "total_requests": 848,
+      "successful_requests": 848,
+      "failed_requests": 0
+    }
+  },
+  "resources": {
+    "main": {
+      "envoy": {
+        "cpu_percent": "unavailable",
+        "peak_memory_mb": "unavailable"
+      },
+      "bytetaper-extproc": {
+        "cpu_percent": "unavailable",
+        "peak_memory_mb": "unavailable"
+      },
+      "mock-api": {
+        "cpu_percent": "unavailable",
+        "peak_memory_mb": "unavailable"
+      }
+    }
+  },
+  "payload": {
+    "main": {
+      "original_bytes_avg": 1112,
+      "optimized_bytes_avg": 1112,
+      "bytes_saved_avg": 0,
+      "reduction_ratio": "0.00%"
+    }
+  },
+  "features": {
+    "os_info": "Linux b8c79cdb622c 6.11.3-200.fc40.aarch64 aarch64 Linux",
+    "cpu_cores": 2,
+    "memory_total": "3617.73 MB",
+    "target_host": "http://envoy-bytetaper-observe:10000/api/v1/cached/fast/bench"
+  }
+}

@@ -221,5 +221,8 @@ fi
 # Validate report integrity
 ./benchmarks/report/validate.sh "$REPORT_FILE"
 
+# Compile JSON report
+./benchmarks/report/generate_json_report.sh "$REPORT_FILE"
+
 echo "Benchmark complete."
 echo "Results saved to: $REPORT_FILE"

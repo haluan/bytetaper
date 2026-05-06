@@ -193,6 +193,9 @@ rm -f "$WRK_MED_OUT" "$WRK_LARGE_OUT" /tmp/med_headers.txt /tmp/large_headers.tx
 # Validate report integrity
 ./benchmarks/report/validate.sh "$REPORT_FILE"
 
+# Compile JSON report
+./benchmarks/report/generate_json_report.sh "$REPORT_FILE"
+
 echo ""
 echo "Benchmark complete."
 echo "Results saved to: $REPORT_FILE"

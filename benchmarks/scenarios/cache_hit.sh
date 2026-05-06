@@ -299,6 +299,9 @@ else
     # Validate report integrity
     ./benchmarks/report/validate.sh "$REPORT_FILE"
 
+    # Compile JSON report
+    ./benchmarks/report/generate_json_report.sh "$REPORT_FILE"
+
     echo ""
     echo "=================================================="
     echo "PHASE 2 COMPLETE. REPORT GENERATED SUCCESSFULLY."
